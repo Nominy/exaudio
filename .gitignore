@@ -1,0 +1,25 @@
+/target/
+/.studio-dev/
+
+# Local credentials and machine-specific auth stores.
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+*.local
+*.local.*
+/secrets/
+/credentials/
+/auth-store/
+
+/.idea/
+/.vscode/
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db

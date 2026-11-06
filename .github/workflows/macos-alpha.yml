@@ -1,0 +1,357 @@
+# Manual: builds Exaudio natively on GitHub-hosted macOS runners, packs it with Velopack
+# (channel `alpha`) and optionally publishes it to the per-target VPS alpha feed.
+name: macOS Alpha
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: macOS build target
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - latest-arm64
+          - latest-amd64
+          - sonoma-amd64
+      publish_to_vps:
+        description: Publish artifacts to the VPS feed after packaging.
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpha-macos
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CHANNEL: alpha
+
+jobs:
+  select-targets:
+    name: Select macOS targets
+    runs-on: ubuntu-latest
+
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+
+    steps:
+      - name: Build target matrix
+        id: targets
+        shell: bash
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          latest_arm64='{"target":"latest-arm64","runner":"macos-15","runtime":"osx-arm64","feed_suffix":"mac-arm64"}'
+          latest_amd64='{"target":"latest-amd64","runner":"macos-15-intel","runtime":"osx-x64","feed_suffix":"mac-x64"}'
+          sonoma_amd64='{"target":"sonoma-amd64","runner":"macos-14-large","runtime":"osx-x64","feed_suffix":"mac-sonoma-x64"}'
+
+          case "$TARGET" in
+            all) matrix="{\"include\":[$latest_arm64,$latest_amd64,$sonoma_amd64]}" ;;
+            latest-arm64) matrix="{\"include\":[$latest_arm64]}" ;;
+            latest-amd64) matrix="{\"include\":[$latest_amd64]}" ;;
+            sonoma-amd64) matrix="{\"include\":[$sonoma_amd64]}" ;;
+            *)
+              echo "Unknown target: $TARGET" >&2
+              exit 1
+              ;;
+          esac
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  package:
+    name: Package macOS alpha (${{ matrix.target }})
+    needs: select-targets
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.select-targets.outputs.matrix) }}
+
+    env:
+      RUNTIME: ${{ matrix.runtime }}
+      MACOSX_DEPLOYMENT_TARGET: "14.0"
+      STUDIO_ALPHA_FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.feed_suffix }}
+      REMOTE_PATH: /var/www/exaudio/alpha/${{ matrix.feed_suffix }}
+      FEED_SUFFIX: ${{ matrix.feed_suffix }}
+      PUBLISH_DIR: ${{ github.workspace }}/target/velopack/Publish
+      STUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
+      HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 != '' }}
+      APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
+      APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
+      APPLE_NOTARY_PROFILE: ${{ secrets.APPLE_NOTARY_PROFILE }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Resolve the alpha version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/studio-app/Cargo.toml)"
+          if [[ ! "$base" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "studio-app version must be numeric major.minor.patch; found '$base'." >&2
+            exit 1
+          fi
+          version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-alpha.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "Alpha version: $version"
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: ${{ matrix.target }}
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore pinned Velopack CLI
+        run: dotnet tool restore
+
+      - name: Import Developer ID signing assets
+        if: ${{ env.HAS_APPLE_CERTIFICATE == 'true' }}
+        shell: bash
+        env:
+          APPLE_CERTIFICATE_P12_BASE64: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_KEYCHAIN_PASSWORD: ${{ secrets.APPLE_KEYCHAIN_PASSWORD }}
+          APPLE_NOTARY_APPLE_ID: ${{ secrets.APPLE_NOTARY_APPLE_ID }}
+          APPLE_NOTARY_TEAM_ID: ${{ secrets.APPLE_NOTARY_TEAM_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_NOTARY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          keychain="$RUNNER_TEMP/exaudio-signing.keychain-db"
+          cert_path="$RUNNER_TEMP/developer-id.p12"
+          keychain_password="${APPLE_KEYCHAIN_PASSWORD:-temporary-keychain-password}"
+
+          echo "$APPLE_CERTIFICATE_P12_BASE64" | base64 --decode > "$cert_path"
+          security create-keychain -p "$keychain_password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          security import "$cert_path" -k "$keychain" -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productsign
+          security list-keychains -d user -s "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain"
+          security find-identity -v -p codesigning "$keychain"
+
+          if [[ -n "${APPLE_NOTARY_PROFILE:-}" && -n "${APPLE_NOTARY_APPLE_ID:-}" && -n "${APPLE_NOTARY_TEAM_ID:-}" && -n "${APPLE_NOTARY_PASSWORD:-}" ]]; then
+            xcrun notarytool store-credentials "$APPLE_NOTARY_PROFILE" \
+              --apple-id "$APPLE_NOTARY_APPLE_ID" \
+              --team-id "$APPLE_NOTARY_TEAM_ID" \
+              --password "$APPLE_NOTARY_PASSWORD" \
+              --keychain "$keychain"
+          fi
+
+          echo "APPLE_KEYCHAIN=$keychain" >> "$GITHUB_ENV"
+
+      - name: Build and package
+        shell: bash
+        run: |
+          rm -rf target/velopack/Releases target/velopack/Publish
+          bash ./tools/package-alpha-macos.sh
+
+      - name: Publish artifacts to VPS
+        if: ${{ inputs.publish_to_vps }}
+        shell: bash
+        env:
+          ALPHA_SSH_HOST: ${{ secrets.ALPHA_SSH_HOST }}
+          ALPHA_SSH_USER: ${{ secrets.ALPHA_SSH_USER }}
+          ALPHA_SSH_PRIVATE_KEY: ${{ secrets.ALPHA_SSH_PRIVATE_KEY }}
+          ALPHA_SSH_PORT: ${{ secrets.ALPHA_SSH_PORT }}
+          ALPHA_SSH_KNOWN_HOSTS: ${{ secrets.ALPHA_SSH_KNOWN_HOSTS }}
+        run: |
+          # Remote paths are validated here and expanded client-side on purpose.
+          # shellcheck disable=SC2029
+          set -euo pipefail
+          : "${ALPHA_SSH_HOST:?ALPHA_SSH_HOST secret is required when publish_to_vps is true.}"
+          : "${ALPHA_SSH_USER:?ALPHA_SSH_USER secret is required when publish_to_vps is true.}"
+          : "${ALPHA_SSH_PRIVATE_KEY:?ALPHA_SSH_PRIVATE_KEY secret is required when publish_to_vps is true.}"
+          : "${ALPHA_SSH_KNOWN_HOSTS:?ALPHA_SSH_KNOWN_HOSTS secret is required when publish_to_vps is true.}"
+          if [[ ! "$REMOTE_PATH" =~ ^/[A-Za-z0-9._/-]+$ ]] || \
+             [[ "$REMOTE_PATH" == *"//"* ]] || \
+             [[ "$REMOTE_PATH" =~ (^|/)\.\.(/|$) ]]; then
+            echo "Unsafe remote path: $REMOTE_PATH" >&2
+            exit 1
+          fi
+          remote_platform_root="/var/tmp/exaudio-alpha-incoming/$FEED_SUFFIX"
+          if [[ "$REMOTE_PATH" == "$remote_platform_root" ]] || \
+             [[ "$REMOTE_PATH" == "$remote_platform_root/"* ]] || \
+             [[ "$remote_platform_root" == "$REMOTE_PATH/"* ]]; then
+            echo "Remote live and incoming paths must not overlap: $REMOTE_PATH and $remote_platform_root" >&2
+            exit 1
+          fi
+
+          port="${ALPHA_SSH_PORT:-22}"
+          key_path="$RUNNER_TEMP/alpha_deploy_key"
+          known_hosts="$RUNNER_TEMP/alpha_known_hosts"
+          trap 'rm -f "$key_path" "$known_hosts"' EXIT
+          printf '%s\n' "$ALPHA_SSH_PRIVATE_KEY" > "$key_path"
+          printf '%s\n' "$ALPHA_SSH_KNOWN_HOSTS" > "$known_hosts"
+          chmod 600 "$key_path" "$known_hosts"
+
+          manifest="$PUBLISH_DIR/publish-manifest.json"
+          version="$(python3 - "$manifest" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], "r", encoding="utf-8-sig") as handle:
+              print(json.load(handle)["Version"])
+          PY
+          )"
+          if [[ ! "$version" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ ]]; then
+            echo "Unsafe publish version: $version" >&2
+            exit 1
+          fi
+          manifest_hash="$(shasum -a 256 "$manifest" | cut -d ' ' -f 1)"
+          deployment_id="$version-${manifest_hash:0:16}"
+          remote_deployment="$remote_platform_root/deployments/$deployment_id"
+          remote_payload="$remote_deployment/Publish"
+          remote_rollback_root="$remote_platform_root/rollbacks"
+          remote_lock="$remote_platform_root/publish.lock"
+
+          target="${ALPHA_SSH_USER}@${ALPHA_SSH_HOST}"
+          host_key_args=(-o StrictHostKeyChecking=yes -o UserKnownHostsFile="$known_hosts")
+          ssh_args=(-i "$key_path" -p "$port" "${host_key_args[@]}")
+          scp_args=(-i "$key_path" -P "$port" "${host_key_args[@]}")
+
+          ssh "${ssh_args[@]}" "$target" \
+            "rm -rf '$remote_deployment' && mkdir -p '$remote_deployment'"
+          scp "${scp_args[@]}" -r "$PUBLISH_DIR" "${target}:$remote_deployment/"
+          ssh "${ssh_args[@]}" "$target" sh -s -- \
+            "$remote_payload" "$REMOTE_PATH" "$remote_rollback_root" \
+            "$remote_lock" "$CHANNEL" "$deployment_id" <<'REMOTE'
+          set -eu
+          incoming=$1
+          live=$2
+          rollback_root=$3
+          lock_path=$4
+          channel=$5
+          deployment_id=$6
+          manifest="$incoming/publish-manifest.json"
+
+          verify_manifest() {
+            root=$1
+            kind=${2:-all}
+            python3 - "$root" "$manifest" "$kind" <<'PY'
+          import hashlib
+          import json
+          import pathlib
+          import sys
+
+          root = pathlib.Path(sys.argv[1]).resolve()
+          kind = sys.argv[3]
+          with open(sys.argv[2], "r", encoding="utf-8-sig") as handle:
+              manifest = json.load(handle)
+          for entry in manifest["Files"]:
+              if kind != "all" and entry["Kind"] != kind:
+                  continue
+              relative = entry["RelativeFileName"]
+              pure = pathlib.PurePosixPath(relative)
+              if (
+                  not relative
+                  or pure.is_absolute()
+                  or any(part in ("", ".", "..") for part in pure.parts)
+                  or "\\" in relative
+                  or "\n" in relative
+                  or "\r" in relative
+              ):
+                  raise SystemExit(f"unsafe publish path: {relative!r}")
+              path = (root / pathlib.Path(*pure.parts)).resolve()
+              try:
+                  path.relative_to(root)
+              except ValueError as error:
+                  raise SystemExit(f"publish path escapes root: {relative}") from error
+              if not path.is_file():
+                  raise SystemExit(f"missing publish file: {relative}")
+              if path.stat().st_size != int(entry["Size"]):
+                  raise SystemExit(f"publish size mismatch: {relative}")
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              if digest.casefold() != str(entry["SHA256"]).casefold():
+                  raise SystemExit(f"publish SHA-256 mismatch: {relative}")
+          PY
+          }
+
+          list_assets() {
+            python3 - "$manifest" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], "r", encoding="utf-8-sig") as handle:
+              manifest = json.load(handle)
+          for entry in manifest["Files"]:
+              if entry["Kind"] == "asset":
+                  print(entry["RelativeFileName"])
+          PY
+          }
+
+          promote_file() {
+            relative=$1
+            source="$incoming/$relative"
+            destination="$live/$relative"
+            mkdir -p "$(dirname "$destination")"
+            if [ -f "$destination" ] && cmp -s "$source" "$destination"; then
+              return
+            fi
+            temporary="$destination.incoming-$deployment_id"
+            cp -p "$source" "$temporary"
+            mv -f "$temporary" "$destination"
+          }
+
+          verify_manifest "$incoming" all
+          mkdir -p "$live" "$rollback_root" "$(dirname "$lock_path")"
+          exec 9>"$lock_path"
+          flock 9
+
+          # Versioned packages are immutable: old feed hashes and rollback metadata depend on them.
+          list_assets | while IFS= read -r relative; do
+            case "$relative" in
+              *.nupkg)
+                if [ -f "$live/$relative" ] && ! cmp -s "$incoming/$relative" "$live/$relative"; then
+                  printf 'Refusing to replace existing versioned package with different bytes: %s\n' \
+                    "$relative" >&2
+                  exit 1
+                fi
+                ;;
+            esac
+          done
+
+          rollback="$rollback_root/$(date -u +%Y%m%dT%H%M%SZ)-$deployment_id"
+          mkdir -p "$rollback"
+          for relative in "assets.$channel.json" "RELEASES-$channel" "releases.$channel.json"; do
+            if [ -f "$live/$relative" ]; then
+              cp -p "$live/$relative" "$rollback/$relative"
+            fi
+          done
+
+          list_assets | while IFS= read -r relative; do
+            promote_file "$relative"
+          done
+          verify_manifest "$live" asset
+
+          # Promote the primary update feed last, after every referenced package exists.
+          promote_file "assets.$channel.json"
+          promote_file "RELEASES-$channel"
+          promote_file "releases.$channel.json"
+          verify_manifest "$live" metadata
+          rm -rf "$incoming"
+          printf 'Published %s to %s; previous metadata: %s\n' \
+            "$deployment_id" "$live" "$rollback"
+          REMOTE
+          ssh "${ssh_args[@]}" "$target" \
+            "find '$REMOTE_PATH' -maxdepth 1 -type f -printf '%f %s bytes\n' | sort"
+
+      - name: Upload Velopack publish payload
+        uses: actions/upload-artifact@v5
+        with:
+          name: exaudio-alpha-${{ matrix.target }}
+          path: target/velopack/Publish/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

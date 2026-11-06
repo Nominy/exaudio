@@ -1,0 +1,27 @@
+{
+  "id": "exaudio.local",
+  "name": "Local",
+  "version": "0.1.0",
+  "api": "^0.1",
+  "runtime": "native",
+  "description": "Open audio and projects on this computer.",
+  "license": "MIT",
+  "dependencies": {},
+  "permissions": [
+    { "kind": "document-read" },
+    { "kind": "document-edit" },
+    { "kind": "audio-read" },
+    { "kind": "file-picker" }
+  ],
+  "modes": [{
+    "id": "exaudio.local",
+    "name": "Local",
+    "launch": "window",
+    "requires": {},
+    "recommends": {
+      "exaudio.formats": "^0.1",
+      "exaudio.lint-basic": "^0.1",
+      "exaudio.gold": "^0.1"
+    }
+  }]
+}

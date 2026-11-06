@@ -1,0 +1,12 @@
+{
+  "id": "exaudio.babel-lint",
+  "name": "Babel checks",
+  "version": "0.1.0",
+  "api": "^0.1",
+  "runtime": "native",
+  "description": "Babel's transcription rules with automatic fixes.",
+  "license": "MIT",
+  "dependencies": {},
+  "permissions": [{"kind": "document-read"}],
+  "modes": []
+}

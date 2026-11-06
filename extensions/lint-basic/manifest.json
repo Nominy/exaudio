@@ -1,0 +1,12 @@
+{
+  "id": "exaudio.lint-basic",
+  "name": "Basic checks",
+  "version": "0.1.0",
+  "api": "^0.1.0",
+  "runtime": "native",
+  "description": "Flags empty segments, stray spaces, bad timing and overlaps.",
+  "license": "MIT",
+  "dependencies": {},
+  "permissions": [{"kind": "document-read"}, {"kind": "document-edit"}],
+  "modes": []
+}

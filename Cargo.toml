@@ -1,0 +1,90 @@
+[workspace]
+members = [
+  "crates/exaudio-extension",
+  "crates/exaudio-marketplace",
+  "crates/exaudio-wasm",
+  "crates/exaudio-shell",
+  "extensions/babel-domain",
+  "extensions/babel-ui",
+  "extensions/gold-ui",
+  "extensions/local",
+  "extensions/formats",
+  "extensions/lint-basic",
+  "extensions/babel-services",
+  "extensions/babel-lint",
+  "extensions/babel-tags",
+  "extensions/gold",
+  "tools/extension-index",
+  "crates/studio-core",
+  "crates/studio-project",
+  "crates/studio-babel",
+  "crates/studio-waveform",
+  "crates/studio-editor",
+  "crates/studio-services",
+  "crates/studio-audio",
+  "crates/studio-app",
+  "crates/studio-inference",
+  "crates/studio-relay"
+]
+exclude = ["vendor/gpui-pre-windows", "sdk/rust", "extensions/examples/hello-panel"]
+default-members = ["crates/studio-app"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+repository = "https://github.com/Nominy/transcription-studio"
+
+[workspace.dependencies]
+anyhow = "1.0"
+axum = "0.8"
+base64 = "0.22"
+bytes = "1.10"
+gpui-kit = "0.8.1"
+httpdate = "1.0"
+reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
+rodio = { version = "0.22.2", default-features = false, features = ["playback"] }
+rayon = "1.10"
+rand = "0.9"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tempfile = "3.14"
+thiserror = "2.0"
+time = { version = "0.3", features = ["formatting"] }
+tokio = { version = "1.52.3", features = ["macros", "rt-multi-thread", "sync"] }
+url = "2.5"
+velopack = "1.2.0"
+exaudio-extension = { path = "crates/exaudio-extension" }
+exaudio-marketplace = { path = "crates/exaudio-marketplace" }
+exaudio-shell = { path = "crates/exaudio-shell" }
+exaudio-wasm = { path = "crates/exaudio-wasm" }
+exaudio-local = { path = "extensions/local" }
+exaudio-formats = { path = "extensions/formats" }
+exaudio-lint-basic = { path = "extensions/lint-basic" }
+exaudio-babel-ui = { path = "extensions/babel-ui" }
+exaudio-gold-ui = { path = "extensions/gold-ui" }
+exaudio-babel-domain = { path = "extensions/babel-domain" }
+exaudio-babel-services = { path = "extensions/babel-services" }
+exaudio-babel-lint = { path = "extensions/babel-lint" }
+exaudio-babel-tags = { path = "extensions/babel-tags" }
+exaudio-gold = { path = "extensions/gold" }
+studio-core = { path = "crates/studio-core" }
+studio-project = { path = "crates/studio-project" }
+studio-babel = { path = "crates/studio-babel" }
+studio-waveform = { path = "crates/studio-waveform" }
+studio-editor = { path = "crates/studio-editor" }
+studio-services = { path = "crates/studio-services" }
+studio-audio = { path = "crates/studio-audio" }
+studio-inference = { path = "crates/studio-inference" }
+
+[profile.dev]
+debug = 1
+incremental = true
+
+[profile.test]
+debug = 0
+
+# Patched gpui Windows platform: shortcut keys use physical key positions under any
+# keyboard layout (src/events.rs). Release shaders compile with the Windows SDK's fxc.
+[patch.crates-io]
+gpui-pre-windows = { path = "vendor/gpui-pre-windows" }
