@@ -294,16 +294,19 @@ fn apply_child_limits(command: &mut Command, bytes: usize) -> Result<()> {
     }
     Ok(())
 }
+/// Unix limits are installed before exec (`apply_child_limits`); nothing to hold afterwards.
+#[cfg(not(windows))]
+struct Job;
 #[cfg(unix)]
-fn attach_child_limits(_: &Child, _: usize) -> Result<()> {
-    Ok(())
+fn attach_child_limits(_: &Child, _: usize) -> Result<Job> {
+    Ok(Job)
 }
 #[cfg(not(any(windows, unix)))]
 fn apply_child_limits(_: &mut Command, _: usize) -> Result<()> {
     anyhow::bail!("compiler process memory isolation unavailable on this platform")
 }
 #[cfg(not(any(windows, unix)))]
-fn attach_child_limits(_: &Child, _: usize) -> Result<()> {
+fn attach_child_limits(_: &Child, _: usize) -> Result<Job> {
     anyhow::bail!("compiler process isolation unavailable on this platform")
 }
 

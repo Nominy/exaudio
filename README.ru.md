@@ -6,7 +6,7 @@
 
 # Из звука — в слова.
 
-Сегментный редактор транскрипций для Windows: слушайте, правьте тайминг, назначайте спикеров и редактируйте текст в одном нативном окне.
+Сегментный редактор транскрипций для Windows, macOS и Linux: слушайте, правьте тайминг, назначайте спикеров и редактируйте текст в одном нативном окне.
 Локальные проекты не требуют аккаунта; ИИ, проверки и форматы — расширения, которые можно отключить.
 
 [English](README.md) · **Русский** · [Сайт](https://nafty.is-a.dev/exaudio/) · [Начало работы](docs/getting-started.md#русский) · [Выпуски](https://github.com/Nominy/exaudio/releases) · [Issues](https://github.com/Nominy/exaudio/issues)
@@ -15,17 +15,22 @@
 
 ## Скачать
 
-| Windows x64 | Ссылка |
+| Платформа | Стабильная версия (GitHub Releases) |
 | --- | --- |
-| Установщик (стабильный) | [Exaudio-win-Setup.exe](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe) |
-| Portable-архив (стабильный) | [Exaudio-win-Portable.zip](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip) |
-| Установщик alpha (отдельная лента) | [Exaudio-alpha-Setup.exe](https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe) |
+| Windows x64, установщик | [Exaudio-win-Setup.exe](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe) |
+| Windows x64, portable-архив | [Exaudio-win-Portable.zip](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip) |
+| macOS, Apple silicon | [Exaudio-mac-arm64.dmg](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-mac-arm64.dmg) |
+| macOS, Intel | [Exaudio-mac-x64.dmg](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-mac-x64.dmg) |
+| Linux x64 | [Exaudio-linux-x64.AppImage](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-linux-x64.AppImage) |
+| Linux arm64 | [Exaudio-linux-arm64.AppImage](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-linux-arm64.AppImage) |
+| Контрольные суммы | [SHA256SUMS](https://github.com/Nominy/exaudio/releases/latest/download/SHA256SUMS) |
+| Установщик alpha для Windows (отдельная лента) | [Exaudio-alpha-Setup.exe](https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe) |
 
-Стабильные выпуски — теги `v*` в GitHub Releases с файлом `SHA256SUMS`. Alpha раздаётся с отдельного VPS, а не из стабильного канала обновлений; перед тестированием сделайте резервные копии проектов. Для macOS есть только ручные альфа-пакеты; стабильных сборок macOS и Linux нет. См. [распространение и обновления](docs/releasing.md).
+Стабильные выпуски — теги `v*` в GitHub Releases; каждый выпуск содержит все платформы и файл `SHA256SUMS`, установленные копии обновляются сами. Alpha раздаётся с отдельного VPS (Windows и macOS), а не из стабильного канала обновлений; перед тестированием сделайте резервные копии проектов. См. [распространение и обновления](docs/releasing.md).
 
-**Windows-пакеты не подписаны.** SmartScreen может предупредить о неизвестном издателе. Скачивайте только из Releases проекта, сверяйте запись в `SHA256SUMS` и не отключайте защиту Windows.
+**Пакеты не подписаны.** Windows SmartScreen может предупредить о неизвестном издателе («Подробнее → Выполнить в любом случае»). macOS при первом запуске не сможет проверить приложение: откройте **Системные настройки → Конфиденциальность и безопасность** и нажмите **Всё равно открыть**. AppImage для Linux нужно сделать исполняемым (`chmod +x Exaudio-linux-x64.AppImage`; в большинстве дистрибутивов нужен FUSE 2, пакет `libfuse2`). Скачивайте только из Releases проекта, сверяйте запись в `SHA256SUMS` и не отключайте защиту ОС.
 
-Требования: Windows 10/11 x64, аудиовыход и место с правом записи для проектов. Локальному ИИ дополнительно нужны WebView2, видеокарта с поддержкой WebGPU и актуальными драйверами, а также отдельно скачанные модели (со своими лицензиями; размер, RAM/VRAM и диск зависят от модели). Интернет нужен для загрузок, обновлений и удалённых сервисов, но не для правки локальных записей.
+Требования: Windows 10/11 x64, macOS 14+ или 64-битный Linux с графическим окружением (X11 или Wayland, PulseAudio/ALSA), аудиовыход и место с правом записи для проектов. Локальный ИИ («Этот ПК») работает только в Windows: ему дополнительно нужны WebView2, видеокарта с поддержкой WebGPU и актуальными драйверами, а также отдельно скачанные модели (со своими лицензиями; размер, RAM/VRAM и диск зависят от модели); в macOS и Linux используйте удалённый сервер. Интернет нужен для загрузок, обновлений и удалённых сервисов, но не для правки локальных записей.
 
 ## Возможности
 
@@ -40,11 +45,11 @@
 
 ## Быстрый старт
 
-1. Запустите установщик или распакуйте portable-архив в папку с правом записи и откройте `Exaudio.exe`.
+1. Запустите установщик или распакуйте portable-архив (Windows), перетащите `Exaudio.app` в «Программы» (macOS) или сделайте AppImage исполняемым и запустите его (Linux).
 2. На экране «Начало» выберите **Local → Открыть аудио…**. Каждый файл станет дорожкой; начните с WAV, MP3 или FLAC (контейнеры OGG, M4A, MP4, WebM и MKV тоже открываются — в зависимости от кодека внутри).
 3. Слушайте и правьте: выделите участок волны, чтобы добавить сегмент; `S` разделяет по курсору, `D` удаляет, `Space` — воспроизведение, `←`/`→` — переход по сегментам, `Ctrl+Z`/`Ctrl+Y` — отмена/повтор, `Ctrl+F` — поиск. Полный список с переназначением — в диалоге горячих клавиш.
 4. ИИ по желанию: в ИИ-расширении выберите **Этот ПК** (установите среду выполнения и модели, выполните тест устройства) или удалённый сервер, затем используйте **Align words**, **Draft with AI** или **Denoise** и проверьте результат, прежде чем оставить его.
-5. **Сохраните** родной проект (папка с `project.json` и `audio/`), а при необходимости **Export…** в SRT, WebVTT или TXT. Снимки несохранённой работы, настройки и расширения хранятся в `%APPDATA%\Exaudio`.
+5. **Сохраните** родной проект (папка с `project.json` и `audio/`), а при необходимости **Export…** в SRT, WebVTT или TXT. Снимки несохранённой работы, настройки и расширения хранятся в `%APPDATA%\Exaudio` (`~/Library/Application Support/Exaudio` в macOS, `~/.config/Exaudio` в Linux).
 
 Пошагово: [Начало работы](docs/getting-started.md#русский).
 
@@ -56,7 +61,7 @@
 
 ## Сборка из исходников
 
-Для Windows нужны Git, Rust из `rust-toolchain.toml`, инструменты MSVC C++ с Windows SDK и CMake. Внутренние крейты сохраняют префикс `studio-*`.
+На любой платформе нужны Git, Rust из `rust-toolchain.toml` и CMake (встроенный libopus собирается из исходников). Windows добавляет инструменты MSVC C++ с Windows SDK; macOS — инструменты командной строки Xcode; Linux — компилятор C и dev-пакеты из `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Внутренние крейты сохраняют префикс `studio-*`.
 
 ```powershell
 git clone https://github.com/Nominy/exaudio.git

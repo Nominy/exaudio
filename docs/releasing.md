@@ -16,13 +16,21 @@ feeds the parity tooling and the self-skipping parity tests (see
 
 | Channel | Who gets it | Built by | Velopack channel | Feed |
 | --- | --- | --- | --- | --- |
-| Stable | everyone (default for release downloads) | `v*` tag → `release.yml` | `win` | GitHub Releases of `Nominy/exaudio` (pre-releases excluded) |
-| Alpha | testers | every push to `main` → `alpha.yml` | `alpha` | `https://reviewgen.ovh/exaudio/alpha/win-x64` |
+| Stable | everyone (default for release downloads) | `v*` tag → `release.yml` | one per platform: `win`, `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64` | GitHub Releases of `Nominy/exaudio` (pre-releases excluded); each release carries every platform's `releases.<channel>.json` |
+| Alpha | testers | every push to `main` → `alpha.yml` (Windows); manual `macos-alpha.yml` | `alpha` | `https://reviewgen.ovh/exaudio/alpha/win-x64`, `.../mac-arm64`, `.../mac-x64` (no Linux alpha feed) |
 
-Stable download endpoints, available after the first public release:
+Stable download endpoints (`https://github.com/Nominy/exaudio/releases/latest/download/<asset>`):
 
-- Installer: `https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe`
-- Portable: `https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip`
+| Platform | Runner | Target | Asset |
+| --- | --- | --- | --- |
+| Windows x64 | `windows-latest` | `x86_64-pc-windows-msvc` | `Exaudio-win-Setup.exe` (installer), `Exaudio-win-Portable.zip` (portable) |
+| macOS Apple silicon | `macos-15` | `aarch64-apple-darwin` | `Exaudio-mac-arm64.dmg` |
+| macOS Intel | `macos-15-intel` | `x86_64-apple-darwin` | `Exaudio-mac-x64.dmg` |
+| Linux x64 | `ubuntu-22.04` | `x86_64-unknown-linux-gnu` | `Exaudio-linux-x64.AppImage` |
+| Linux arm64 | `ubuntu-22.04-arm` | `aarch64-unknown-linux-gnu` | `Exaudio-linux-arm64.AppImage` |
+
+Plus `SHA256SUMS` over every user-facing asset and update package. Linux builds are made on
+Ubuntu 22.04 so the AppImage's glibc floor is 2.35; macOS builds target macOS 14.0.
 
 ## In-app updates
 
@@ -50,24 +58,42 @@ Stable download endpoints, available after the first public release:
    git push origin v0.3.1
    ```
 
-`release.yml` then, on `windows-latest`:
+`release.yml` then runs three stages:
 
-1. fails unless the tag is exactly `v` + the `studio-app` version;
-2. builds `studio-app`, `studio-relay` and `exaudio-wasm` together in one Cargo invocation,
-   keeping shared dependency features unified, with `STUDIO_UPDATE_CHANNEL=stable`;
-   `exaudio-wasm-worker` is the isolated compiler child for untrusted extension `.wasm` and
-   ships beside `Exaudio.exe` (or the main executable in macOS `Contents/MacOS`);
-3. generates release notes (GitHub's generated notes plus download/SmartScreen lines);
-4. downloads the previous release's full package (`vpk download github`) so the new release
-   carries a delta package;
-5. runs `tools/package-windows.ps1 -UpdateChannel stable`: `vpk pack` with pack id `Exaudio`,
-   title `Exaudio`, main exe `Exaudio.exe`, icon `assets/app/exaudio.ico`, channel `win`;
-6. uploads with `vpk upload github` as a draft named `Exaudio <version>`, attaches `SHA256SUMS`
-   (installer, portable zip, full and delta packages), then publishes it.
+1. **prepare** (`ubuntu-latest`): fails unless the tag is exactly `v` + the `studio-app`
+   version; generates the release notes (GitHub's generated notes plus the download and
+   unsigned-package lines) once for every job.
+2. **build** (one job per platform, see the matrix above; `fail-fast: false`):
+   - builds `studio-app`, `studio-relay` and `exaudio-wasm` together in one Cargo invocation,
+     keeping shared dependency features unified, with `STUDIO_UPDATE_CHANNEL=stable`;
+     `exaudio-wasm-worker` is the isolated compiler child for untrusted extension `.wasm` and
+     ships beside the main executable (`Exaudio.exe`, `Exaudio.app/Contents/MacOS/Exaudio`,
+     the AppImage's `usr/bin/Exaudio`);
+   - Linux installs the system packages from `.github/actions/linux-build-deps` (shared with
+     CI); macOS imports the Developer ID certificate when the `APPLE_*` secrets exist;
+   - downloads the previous release's full package for its channel (`vpk download github`)
+     so the new release carries a delta package;
+   - packs: Windows `tools/package-windows.ps1 -UpdateChannel stable` (`vpk pack`, pack id
+     `Exaudio`, main exe `Exaudio.exe`, icon `assets/app/exaudio.ico`, channel `win`);
+     macOS and Linux `UPDATE_CHANNEL=stable tools/package-unix.sh` (channel = Velopack
+     runtime, bundle id `io.github.nominy.exaudio`; macOS wraps the Velopack-packed
+     `Exaudio.app` into `Exaudio-mac-<arch>.dmg` with `hdiutil`, Linux takes Velopack's
+     `Exaudio-linux-<arch>.AppImage` with icon `assets/app/exaudio-512.png`);
+   - checks the expected assets exist and uploads `target/velopack/Publish` as the artifact
+     `exaudio-<version>-<platform>`.
+3. **publish** (`ubuntu-latest`): downloads every platform's payload, re-verifies each file
+   against its `publish-manifest.json`, refuses duplicate asset names, writes one
+   `SHA256SUMS` over every asset (installers, disk images, AppImages, full and delta packages)
+   and keeps the assembled set as the artifact `exaudio-<version>-release`. Then it creates
+   the GitHub release as a draft named `Exaudio <version>` (`--prerelease` for hyphenated
+   versions), uploads everything with `gh release upload --clobber` and publishes it, so
+   installed apps never see a half-uploaded release.
 
-Release assets: `Exaudio-win-Setup.exe`, `Exaudio-win-Portable.zip`,
-`Exaudio-<version>-full.nupkg`, `Exaudio-<version>-delta.nupkg` (from the second release on),
-`SHA256SUMS`, plus the Velopack feed file `releases.win.json` that installed apps read.
+Release assets per platform: the user-facing asset(s) from the matrix,
+`Exaudio-<version>[-<channel>]-full.nupkg`, `Exaudio-<version>[-<channel>]-delta.nupkg`
+(from the second release on; the `win` channel has no suffix), the Velopack feed files
+`releases.<channel>.json` (what installed apps read) and `RELEASES` / `RELEASES-<channel>`,
+plus one `SHA256SUMS`.
 
 A tag with a hyphen (`v0.4.0-rc.1`, version `0.4.0-rc.1` in Cargo.toml) becomes a GitHub
 pre-release; stable installs ignore pre-releases.
@@ -76,23 +102,43 @@ To rebuild an existing tag, delete its GitHub release (draft or published) and r
 **Release** workflow manually with the tag as input. The workflow only runs in
 `Nominy/exaudio`.
 
+### Dry run
+
+Run the **Release** workflow manually with `dry_run` checked (and `tag` empty) on any branch:
+every platform builds and packs from that ref, `publish` assembles `SHA256SUMS` and verifies
+it, and nothing touches GitHub Releases. The result is the `exaudio-<version>-release`
+artifact (7 days). Use it after touching the packaging scripts, the Linux dependency list or
+the workflow itself.
+
 ### Package locally
 
-Needs the .NET 8 SDK, the MSVC toolchain and CMake (the bundled libopus is built from source;
-GitHub's Windows and macOS runners ship both C toolchains and CMake):
+Needs the .NET 8 SDK and CMake (the bundled libopus is built from source; GitHub's runners
+ship both C toolchains and CMake). Windows additionally the MSVC toolchain:
 
 ```powershell
 dotnet tool restore
 .\tools\package-windows.ps1 -UpdateChannel stable
 ```
 
-`target\velopack\Releases` receives the full local feed (installer, portable zip, packages,
-feed metadata); `target\velopack\Publish` the current release's assets plus
-`publish-manifest.json` (byte size and SHA-256 of each file). `-Version`, `-ReleaseNotes`,
-`-OutputDir`, `-PublishDir`, `-SkipBuild` are optional.
+macOS (Xcode command-line tools) and Linux (the packages from
+`.github/actions/linux-build-deps/action.yml`):
+
+```bash
+dotnet tool restore
+UPDATE_CHANNEL=stable tools/package-unix.sh
+```
+
+`target/velopack/Releases` receives the full local feed (installer or disk image or
+AppImage, packages, feed metadata); `target/velopack/Publish` the current release's assets
+plus `publish-manifest.json` (byte size and SHA-256 of each file). Windows: `-Version`,
+`-ReleaseNotes`, `-OutputDir`, `-PublishDir`, `-SkipBuild` are optional. macOS/Linux: the
+`VERSION`, `RUNTIME`, `RELEASE_NOTES`, `STAGE_DIR`, `OUTPUT_DIR`, `PUBLISH_DIR` and
+`MACOSX_DEPLOYMENT_TARGET` environment variables are optional; the script never
+cross-compiles (`RUNTIME` must match the host).
 
 Stable Windows feed metadata includes `RELEASES`, `assets.win.json` and `releases.win.json`.
-Non-default channels use the suffixed legacy index, for example `RELEASES-alpha`.
+Non-default channels use the suffixed legacy index, for example `RELEASES-osx-arm64` or
+`RELEASES-alpha`. `assets.<channel>.json` is a packaging aid and is not uploaded.
 
 ## Alpha
 
@@ -139,8 +185,9 @@ Before the first Exaudio alpha publish, the web server must serve `/var/www/exau
 ### macOS alpha
 
 `macos-alpha.yml` is manual (`workflow_dispatch`). It builds natively on GitHub-hosted macOS
-runners with `tools/package-alpha-macos.sh` (pack id `Exaudio`, bundle id
-`io.github.nominy.exaudio`, channel `alpha`, deployment target macOS 14.0) and can publish to:
+runners with `UPDATE_CHANNEL=alpha tools/package-unix.sh` (pack id `Exaudio`, bundle id
+`io.github.nominy.exaudio`, channel `alpha`, deployment target macOS 14.0; the alpha asset is
+Velopack's `Exaudio-alpha-Portable.zip`) and can publish to:
 
 | Target | Runner | Runtime | Feed |
 | --- | --- | --- | --- |
@@ -150,8 +197,8 @@ runners with `tools/package-alpha-macos.sh` (pack id `Exaudio`, bundle id
 
 `STUDIO_ALPHA_FEED_URL` bakes each target's feed into its build. `macos-14-large` is a
 larger runner and is billed even for public repositories; skip `sonoma-amd64` unless that is
-intended. There is no stable macOS release; on macOS the Stable channel reports that it has
-no releases for the platform.
+intended. Linux builds bake `https://reviewgen.ovh/exaudio/alpha/linux-<arch>`, which nothing
+publishes to yet: on Linux the Alpha channel reports a feed error until that feed exists.
 
 ## Secrets
 
@@ -162,26 +209,33 @@ no releases for the platform.
 | `ALPHA_SSH_PRIVATE_KEY` | same; deploy key with write access to the incoming and feed directories | yes, for publishing |
 | `ALPHA_SSH_KNOWN_HOSTS` | same; the server's `known_hosts` line(s), e.g. from `ssh-keyscan -p <port> <host>` checked against the server | yes, for publishing |
 | `ALPHA_SSH_PORT` | same | no (default 22) |
-| `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_KEYCHAIN_PASSWORD`, `APPLE_DEVELOPER_ID_APPLICATION`, `APPLE_DEVELOPER_ID_INSTALLER`, `APPLE_NOTARY_PROFILE`, `APPLE_NOTARY_APPLE_ID`, `APPLE_NOTARY_TEAM_ID`, `APPLE_NOTARY_PASSWORD` | `macos-alpha.yml` signing/notarization | no (unsigned without them) |
+| `APPLE_CERTIFICATE_P12_BASE64`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_KEYCHAIN_PASSWORD`, `APPLE_DEVELOPER_ID_APPLICATION`, `APPLE_DEVELOPER_ID_INSTALLER`, `APPLE_NOTARY_PROFILE`, `APPLE_NOTARY_APPLE_ID`, `APPLE_NOTARY_TEAM_ID`, `APPLE_NOTARY_PASSWORD` | `release.yml` and `macos-alpha.yml` macOS signing/notarization | no (unsigned without them) |
 
-`release.yml` needs no secret: it uses the workflow's `GITHUB_TOKEN` (`contents: write`).
+Beyond the optional Apple secrets, `release.yml` needs none: it uses the workflow's
+`GITHUB_TOKEN` (`contents: write`).
 
 ## Signing
 
 - **Windows: unsigned.** SmartScreen shows "Windows protected your PC" on first launch of the
   installer or portable exe until the download builds reputation; users choose
   **More info → Run anyway**. Every release lists SHA-256 checksums in `SHA256SUMS`.
-- **macOS: optional.** With the Apple secrets the workflow signs with Developer ID and
-  notarizes; without them it produces unsigned portable bundles (no `.pkg`), which testers
-  open via System Settings → Privacy & Security → Open Anyway.
+- **macOS: optional.** With the Apple secrets the workflows sign with Developer ID and
+  notarize; without them the disk image (stable) and portable bundle (alpha) are unsigned and
+  there is no `.pkg`. Users open an unsigned build once via **System Settings → Privacy &
+  Security → Open Anyway**.
+- **Linux: unsigned.** The AppImage must be made executable (`chmod +x`) and needs FUSE 2
+  (`libfuse2`) on most distributions; `SHA256SUMS` is the integrity check.
 
 ## CI
 
-`ci.yml` runs on every push and pull request on `windows-latest`: gitleaks over the tree and
-the full history (`tools/scan-secrets.ps1`), `cargo fmt --all --check`,
+`ci.yml` runs on every push and pull request. On `windows-latest` (the full job): gitleaks
+over the tree and the full history (`tools/scan-secrets.ps1`), `cargo fmt --all --check`,
 `cargo clippy --workspace --all-targets --locked -- -D warnings`,
-`cargo nextest run --workspace --all-targets --locked`. The `.githooks/pre-push` hook runs
-the same fmt and clippy gate locally (`git config core.hooksPath .githooks`).
+`cargo nextest run --workspace --all-targets --locked`. On `macos-15` and `ubuntu-22.04`
+(the Linux job installs `.github/actions/linux-build-deps` first): the same clippy and
+nextest runs, so platform gates (`cfg(windows)` tray, WebView2 local inference host,
+relay/transport spots) stay compiling and tested everywhere. The `.githooks/pre-push` hook
+runs the fmt and clippy gate locally (`git config core.hooksPath .githooks`).
 
 ## Local inference runtime
 

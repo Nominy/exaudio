@@ -1,7 +1,8 @@
 //! Velopack self-update: release channels, update checks, download + apply.
 //!
 //! Two channels: **Stable** reads GitHub Releases of [`STABLE_REPO_URL`] (pre-releases
-//! excluded); **Alpha** reads the VPS feed every `main` build is published to.
+//! excluded; one release carries a Velopack channel per OS/CPU); **Alpha** reads the VPS feed
+//! every `main` build is published to (Windows and macOS; Linux has no alpha feed yet).
 //!
 //! Compile-time env: `STUDIO_UPDATE_CHANNEL` (`stable` | `alpha`, the channel this build
 //! was packaged for; unset means `stable`), `STUDIO_ALPHA_FEED_URL` (alpha feed baked into
@@ -23,7 +24,11 @@ pub const STABLE_REPO_URL: &str = "https://github.com/Nominy/exaudio";
 const PLATFORM_ALPHA_FEED_URL: &str = "https://reviewgen.ovh/exaudio/alpha/mac-arm64";
 #[cfg(all(target_os = "macos", target_arch = "x86_64"))]
 const PLATFORM_ALPHA_FEED_URL: &str = "https://reviewgen.ovh/exaudio/alpha/mac-x64";
-#[cfg(not(target_os = "macos"))]
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+const PLATFORM_ALPHA_FEED_URL: &str = "https://reviewgen.ovh/exaudio/alpha/linux-arm64";
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const PLATFORM_ALPHA_FEED_URL: &str = "https://reviewgen.ovh/exaudio/alpha/linux-x64";
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
 const PLATFORM_ALPHA_FEED_URL: &str = "https://reviewgen.ovh/exaudio/alpha/win-x64";
 
 /// Alpha feed baked into this build (`STUDIO_ALPHA_FEED_URL` or the platform alpha feed).
@@ -32,13 +37,20 @@ pub const ALPHA_FEED_URL: &str = match option_env!("STUDIO_ALPHA_FEED_URL") {
     None => PLATFORM_ALPHA_FEED_URL,
 };
 
-/// Velopack channel stable packages are built with (Velopack's per-OS default channel).
+/// Velopack channel stable packages are built with. One GitHub release carries every
+/// platform, so each OS/CPU pair has its own channel (and `releases.<channel>.json`):
+/// Windows keeps Velopack's default `win`; the others are the Velopack runtime id
+/// (`tools/package-unix.sh` packs channel = runtime).
 #[cfg(target_os = "windows")]
 const STABLE_VELOPACK_CHANNEL: &str = "win";
-#[cfg(target_os = "macos")]
-const STABLE_VELOPACK_CHANNEL: &str = "osx";
-#[cfg(not(any(target_os = "windows", target_os = "macos")))]
-const STABLE_VELOPACK_CHANNEL: &str = "linux";
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
+const STABLE_VELOPACK_CHANNEL: &str = "osx-arm64";
+#[cfg(all(target_os = "macos", target_arch = "x86_64"))]
+const STABLE_VELOPACK_CHANNEL: &str = "osx-x64";
+#[cfg(all(target_os = "linux", target_arch = "aarch64"))]
+const STABLE_VELOPACK_CHANNEL: &str = "linux-arm64";
+#[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+const STABLE_VELOPACK_CHANNEL: &str = "linux-x64";
 
 /// Velopack channel alpha packages are built with, on every platform.
 const ALPHA_VELOPACK_CHANNEL: &str = "alpha";
@@ -449,8 +461,19 @@ mod tests {
         assert_eq!(UpdateChannel::Alpha.velopack_channel(), "alpha");
         assert_eq!(UpdateChannel::Stable.source_url(), STABLE_REPO_URL);
         assert_eq!(UpdateChannel::Alpha.source_url(), ALPHA_FEED_URL);
-        #[cfg(windows)]
-        assert_eq!(UpdateChannel::Stable.velopack_channel(), "win");
+        let expected = match (std::env::consts::OS, std::env::consts::ARCH) {
+            ("windows", _) => "win",
+            ("macos", "aarch64") => "osx-arm64",
+            ("macos", "x86_64") => "osx-x64",
+            ("linux", "aarch64") => "linux-arm64",
+            ("linux", "x86_64") => "linux-x64",
+            other => panic!("no stable Velopack channel for {other:?}"),
+        };
+        assert_eq!(UpdateChannel::Stable.velopack_channel(), expected);
+        assert_ne!(
+            UpdateChannel::Stable.velopack_channel(),
+            UpdateChannel::Alpha.velopack_channel()
+        );
     }
 
     #[test]

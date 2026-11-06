@@ -6,7 +6,7 @@
 
 # From audio, every word.
 
-A segment-based transcription editor for Windows: listen, fix timing, assign speakers and edit the text in one native window.
+A segment-based transcription editor for Windows, macOS and Linux: listen, fix timing, assign speakers and edit the text in one native window.
 Local projects need no account; AI, checks and formats are extensions you can switch off.
 
 **English** · [Русский](README.ru.md) · [Website](https://nafty.is-a.dev/exaudio/) · [Get started](docs/getting-started.md) · [Releases](https://github.com/Nominy/exaudio/releases) · [Issues](https://github.com/Nominy/exaudio/issues)
@@ -15,17 +15,22 @@ Local projects need no account; AI, checks and formats are extensions you can sw
 
 ## Download
 
-| Windows x64 | Link |
+| Platform | Stable (GitHub Releases) |
 | --- | --- |
-| Installer (stable) | [Exaudio-win-Setup.exe](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe) |
-| Portable archive (stable) | [Exaudio-win-Portable.zip](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip) |
-| Alpha installer (separate feed) | [Exaudio-alpha-Setup.exe](https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe) |
+| Windows x64, installer | [Exaudio-win-Setup.exe](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe) |
+| Windows x64, portable archive | [Exaudio-win-Portable.zip](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip) |
+| macOS, Apple silicon | [Exaudio-mac-arm64.dmg](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-mac-arm64.dmg) |
+| macOS, Intel | [Exaudio-mac-x64.dmg](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-mac-x64.dmg) |
+| Linux x64 | [Exaudio-linux-x64.AppImage](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-linux-x64.AppImage) |
+| Linux arm64 | [Exaudio-linux-arm64.AppImage](https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-linux-arm64.AppImage) |
+| Checksums | [SHA256SUMS](https://github.com/Nominy/exaudio/releases/latest/download/SHA256SUMS) |
+| Windows alpha installer (separate feed) | [Exaudio-alpha-Setup.exe](https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe) |
 
-Stable releases are `v*` tags on GitHub Releases with a `SHA256SUMS` file. Alpha comes from a separate VPS feed, not the stable update channel; back up projects before testing it. macOS has manual alpha packages only; there is no stable macOS or Linux binary. See [distribution and updates](docs/releasing.md).
+Stable releases are `v*` tags on GitHub Releases; every release carries all platforms and a `SHA256SUMS` file, and installed copies update themselves. Alpha comes from a separate VPS feed (Windows and macOS), not the stable update channel; back up projects before testing it. See [distribution and updates](docs/releasing.md).
 
-**Windows packages are unsigned.** SmartScreen may warn about an unknown publisher. Download only from this project's Releases, compare the `SHA256SUMS` entry, and do not disable Windows protection.
+**Packages are unsigned.** Windows SmartScreen may warn about an unknown publisher (More info → Run anyway). macOS cannot verify the app the first time: open **System Settings → Privacy & Security** and click **Open Anyway**. The Linux AppImage needs `chmod +x Exaudio-linux-x64.AppImage` (and FUSE 2, `libfuse2`, on most distributions). Download only from this project's Releases, compare the `SHA256SUMS` entry, and do not disable OS protection.
 
-Requirements: Windows 10/11 x64, an audio output and writable space for projects. Local AI additionally needs WebView2, a WebGPU-capable GPU with current drivers, and separately downloaded models (their own licenses; size, RAM/VRAM and disk depend on the model). Internet is needed for downloads, updates and remote services, not for editing local recordings.
+Requirements: Windows 10/11 x64, macOS 14+ or a 64-bit Linux desktop (X11 or Wayland, PulseAudio/ALSA), an audio output and writable space for projects. Local AI ("This PC") runs on Windows only: it additionally needs WebView2, a WebGPU-capable GPU with current drivers, and separately downloaded models (their own licenses; size, RAM/VRAM and disk depend on the model); on macOS and Linux use the remote server backend. Internet is needed for downloads, updates and remote services, not for editing local recordings.
 
 ## Features
 
@@ -40,11 +45,11 @@ Start shows one tile per installed mode. **Local** opens audio and projects on t
 
 ## Quick start
 
-1. Run the installer, or extract the portable archive to a writable folder and start `Exaudio.exe`.
+1. Run the installer or extract the portable archive (Windows), drag `Exaudio.app` to Applications (macOS), or `chmod +x` and run the AppImage (Linux).
 2. On Start, choose **Local → Open audio…**. Each file becomes a lane; WAV, MP3 and FLAC are good starting points (OGG, M4A, MP4, WebM and MKV containers also open, depending on the codec inside).
 3. Listen and edit: drag on the waveform to add a segment, `S` splits at the playhead, `D` deletes, `Space` plays, `←`/`→` move between segments, `Ctrl+Z`/`Ctrl+Y` undo/redo, `Ctrl+F` finds. Open the shortcuts dialog for the full, rebindable list.
 4. Optional AI: in the AI extension pick **This PC** (install the runtime and models, run the device test) or the remote server, then use **Align words**, **Draft with AI** or **Denoise** and check the result before keeping it.
-5. **Save** the native project (a folder with `project.json` and `audio/`), then **Export…** SRT, WebVTT or TXT when you need a delivery file. Unsaved-work snapshots, settings and extensions live under `%APPDATA%\Exaudio`.
+5. **Save** the native project (a folder with `project.json` and `audio/`), then **Export…** SRT, WebVTT or TXT when you need a delivery file. Unsaved-work snapshots, settings and extensions live under `%APPDATA%\Exaudio` (`~/Library/Application Support/Exaudio` on macOS, `~/.config/Exaudio` on Linux).
 
 Step by step: [Getting started](docs/getting-started.md).
 
@@ -56,7 +61,7 @@ The public catalog lives in [`Nominy/exaudio-extensions`](https://github.com/Nom
 
 ## Build from source
 
-Windows needs Git, the Rust toolchain pinned in `rust-toolchain.toml`, MSVC C++ build tools with the Windows SDK, and CMake. Internal crates keep the `studio-*` prefix.
+Every platform needs Git, the Rust toolchain pinned in `rust-toolchain.toml` and CMake (the bundled libopus is built from source). Windows adds MSVC C++ build tools with the Windows SDK; macOS the Xcode command-line tools; Linux a C compiler plus the development packages listed in `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Internal crates keep the `studio-*` prefix.
 
 ```powershell
 git clone https://github.com/Nominy/exaudio.git

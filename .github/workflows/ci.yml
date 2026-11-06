@@ -53,3 +53,35 @@ jobs:
 
       - name: Test all workspace targets
         run: cargo nextest run --workspace --all-targets --locked
+
+  check-unix:
+    name: Lint and test (${{ matrix.name }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            runner: macos-15
+          - name: Linux
+            runner: ubuntu-22.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@nextest
+
+      - name: Install Linux build dependencies
+        if: ${{ runner.os == 'Linux' }}
+        uses: ./.github/actions/linux-build-deps
+
+      - name: Run strict Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test all workspace targets
+        run: cargo nextest run --workspace --all-targets --locked
