@@ -26,7 +26,8 @@
     const english = language === "en";
     document.documentElement.lang = language;
     for (const item of textNodes) {
-      if (english) item.node.textContent = item.english;
+      // English strings are authored in this file and may carry inline markup (<span>, <b>, <a>).
+      if (english) item.node.innerHTML = item.english;
       else item.node.replaceChildren(...item.russian.map(child => child.cloneNode(true)));
     }
     for (const item of labels) {
@@ -51,14 +52,20 @@
     button.addEventListener("click", () => setLanguage(button.dataset.language));
   }
 
+  const commands = {
+    portable: "irm https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip -OutFile Exaudio.zip; Expand-Archive Exaudio.zip Exaudio; .\\Exaudio\\Exaudio.exe",
+    source: "git clone https://github.com/Nominy/exaudio.git; cd exaudio; cargo run -p studio-app",
+  };
+  const cmdText = document.getElementById("cmd-text");
   const tabs = Array.from(document.querySelectorAll('[role="tab"]'));
   function selectTab(tab) {
     for (const other of tabs) {
       const selected = other === tab;
       other.setAttribute("aria-selected", String(selected));
       other.tabIndex = selected ? 0 : -1;
-      document.getElementById(other.getAttribute("aria-controls")).hidden = !selected;
+      document.getElementById("hint-" + other.dataset.cmd).hidden = !selected;
     }
+    cmdText.textContent = commands[tab.dataset.cmd];
   }
   tabs.forEach((tab, index) => {
     tab.addEventListener("click", () => selectTab(tab));
@@ -71,6 +78,17 @@
       next.focus();
     });
   });
+
+  const copy = document.getElementById("copy");
+  copy.addEventListener("click", async () => {
+    const label = copy.textContent;
+    try {
+      await navigator.clipboard.writeText(cmdText.textContent);
+      copy.textContent = document.documentElement.lang === "en" ? "Copied" : "Скопировано";
+      setTimeout(() => { copy.textContent = label; }, 1500);
+    } catch { /* Clipboard access denied; the command stays selectable. */ }
+  });
+
   let language = "ru";
   try { if (localStorage.getItem(storageKey) === "en") language = "en"; } catch { /* Russian remains the default. */ }
   setLanguage(language);

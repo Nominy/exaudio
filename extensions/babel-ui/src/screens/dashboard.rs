@@ -125,8 +125,6 @@ pub struct DashboardScreen {
     client: BabelClient,
     /// Which projects this mode lists; every project is kept for owner-side features.
     filter: DashboardFilter,
-    /// The account this dashboard works as (shown in the sidebar; removed on sign-out).
-    account_label: SharedString,
     section: Section,
     projects: Vec<DashboardProject>,
     /// Signed-in worker (decides whether a viewed error task is editable).
@@ -155,11 +153,6 @@ impl DashboardScreen {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
-        let account_label: SharedString = root
-            .upgrade()
-            .map(|controller| controller.read(cx).instance().label.clone())
-            .unwrap_or_default()
-            .into();
         let settings = cx.new(|cx| SettingsView::new(shell.clone(), window, cx));
         let subaccounts = client
             .config()
@@ -197,7 +190,6 @@ impl DashboardScreen {
             root,
             shell,
             filter,
-            account_label,
             section: Section::Projects,
             projects: Vec::new(),
             worker_id: None,
@@ -745,6 +737,12 @@ impl DashboardScreen {
         } else {
             localized(cx, "Babel account", "Аккаунт Babel")
         };
+        let account_label: SharedString = self
+            .root
+            .upgrade()
+            .map(|controller| controller.read(cx).instance().label.clone())
+            .unwrap_or_default()
+            .into();
         let account = v_flex()
             .items_start()
             .gap_1()
@@ -752,7 +750,7 @@ impl DashboardScreen {
                 div()
                     .text_sm()
                     .font_weight(FontWeight::MEDIUM)
-                    .child(self.account_label.clone()),
+                    .child(account_label),
             )
             .child(ui::muted(account_kind, cx))
             .child(
