@@ -104,11 +104,13 @@ To rebuild an existing tag, delete its GitHub release (draft or published) and r
 
 ### Dry run
 
-Run the **Release** workflow manually with `dry_run` checked (and `tag` empty) on any branch:
-every platform builds and packs from that ref, `publish` assembles `SHA256SUMS` and verifies
-it, and nothing touches GitHub Releases. The result is the `exaudio-<version>-release`
-artifact (7 days). Use it after touching the packaging scripts, the Linux dependency list or
-the workflow itself.
+Run the **Release** workflow manually with `dry_run` checked on any branch (`tag` optionally
+picks the ref to build): every platform builds and packs from that ref as version
+`<major>.<minor>.<patch+1>-dry.<run number>.<run attempt>` — above the latest release, so
+Velopack still produces delta packages against it, and below the next one — then `publish`
+assembles `SHA256SUMS` and verifies it, and nothing touches GitHub Releases. The result is
+the `exaudio-<version>-release` artifact (7 days). Use it after touching the packaging
+scripts, the Linux dependency list or the workflow itself.
 
 ### Package locally
 

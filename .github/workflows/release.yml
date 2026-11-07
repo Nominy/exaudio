@@ -6,8 +6,9 @@
 # which stable builds ignore.
 #
 # Manual runs: `tag` rebuilds an existing tag; `dry_run` builds and checks every platform's
-# packages from the current ref (or `tag`) and keeps them as a workflow artifact without
-# touching GitHub Releases.
+# packages from the current ref (or `tag`) as version `<next patch>-dry.<run>` (so delta
+# packages against the latest release still get exercised) and keeps them as a workflow
+# artifact without touching GitHub Releases.
 name: Release
 
 on:
@@ -63,19 +64,28 @@ jobs:
         run: |
           set -euo pipefail
           version="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/studio-app/Cargo.toml)"
-          if [[ -n "$INPUT_TAG" ]]; then
-            tag="$INPUT_TAG"
-          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            tag="$GITHUB_REF_NAME"
-          elif [[ "$DRY_RUN" == "true" ]]; then
+          if [[ "$DRY_RUN" == "true" ]]; then
+            # Above the current release (Velopack refuses to pack at or below a feed's latest
+            # version) and below the next one, like alpha builds.
+            if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
+              echo "::error::studio-app version must be major.minor.patch[-pre]; found '$version'." >&2
+              exit 1
+            fi
+            version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-dry.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
             tag="v$version"
           else
-            echo "::error::A tag is required unless dry_run is set." >&2
-            exit 1
-          fi
-          if [[ "$tag" != "v$version" ]]; then
-            echo "::error::Tag $tag does not match crates/studio-app version $version (expected v$version)." >&2
-            exit 1
+            if [[ -n "$INPUT_TAG" ]]; then
+              tag="$INPUT_TAG"
+            elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+              tag="$GITHUB_REF_NAME"
+            else
+              echo "::error::A tag is required unless dry_run is set." >&2
+              exit 1
+            fi
+            if [[ "$tag" != "v$version" ]]; then
+              echo "::error::Tag $tag does not match crates/studio-app version $version (expected v$version)." >&2
+              exit 1
+            fi
           fi
           prerelease=false
           [[ "$version" == *-* ]] && prerelease=true
@@ -285,7 +295,7 @@ jobs:
           retention-days: 7
 
   publish:
-    name: ${{ inputs.dry_run == true && 'Assemble (dry run)' || 'Publish the release' }}
+    name: Assemble and publish
     needs: [prepare, build]
     runs-on: ubuntu-latest
     env:
