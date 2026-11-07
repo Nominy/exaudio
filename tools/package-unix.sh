@@ -238,6 +238,15 @@ if [[ "$host_os" == "osx" && "$update_channel" == "stable" ]]; then
     echo "$portable_zip does not contain $pack_id.app" >&2
     exit 1
   fi
+  # Without a Developer ID the bundle leaves vpk unsigned, and macOS reports an unsigned
+  # download as "damaged" with no way to allow it. An ad-hoc signature turns that into the
+  # ordinary unidentified-developer prompt, which System Settings can override.
+  if [[ -z "${APPLE_DEVELOPER_ID_APPLICATION:-}" ]]; then
+    codesign --force --deep --sign - "$dmg_root/$pack_id.app"
+    codesign --verify --deep --strict "$dmg_root/$pack_id.app"
+    rm -f "$portable_zip"
+    ditto -c -k --keepParent "$dmg_root/$pack_id.app" "$portable_zip"
+  fi
   ln -s /Applications "$dmg_root/Applications"
   rm -f "$output_dir/$user_asset"
   hdiutil create -quiet -volname "$pack_title" -srcfolder "$dmg_root" -fs HFS+ -format UDZO "$output_dir/$user_asset"
