@@ -1,5 +1,6 @@
 # Manual: builds Exaudio natively on GitHub-hosted macOS runners, packs it with Velopack
-# (channel `alpha`) and optionally publishes it to the per-target VPS alpha feed.
+# (channel `alpha`, tools/package-unix.sh) and optionally publishes it to the per-target VPS
+# alpha feed.
 name: macOS Alpha
 
 on:
@@ -155,9 +156,11 @@ jobs:
 
       - name: Build and package
         shell: bash
+        env:
+          UPDATE_CHANNEL: alpha
         run: |
           rm -rf target/velopack/Releases target/velopack/Publish
-          bash ./tools/package-alpha-macos.sh
+          bash ./tools/package-unix.sh
 
       - name: Publish artifacts to VPS
         if: ${{ inputs.publish_to_vps }}

@@ -1,0 +1,21 @@
+name: Linux build dependencies
+description: >-
+  System packages the workspace links against on Linux: gpui (xkbcommon, Wayland, X11/XCB,
+  Vulkan, fontconfig), cpal/rodio (ALSA), keyring's Secret Service transport (D-Bus) and
+  FUSE 2 for running the Velopack AppImage.
+
+runs:
+  using: composite
+  steps:
+    - name: Install apt packages
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo apt-get update -qq
+        sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+          pkg-config \
+          libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev libvulkan-dev \
+          libx11-xcb-dev libxcb1-dev libfontconfig1-dev \
+          libasound2-dev \
+          libdbus-1-dev \
+          libfuse2

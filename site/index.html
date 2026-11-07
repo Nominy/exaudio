@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#14161C">
   <title>Exaudio — редактор транскрипций с аудио</title>
-  <meta name="description" content="Exaudio — сегментный редактор транскрипций с аудио. Локальные проекты без аккаунта, расширения и необязательный ИИ. Для Windows.">
+  <meta name="description" content="Exaudio — сегментный редактор транскрипций с аудио. Локальные проекты без аккаунта, расширения и необязательный ИИ. Для Windows, macOS и Linux.">
   <link rel="canonical" href="__BASE_URL__/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Exaudio">
   <meta property="og:title" content="Exaudio — редактор транскрипций с аудио">
-  <meta property="og:description" content="Из звука — в слова. Сегментный редактор транскрипций с аудио для Windows.">
+  <meta property="og:description" content="Из звука — в слова. Сегментный редактор транскрипций с аудио для Windows, macOS и Linux.">
   <meta property="og:url" content="__BASE_URL__/">
   <meta property="og:image" content="__BASE_URL__/assets/social-preview.png">
   <meta property="og:image:width" content="1280">
@@ -40,29 +40,33 @@
 
     <header id="main">
       <img class="mark" src="assets/exaudio-mark-dark.svg" alt="Exaudio" width="104" height="104">
-      <p class="kicker" data-en="Free, open-source transcription editor for Windows">Бесплатный открытый редактор транскрипций для Windows</p>
+      <p class="kicker" data-en="Free, open-source transcription editor for Windows, macOS and Linux">Бесплатный открытый редактор транскрипций для Windows, macOS и Linux</p>
       <h1 data-en="From audio, <span>every word.</span>">Из звука — <span>в слова.</span></h1>
       <p class="lede" data-en="Segments with speakers and timing over a waveform. Listen, fix, split, assign — in one native window. Local projects need no account; AI drafts are optional.">Сегменты со спикерами и таймингом поверх волны. Слушайте, правьте, делите, назначайте — в одном нативном окне. Локальные проекты не требуют аккаунта; черновик ИИ — по желанию.</p>
 
-      <div class="download">
+      <div class="download" id="download" data-os="win">
         <div class="btns">
-          <a class="btn" href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 3h2v11.2l4.6-4.6 1.4 1.4-7 7-7-7 1.4-1.4 4.6 4.6zM4 19h16v2H4z"/></svg><span data-en="Download for Windows">Скачать для Windows</span></a>
-          <a class="btn alt" href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip">Portable .zip</a>
+          <a class="btn" id="dl-main" href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M11 3h2v11.2l4.6-4.6 1.4 1.4-7 7-7-7 1.4-1.4 4.6 4.6zM4 19h16v2H4z"/></svg><span id="dl-main-text" data-en="Download for Windows">Скачать для Windows</span></a>
+          <a class="btn alt" id="dl-alt" href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip" data-en="Portable .zip">Portable .zip</a>
         </div>
-        <p class="dl-note" data-en="Windows 10 and 11, x64. If SmartScreen says “Windows protected your PC”, click <b>More info → Run anyway</b>: Exaudio isn't code-signed yet.">Windows 10 и 11, x64. Если SmartScreen пишет «Система Windows защитила ваш компьютер», нажмите <b>Подробнее → Выполнить в любом случае</b>: Exaudio пока не подписан.</p>
+        <p class="dl-note" id="dl-note" data-en="Windows 10 and 11, x64. If SmartScreen says “Windows protected your PC”, click <b>More info → Run anyway</b>: Exaudio isn't code-signed yet.">Windows 10 и 11, x64. Если SmartScreen пишет «Система Windows защитила ваш компьютер», нажмите <b>Подробнее → Выполнить в любом случае</b>: Exaudio пока не подписан.</p>
         <p class="dl-all"><span data-en="All downloads:">Все загрузки:</span>
-          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe" data-en="Installer">Установщик</a> ·
-          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip">Portable</a> ·
+          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Setup.exe" data-en="Windows installer">Установщик Windows</a> ·
+          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-win-Portable.zip">Windows portable</a> ·
+          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-mac-arm64.dmg">macOS Apple silicon</a> ·
+          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-mac-x64.dmg">macOS Intel</a> ·
+          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-linux-x64.AppImage">Linux x64</a> ·
+          <a href="https://github.com/Nominy/exaudio/releases/latest/download/Exaudio-linux-arm64.AppImage">Linux arm64</a> ·
           <a href="https://github.com/Nominy/exaudio/releases/latest/download/SHA256SUMS">SHA256SUMS</a> ·
           <a href="https://github.com/Nominy/exaudio/releases" data-en="All releases">Все выпуски</a> ·
-          <a href="https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe">Alpha</a>
+          <a href="https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe" data-en="Windows alpha">Alpha для Windows</a>
         </p>
       </div>
 
       <div class="install">
         <p class="or" data-en="Or from a terminal">Или из терминала</p>
         <div class="tabs" role="tablist" aria-label="Способ установки" data-en-label="Installation method">
-          <button type="button" role="tab" id="tab-portable" aria-selected="true" data-cmd="portable">Portable</button>
+          <button type="button" role="tab" id="tab-portable" aria-selected="true" data-cmd="portable" data-en="Portable">Portable</button>
           <button type="button" role="tab" id="tab-source" aria-selected="false" data-cmd="source" data-en="Build from source">Из исходников</button>
         </div>
         <div class="cmd" id="cmd">
@@ -70,7 +74,7 @@
           <button type="button" class="copy" id="copy" data-en="Copy">Копировать</button>
         </div>
         <p class="hint" id="hint-portable" data-en="PowerShell. Unpacks next to you and starts the editor; settings and recovery snapshots live in %APPDATA%\Exaudio. Updates are offered inside the app.">PowerShell. Распаковывает рядом и запускает редактор; настройки и снимки восстановления — в %APPDATA%\Exaudio. Обновления предлагаются внутри приложения.</p>
-        <p class="hint" id="hint-source" hidden data-en="Needs Git, the Rust toolchain from rust-toolchain.toml, MSVC C++ build tools with the Windows SDK, and CMake. Details in the development guide.">Нужны Git, Rust из rust-toolchain.toml, инструменты MSVC C++ с Windows SDK и CMake. Подробности — в руководстве разработчика.</p>
+        <p class="hint" id="hint-source" hidden data-en="Needs Git, the Rust toolchain from rust-toolchain.toml and CMake; Windows also MSVC C++ build tools with the Windows SDK, Linux the development packages listed in the README. Details in the development guide.">Нужны Git, Rust из rust-toolchain.toml и CMake; в Windows ещё инструменты MSVC C++ с Windows SDK, в Linux — dev-пакеты из README. Подробности — в руководстве разработчика.</p>
       </div>
     </header>
 
@@ -121,12 +125,12 @@
       <h2 data-en="Questions">Вопросы</h2>
       <p class="sub" data-en="Anything else? <a href=&quot;https://github.com/Nominy/exaudio/issues&quot;>Open an issue on GitHub</a>.">Что-то ещё? <a href="https://github.com/Nominy/exaudio/issues">Создайте issue на GitHub</a>.</p>
       <details><summary data-en="Do I need an account?">Нужен аккаунт?</summary><p data-en="No. Local mode opens audio and projects on this computer and works offline. Babel is an optional service mode with its own sign-in.">Нет. Режим Local открывает аудио и проекты на этом компьютере и работает без сети. Babel — необязательный сервисный режим со своим входом.</p></details>
-      <details><summary data-en="What does AI cost?">Сколько стоит ИИ?</summary><p data-en="Local inference is free: it runs on your GPU through WebView2/WebGPU after the runtime and models (about 2.4 GB, downloaded once) are installed. The remote server option is run by the author at no charge; it may be busy, and audio or text is sent to it. Pick the backend in the AI settings.">Локальная обработка бесплатна: она идёт на вашей видеокарте через WebView2/WebGPU после установки среды и моделей (около 2,4 ГБ, скачиваются один раз). Удалённый сервер держит автор, бесплатно; он может быть занят, а аудио или текст передаются на него. Бэкенд выбирается в настройках ИИ.</p></details>
+      <details><summary data-en="What does AI cost?">Сколько стоит ИИ?</summary><p data-en="Local inference is free: on Windows it runs on your GPU through WebView2/WebGPU after the runtime and models (about 2.4 GB, downloaded once) are installed. The remote server option is run by the author at no charge; it may be busy, and audio or text is sent to it — on macOS and Linux it is the only backend. Pick the backend in the AI settings.">Локальная обработка бесплатна: в Windows она идёт на вашей видеокарте через WebView2/WebGPU после установки среды и моделей (около 2,4 ГБ, скачиваются один раз). Удалённый сервер держит автор, бесплатно; он может быть занят, а аудио или текст передаются на него — в macOS и Linux это единственный бэкенд. Бэкенд выбирается в настройках ИИ.</p></details>
       <details><summary data-en="Which formats are supported?">Какие форматы поддерживаются?</summary><p data-en="Audio: WAV, MP3, FLAC, OGG, M4A, MP4, WebM and MKV (decoding depends on the codec inside). Transcripts: SRT, WebVTT and plain text in and out. The project folder is the editable source.">Аудио: WAV, MP3, FLAC, OGG, M4A, MP4, WebM и MKV (декодирование зависит от кодека внутри). Расшифровки: SRT, WebVTT и обычный текст на вход и выход. Редактируемый источник — папка проекта.</p></details>
-      <details><summary data-en="Why does Windows SmartScreen warn me?">Почему Windows SmartScreen предупреждает?</summary><p data-en="The package is not code-signed, so SmartScreen shows an unknown-publisher warning. Download only from Nominy/exaudio Releases, compare the SHA256SUMS entry, and don't disable Windows protection.">Пакет не подписан сертификатом, поэтому SmartScreen показывает предупреждение о неизвестном издателе. Скачивайте только из Releases Nominy/exaudio, сверяйте SHA256SUMS и не отключайте защиту Windows.</p></details>
-      <details><summary data-en="Where are my projects stored?">Где хранятся проекты?</summary><p data-en="A project is a folder you choose when saving: project.json plus audio/ with a copy of each lane's audio, so it is self-contained and portable. Unsaved-work snapshots, settings and installed extensions live under %APPDATA%\Exaudio.">Проект — папка, которую вы выбираете при сохранении: project.json и audio/ с копией аудио каждой дорожки, поэтому он самодостаточен и переносим. Снимки несохранённой работы, настройки и установленные расширения — в %APPDATA%\Exaudio.</p></details>
-      <details><summary data-en="How do I update or uninstall?">Как обновить или удалить?</summary><p data-en="The installer version offers updates inside the app. Uninstall via Settings → Apps → Exaudio. The portable version is a folder: replace it with a newer archive or delete it.">Установленная версия предлагает обновления внутри приложения. Удаление — через «Параметры → Приложения → Exaudio». Portable-версия — это папка: замените её новым архивом или удалите.</p></details>
-      <details><summary data-en="How can I report a problem?">Как сообщить об ошибке?</summary><p data-en="Open a GitHub issue with the Exaudio and Windows versions, mode and extensions, steps to reproduce and the error text. Use a synthetic recording; never attach credentials, private tasks or someone else's audio.">Создайте issue на GitHub: версии Exaudio и Windows, режим и расширения, шаги воспроизведения и текст ошибки. Используйте синтетическую запись; не прикладывайте ключи, приватные задания и чужое аудио.</p></details>
+      <details><summary data-en="Why does my OS warn about the download?">Почему система предупреждает о загрузке?</summary><p data-en="The packages are not code-signed. Windows SmartScreen shows an unknown-publisher warning (More info → Run anyway); macOS can't verify the app the first time (System Settings → Privacy &amp; Security → Open Anyway); the Linux AppImage needs chmod +x. Download only from Nominy/exaudio Releases, compare the SHA256SUMS entry, and don't disable OS protection.">Пакеты не подписаны сертификатом. Windows SmartScreen показывает предупреждение о неизвестном издателе («Подробнее → Выполнить в любом случае»); macOS при первом запуске не может проверить приложение («Системные настройки → Конфиденциальность и безопасность → Всё равно открыть»); AppImage для Linux нужно сделать исполняемым (chmod +x). Скачивайте только из Releases Nominy/exaudio, сверяйте SHA256SUMS и не отключайте защиту системы.</p></details>
+      <details><summary data-en="Where are my projects stored?">Где хранятся проекты?</summary><p data-en="A project is a folder you choose when saving: project.json plus audio/ with a copy of each lane's audio, so it is self-contained and portable. Unsaved-work snapshots, settings and installed extensions live under %APPDATA%\Exaudio on Windows, ~/Library/Application Support/Exaudio on macOS and ~/.config/Exaudio on Linux.">Проект — папка, которую вы выбираете при сохранении: project.json и audio/ с копией аудио каждой дорожки, поэтому он самодостаточен и переносим. Снимки несохранённой работы, настройки и установленные расширения — в %APPDATA%\Exaudio в Windows, ~/Library/Application Support/Exaudio в macOS и ~/.config/Exaudio в Linux.</p></details>
+      <details><summary data-en="How do I update or uninstall?">Как обновить или удалить?</summary><p data-en="Every installed copy (installer, disk image or AppImage) offers updates inside the app. Uninstall via Settings → Apps → Exaudio on Windows; on macOS move Exaudio out of Applications; on Linux delete the AppImage. The Windows portable version is a folder: replace it with a newer archive or delete it.">Каждая установленная копия (установщик, образ диска или AppImage) предлагает обновления внутри приложения. Удаление: в Windows — «Параметры → Приложения → Exaudio», в macOS — уберите Exaudio из «Программ», в Linux — удалите AppImage. Portable-версия для Windows — это папка: замените её новым архивом или удалите.</p></details>
+      <details><summary data-en="How can I report a problem?">Как сообщить об ошибке?</summary><p data-en="Open a GitHub issue with the Exaudio and OS versions, mode and extensions, steps to reproduce and the error text. Use a synthetic recording; never attach credentials, private tasks or someone else's audio.">Создайте issue на GitHub: версии Exaudio и ОС, режим и расширения, шаги воспроизведения и текст ошибки. Используйте синтетическую запись; не прикладывайте ключи, приватные задания и чужое аудио.</p></details>
     </section>
 
     <footer>
