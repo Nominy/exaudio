@@ -16,5 +16,16 @@
       "provider": "example.hello.account",
       "launch": "direct"
     }
-  ]
+  ],
+  "contributes": {
+    "actions": [
+      {
+        "id": "example.hello-panel.greet",
+        "title": { "en": "Insert greeting", "ru": "Вставить приветствие" },
+        "when": "editorOpen",
+        "menus": [{ "menu": "editor/overflow", "group": "example" }],
+        "keys": [{ "key": "ctrl-alt-g" }]
+      }
+    ]
+  }
 }

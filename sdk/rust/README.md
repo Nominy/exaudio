@@ -74,11 +74,28 @@ children. Choices, table cells, numeric bounds, package asset handles and wavefo
 lane/channel ranges have explicit types. The runtime validates graph depth, node
 IDs, widget/config matching, finite numeric bounds and draw geometry. The renderer
 must treat strings as content, never executable markup; package asset IDs are not
-paths or URLs. Dispatch `Invocation::Ui(UiEvent)` for enabled nodes/overlay hit IDs;
-the guest routes events to its commands. `Invocation::Command` also supports typed
-arguments and revision-pinned byte-range selection. Mode/import/export requests
-are typed Event variants, with corresponding typed Output responses; they never
-provide an arbitrary host-function execution escape hatch.
+paths or URLs. Dispatch `Invocation::Ui(UiEvent)` for enabled nodes/overlay hit IDs.
+Mode/import/export requests are typed Event variants, with corresponding typed Output
+responses; they never provide an arbitrary host-function execution escape hatch.
+
+## Actions
+
+Everything a user can invoke is an *action* declared in `manifest.json` under
+`contributes.actions` (`docs/architecture/actions.md`): id `<extension-id>.<name>`,
+localized `title`, optional `when` clause, default `keys` and `menus` placements. The
+shell lists them in menus, the palette and the hotkeys dialog without activating the
+extension; nothing is registered at runtime. When one runs, the host calls the
+component's `on-action(id, args)` with a JSON object (`document_id` of the open document
+when the extension may see it, `segment_id` for row-scoped invocations) — route it with
+`exaudio_sdk::dispatch_action(&TABLE, &id, &args)`. The host only dispatches ids the
+manifest declares (`Invocation::Action`).
+
+Guests call back with `run-action(id, args)` (`exaudio_sdk::run_action`), limited to the
+extension's own actions and `exaudio.core.*`, and with `set-context`/`clear-context`
+(`exaudio_sdk::set_context`) for keys `<extension-id>.<name>` that their `when` clauses
+read. Neither is available during activation. An `importer`/`exporter` registration binds
+the host's file-picker flow to the declared action `<extension-id>.<registration-id>`;
+the manifest must declare it or the registration fails.
 
 Document text ranges are **UTF-8 byte offsets**, including completions, diagnostics,
 selection and edits. Convert to native character indices only after validating
@@ -193,8 +210,10 @@ pwsh -File extensions/examples/hello-panel/smoke.ps1 -Component probe-component.
 ```
 
 The actual Wasmtime test activates the panel, publishes an empty-segment diagnostic,
-dispatches a button click, observes `Hello from Exaudio! ` in the document with exactly
-one undo entry, and observes updated diagnostics. It rejects invalid/incompatible
+dispatches a button click, observes the guest's `run-action` request for
+`example.hello-panel.greet`, dispatches that action, observes `Hello from Exaudio! ` in
+the document with exactly one undo entry, and observes updated diagnostics. It rejects
+invalid/incompatible
 replacements while the previous guest remains callable, checks a successful reload,
 denies ungranted document access, isolates explicit trap/fuel/memory probes, and
 unloads the instance. Normal unit tests cover denied capabilities, exact-host and

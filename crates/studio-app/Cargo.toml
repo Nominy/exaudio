@@ -11,7 +11,8 @@ path = "src/main.rs"
 
 [features]
 default = ["batteries-included"]
-batteries-included = ["local", "formats", "basic-checks", "gold", "babel"]
+batteries-included = ["palette", "local", "formats", "basic-checks", "gold", "babel"]
+palette = ["dep:exaudio-palette"]
 local = ["dep:exaudio-local"]
 formats = ["dep:exaudio-formats"]
 basic-checks = ["dep:exaudio-lint-basic"]
@@ -24,6 +25,7 @@ gpui-kit.workspace = true
 exaudio-extension.workspace = true
 exaudio-shell.workspace = true
 studio-services.workspace = true
+exaudio-palette = { workspace = true, optional = true }
 exaudio-local = { workspace = true, optional = true }
 exaudio-formats = { workspace = true, optional = true }
 exaudio-lint-basic = { workspace = true, optional = true }

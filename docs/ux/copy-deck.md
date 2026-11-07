@@ -179,6 +179,7 @@ dirty dot) · *spacer* · **AI** menu · **Export…** · **⋯** overflow. The 
 | ⋯ › | `Import transcript…` | `Import transcript…` | `Импортировать текст…` | |
 | ⋯ › | `Home` / `Settings` / `Extensions` | `Start` / `Settings…` / `Extensions…` | `Начало` / `Настройки…` / `Расширения…` | |
 | ⋯ › | `Keyboard shortcuts` (icon) | `Keyboard shortcuts…` | `Сочетания клавиш…` | |
+| ⋯ › | *(new)* | `Command palette…` | `Палитра команд…` | first of the navigation group; `Ctrl+Shift+P` |
 | ⋯ › | `Start subaccount relay` / `Stop …` | *(Babel only)* `Start sub-account relay` / `Stop sub-account relay` | `Запустить ретранслятор` / `Остановить ретранслятор` | only when Babel extension active |
 
 ### 5.2 Timeline
@@ -253,6 +254,14 @@ dirty dot) · *spacer* · **AI** menu · **Export…** · **⋯** overflow. The 
 | `Hotkey updated.` / `Hotkey reset to default.` / `All hotkeys reset to defaults.` / `Hotkey change canceled.` | `Shortcut changed` / `Shortcut reset` / `All shortcuts reset` / `Cancelled` | `Сочетание изменено` / `Сочетание сброшено` / `Все сочетания сброшены` / `Отменено` |
 | `Hotkey updated. {chord} is also used by: {actions}.` | `Shortcut changed. {chord} is also used for {actions}.` | `Сочетание изменено. {chord} также используется для: {actions}.` |
 | `Hotkey preference could not be saved: {error}` | `Couldn't save the shortcut.` + Details | `Не удалось сохранить сочетание.` + Подробности |
+
+### 5.8 Command palette
+
+| Current | EN | RU |
+| --- | --- | --- |
+| *(new)* input placeholder | `Type a command name` | `Введите название команды` |
+| *(new)* empty list | `No matching commands` | `Ничего не найдено` |
+| *(new)* extension name / description | `Command palette` / `Find and run any command by name.` | `Палитра команд` / `Найти и выполнить любую команду по названию.` |
 
 ---
 

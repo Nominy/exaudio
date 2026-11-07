@@ -18,6 +18,7 @@ fn extension(id: &str, version: &str, dependencies: &[(&str, &str)]) -> Extensio
         permissions: vec![],
         modes: vec![],
         providers: vec![],
+        contributes: Default::default(),
     }
 }
 

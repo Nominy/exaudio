@@ -1,4 +1,6 @@
-//! Native and component contributions share one owner-scoped registry.
+//! Native and component contributions share one owner-scoped registry (modes, panels,
+//! providers, formats). Actions live in [`crate::actions`]; this module keeps their owner
+//! lifecycle in step with the extension's.
 use crate::ShellHandle;
 use anyhow::{Result, bail};
 use exaudio_extension::document::{DiagnosticProvider, DocumentProviders};
@@ -11,7 +13,7 @@ use std::{
 };
 
 pub type ViewFactory = Rc<dyn Fn(ShellHandle, &mut Window, &mut App) -> AnyView>;
-pub type CommandHandler = Rc<dyn Fn(ShellHandle, &mut Window, &mut App)>;
+pub type ReadyHandler = Rc<dyn Fn(ShellHandle, &mut Window, &mut App)>;
 pub type SaveHandler = Rc<
     dyn Fn(
         Entity<crate::editor::model::EditorModel>,
@@ -28,22 +30,8 @@ pub type LeaveHandler = Rc<
         crate::screens::local_files::Saved,
     ),
 >;
-pub type DocumentCommandHandler = Rc<dyn Fn(ShellHandle, serde_json::Value, &mut Window, &mut App)>;
 pub type DocumentProviderFactory = Rc<dyn Fn(&studio_core::Project) -> DocumentProviders>;
 pub type TeardownHandler = Rc<dyn Fn(&mut App)>;
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum CommandContext {
-    Workspace,
-    Text,
-    TextSelection,
-    Any,
-}
-#[derive(Clone)]
-pub struct KeybindingContribution {
-    pub command: String,
-    pub shortcut: String,
-    pub context: CommandContext,
-}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PanelLocation {
     Sidebar,
@@ -92,17 +80,6 @@ pub struct ModeRequirements {
     pub required_by: BTreeMap<String, BTreeSet<String>>,
 }
 #[derive(Clone)]
-pub struct CommandContribution {
-    pub id: String,
-    pub label: String,
-    pub shortcut: Option<String>,
-    /// Shown as a button above the editor body.
-    pub toolbar: bool,
-    /// Listed in the toolbar's ⋯ menu; `false` for commands reachable only by keyboard.
-    pub menu: bool,
-    pub run: CommandHandler,
-}
-#[derive(Clone)]
 pub struct PanelContribution {
     pub id: String,
     pub label: String,
@@ -119,13 +96,11 @@ pub struct Owned<T> {
 pub struct ContributionRegistry {
     modes: BTreeMap<String, Owned<ModeContribution>>,
     mode_reservations: BTreeMap<String, String>,
-    commands: BTreeMap<String, Owned<CommandContribution>>,
     panels: BTreeMap<String, Owned<PanelContribution>>,
     providers: BTreeMap<String, BTreeMap<String, (Vec<String>, DocumentProviders)>>,
     native_activators: BTreeMap<String, fn(&mut App) -> Result<()>>,
     provider_factories: BTreeMap<String, BTreeMap<String, (Vec<String>, DocumentProviderFactory)>>,
     live_factory_providers: BTreeMap<String, DocumentProviders>,
-    keybindings: Vec<Owned<KeybindingContribution>>,
     enabled: BTreeSet<String>,
     active_requirements: BTreeSet<String>,
     manifests: BTreeMap<String, ExtensionManifest>,
@@ -135,8 +110,7 @@ pub struct ContributionRegistry {
     contexts: BTreeMap<String, Vec<String>>,
     active_mode: Option<String>,
     teardown: BTreeMap<String, Vec<TeardownHandler>>,
-    ready: Vec<Owned<CommandHandler>>,
-    document_commands: BTreeMap<String, (String, DocumentCommandHandler)>,
+    ready: Vec<Owned<ReadyHandler>>,
     save_handlers: BTreeMap<String, (String, SaveHandler)>,
     leave_handlers: BTreeMap<String, (String, LeaveHandler)>,
     pub formats: exaudio_extension::format::FormatRegistry,
@@ -217,9 +191,6 @@ impl ContributionRegistry {
     pub fn set_panel_contexts(&mut self, id: &str, modes: Vec<String>) {
         self.set_contexts(id, modes);
     }
-    pub fn set_command_contexts(&mut self, id: &str, modes: Vec<String>) {
-        self.set_contexts(id, modes);
-    }
     fn contribution_in_context(&self, owner: &str, id: &str) -> bool {
         if self.contexts.contains_key(id) {
             self.in_context(id)
@@ -242,34 +213,19 @@ impl ContributionRegistry {
             .or_default()
             .push(callback);
     }
-    pub fn on_shell_ready(&mut self, owner: &str, callback: CommandHandler) {
+    pub fn on_shell_ready(&mut self, owner: &str, callback: ReadyHandler) {
         self.ready.push(Owned {
             owner: owner.into(),
             contribution: callback,
         });
     }
-    pub fn take_ready_callbacks(&mut self) -> Vec<CommandHandler> {
+    pub fn take_ready_callbacks(&mut self) -> Vec<ReadyHandler> {
         let ready = std::mem::take(&mut self.ready);
         ready
             .into_iter()
             .filter(|entry| self.is_enabled(&entry.owner))
             .map(|entry| entry.contribution)
             .collect()
-    }
-    pub fn register_document_command(
-        &mut self,
-        owner: &str,
-        id: &str,
-        handler: DocumentCommandHandler,
-    ) {
-        self.document_commands
-            .insert(id.into(), (owner.into(), handler));
-    }
-    pub fn document_command(&self, id: &str) -> Option<DocumentCommandHandler> {
-        self.document_commands
-            .get(id)
-            .filter(|(owner, _)| self.is_enabled(owner) && self.contribution_in_context(owner, id))
-            .map(|(_, handler)| handler.clone())
     }
     pub fn register_save_handler(&mut self, owner: &str, provider: &str, handler: SaveHandler) {
         self.save_handlers
@@ -404,51 +360,6 @@ impl ContributionRegistry {
         }
         result
     }
-    pub fn register_keybinding(
-        &mut self,
-        owner: &str,
-        binding: KeybindingContribution,
-    ) -> Result<()> {
-        if !self.manifests.contains_key(owner)
-            || studio_editor::edit::keymap::KeyChord::parse(&binding.shortcut).is_none()
-        {
-            bail!("Invalid keybinding owner or shortcut");
-        }
-        self.keybindings.push(Owned {
-            owner: owner.into(),
-            contribution: binding,
-        });
-        Ok(())
-    }
-    pub fn resolve_keybinding(&self, stroke: &str, text: bool, selection: bool) -> Option<String> {
-        use studio_editor::edit::keymap::KeyChord;
-        let actual = KeyChord::parse(stroke)?.resolved(crate::keymap::IS_MAC);
-        let matches = |shortcut: &str| {
-            KeyChord::parse(shortcut)
-                .is_some_and(|chord| chord.resolved(crate::keymap::IS_MAC) == actual)
-        };
-        self.keybindings
-            .iter()
-            .rev()
-            .find(|entry| {
-                self.is_enabled(&entry.owner)
-                    && self.contribution_in_context(&entry.owner, &entry.contribution.command)
-                    && matches(&entry.contribution.shortcut)
-                    && match entry.contribution.context {
-                        CommandContext::Any => true,
-                        CommandContext::Workspace => !text,
-                        CommandContext::Text => text,
-                        CommandContext::TextSelection => text && selection,
-                    }
-            })
-            .map(|entry| entry.contribution.command.clone())
-            .or_else(|| {
-                self.commands()
-                    .into_iter()
-                    .find(|command| command.shortcut.as_deref().is_some_and(matches))
-                    .map(|command| command.id)
-            })
-    }
     pub fn providers(&self, mode: &str) -> DocumentProviders {
         let mut result = DocumentProviders::default();
         for (_, scopes) in self
@@ -519,18 +430,8 @@ impl ContributionRegistry {
         );
         Ok(())
     }
-    pub fn register_command(&mut self, owner: &str, command: CommandContribution) -> Result<()> {
-        if self.commands.contains_key(&command.id) {
-            bail!("Command already registered: {}", command.id);
-        }
-        self.commands.insert(
-            command.id.clone(),
-            Owned {
-                owner: owner.into(),
-                contribution: command,
-            },
-        );
-        Ok(())
+    pub fn has_native_activator(&self, owner: &str) -> bool {
+        self.native_activators.contains_key(owner)
     }
     pub fn register_panel(
         &mut self,
@@ -575,16 +476,6 @@ impl ContributionRegistry {
             .iter()
             .find(|mode| mode.id == id)
     }
-    pub fn commands(&self) -> Vec<CommandContribution> {
-        self.commands
-            .values()
-            .filter(|x| {
-                self.is_enabled(&x.owner)
-                    && self.contribution_in_context(&x.owner, &x.contribution.id)
-            })
-            .map(|x| x.contribution.clone())
-            .collect()
-    }
     pub fn panels(&self, location: PanelLocation) -> Vec<PanelContribution> {
         self.panels
             .values()
@@ -596,12 +487,6 @@ impl ContributionRegistry {
             })
             .map(|x| x.contribution.clone())
             .collect()
-    }
-    pub fn command(&self, id: &str) -> Option<CommandHandler> {
-        self.commands
-            .get(id)
-            .filter(|x| self.is_enabled(&x.owner) && self.contribution_in_context(&x.owner, id))
-            .map(|x| x.contribution.run.clone())
     }
     /// Resolve from the registered mode owner, never from an arbitrary manifest declaration.
     pub fn resolve_mode_requirements(&self, id: &str) -> Result<ModeRequirements> {
@@ -658,13 +543,10 @@ impl ContributionRegistry {
     }
     pub fn clear_contributions(&mut self, owner: &str) {
         self.modes.retain(|_, x| x.owner != owner);
-        self.commands.retain(|_, x| x.owner != owner);
         self.panels.retain(|_, x| x.owner != owner);
         self.providers.remove(owner);
         self.provider_factories.remove(owner);
         self.live_factory_providers.remove(owner);
-        self.keybindings.retain(|entry| entry.owner != owner);
-        self.document_commands.retain(|_, (id, _)| id != owner);
         self.save_handlers.retain(|_, (id, _)| id != owner);
         self.leave_handlers.retain(|_, (id, _)| id != owner);
         self.ready.retain(|entry| entry.owner != owner);
@@ -683,17 +565,62 @@ impl ContributionRegistry {
     }
 }
 
-/// Removes every contribution of `owner` from both registries (contributions and
+/// Registers `owner`'s `contributes.actions` (once; metadata only, no activation) and
+/// mirrors the extension's enabled state into the action registry. Disabling also drops
+/// the owner's handlers; activation binds fresh ones.
+pub fn sync_owner_actions(owner: &str, cx: &mut App) -> Result<()> {
+    let (manifest, enabled) = {
+        let registry = cx.global::<ContributionRegistry>();
+        let manifest = registry
+            .manifests
+            .get(owner)
+            .ok_or_else(|| anyhow::anyhow!("No manifest for {owner}"))?;
+        (
+            (manifest.name.clone(), manifest.contributes.actions.clone()),
+            registry.is_enabled(owner),
+        )
+    };
+    crate::actions::update(cx, |actions| {
+        if actions.owner_name(owner).is_none() {
+            actions.register_owner(
+                owner,
+                &manifest.0,
+                manifest.1,
+                exaudio_extension::actions::Priority::Extension,
+            )?;
+        }
+        actions.set_owner_enabled(owner, enabled);
+        if !enabled {
+            let ids: Vec<String> = actions
+                .actions()
+                .filter(|entry| entry.owner == owner)
+                .map(|entry| entry.id.clone())
+                .collect();
+            for id in ids {
+                actions.unbind(&id);
+            }
+        }
+        Ok(())
+    })
+}
+
+/// Removes every contribution of `owner` from all registries (contributions, actions and
 /// provider types). Use instead of `ContributionRegistry::clear_contributions` when a `cx`
 /// is available.
 pub fn clear_owner(owner: &str, cx: &mut App) {
     cx.global_mut::<ContributionRegistry>()
         .clear_contributions(owner);
-    clear_provider_types(owner, cx);
+    clear_actions_and_provider_types(owner, cx);
 }
-/// `ContributionRegistry::force_remove` plus provider-type removal.
+/// `ContributionRegistry::force_remove` plus action and provider-type removal.
 pub fn force_remove_owner(owner: &str, cx: &mut App) {
     cx.global_mut::<ContributionRegistry>().force_remove(owner);
+    clear_actions_and_provider_types(owner, cx);
+}
+fn clear_actions_and_provider_types(owner: &str, cx: &mut App) {
+    if cx.has_global::<crate::actions::Actions>() {
+        crate::actions::update(cx, |actions| actions.unregister_owner(owner));
+    }
     clear_provider_types(owner, cx);
 }
 fn clear_provider_types(owner: &str, cx: &mut App) {
@@ -749,6 +676,7 @@ pub fn unload_extension(owner: &str, cx: &mut App) -> Result<()> {
     }
     cx.global_mut::<ContributionRegistry>().unload(owner)?;
     clear_provider_types(owner, cx);
+    sync_owner_actions(owner, cx)?;
     for callback in callbacks {
         callback(cx);
     }
@@ -836,6 +764,7 @@ pub fn register_native_extension(
     let registry = cx.global_mut::<ContributionRegistry>();
     registry.register_manifest(manifest, grants, false)?;
     registry.native_activators.insert(owner.clone(), activate);
+    sync_owner_actions(&owner, cx)?;
     if enabled {
         enable_extension(&owner, cx)?;
     }
@@ -851,6 +780,7 @@ pub fn enable_extension(owner: &str, cx: &mut App) -> Result<()> {
         .get(owner)
         .ok_or_else(|| anyhow::anyhow!("No native activation factory for {owner}"))?;
     cx.global_mut::<ContributionRegistry>().enable(owner)?;
+    sync_owner_actions(owner, cx)?;
     let activated = activate(cx).and_then(|()| persist_disabled(owner, false, cx));
     if let Err(error) = activated {
         let callbacks = cx
@@ -893,10 +823,7 @@ pub fn enable_extension(owner: &str, cx: &mut App) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        CommandContext, CommandContribution, ContributionRegistry, KeybindingContribution,
-        ModeContribution,
-    };
+    use super::{ContributionRegistry, ModeContribution, PanelLocation};
     use exaudio_extension::ExtensionManifest;
     use std::rc::Rc;
     fn manifest(id: &str) -> ExtensionManifest {
@@ -939,24 +866,20 @@ mod tests {
             .register_manifest(manifest("exaudio.test"), Vec::new(), false)
             .unwrap();
         registry
-            .register_command(
+            .register_panel(
                 "exaudio.test",
-                CommandContribution {
-                    id: "exaudio.test.command".into(),
-                    label: "Test".into(),
-                    shortcut: None,
-                    toolbar: false,
-                    menu: true,
-                    run: Rc::new(|_, _, _| panic!("disabled command")),
-                },
+                "exaudio.test.panel",
+                "Test",
+                PanelLocation::Sidebar,
+                Rc::new(|_, _, _| panic!("disabled panel")),
             )
             .unwrap();
-        assert!(registry.commands().is_empty());
+        assert!(registry.panels(PanelLocation::Sidebar).is_empty());
         assert!(!registry.is_enabled("exaudio.test"));
         assert!(registry.providers("exaudio.local").diagnostics.is_empty());
     }
     #[test]
-    fn command_contexts_follow_the_active_mode() {
+    fn panel_contexts_follow_the_active_mode() {
         let mut registry = ContributionRegistry::default();
         let mut owner = manifest("exaudio.test");
         owner.modes = serde_json::from_value(serde_json::json!([
@@ -981,35 +904,29 @@ mod tests {
                 .unwrap();
         }
         registry
-            .register_command(
+            .register_panel(
                 "exaudio.test",
-                CommandContribution {
-                    id: "exaudio.test.only-a".into(),
-                    label: "Only in A".into(),
-                    shortcut: None,
-                    toolbar: false,
-                    menu: true,
-                    run: Rc::new(|_, _, _| {}),
-                },
+                "exaudio.test.only-a",
+                "Only in A",
+                PanelLocation::Sidebar,
+                Rc::new(|_, _, _| panic!("factory is not part of context resolution")),
             )
             .unwrap();
-        registry.set_command_contexts("exaudio.test.only-a", vec!["exaudio.test.a".into()]);
+        registry.set_panel_contexts("exaudio.test.only-a", vec!["exaudio.test.a".into()]);
         let ids = |registry: &ContributionRegistry| {
             registry
-                .commands()
+                .panels(PanelLocation::Sidebar)
                 .into_iter()
-                .map(|command| command.id)
+                .map(|panel| panel.id)
                 .collect::<Vec<_>>()
         };
 
         registry.enter_mode("exaudio.test.b").unwrap();
         assert!(ids(&registry).is_empty());
-        assert!(registry.command("exaudio.test.only-a").is_none());
         registry.leave_mode();
 
         registry.enter_mode("exaudio.test.a").unwrap();
         assert_eq!(ids(&registry), vec!["exaudio.test.only-a".to_string()]);
-        assert!(registry.command("exaudio.test.only-a").is_some());
     }
     #[test]
     fn mode_reservations_are_atomic_and_owner_scoped() {
@@ -1032,28 +949,5 @@ mod tests {
         registry
             .reserve_modes("exaudio.second", &["exaudio.shared".into()])
             .unwrap();
-    }
-    #[test]
-    fn selection_keybinding_does_not_intercept_plain_typing() {
-        let mut registry = ContributionRegistry::default();
-        registry
-            .register_manifest(manifest("exaudio.test"), Vec::new(), true)
-            .unwrap();
-        registry
-            .register_keybinding(
-                "exaudio.test",
-                KeybindingContribution {
-                    command: "exaudio.test.convert".into(),
-                    shortcut: "1".into(),
-                    context: CommandContext::TextSelection,
-                },
-            )
-            .unwrap();
-        assert_eq!(registry.resolve_keybinding("1", true, false), None);
-        assert_eq!(registry.resolve_keybinding("1", false, false), None);
-        assert_eq!(
-            registry.resolve_keybinding("1", true, true).as_deref(),
-            Some("exaudio.test.convert")
-        );
     }
 }

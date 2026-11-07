@@ -8,7 +8,7 @@ use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
 use gpui_kit::component::slider::{Slider, SliderEvent, SliderScale, SliderState};
 use gpui_kit::component::tag::Tag;
-use gpui_kit::component::{ActiveTheme, Sizable as _, WindowExt as _, h_flex};
+use gpui_kit::component::{ActiveTheme, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use studio_editor::edit::EditorAction;
@@ -18,6 +18,7 @@ use studio_editor::edit::format::{
 };
 use studio_editor::editor_model::SaveStatus;
 
+use crate::actions;
 use crate::editor::RequestLeave;
 use crate::editor::model::EditorModel;
 use crate::editor::panels::ui::{stable_text, tabular_figures};
@@ -88,15 +89,6 @@ impl Toolbar {
                 doc.set_zoom(zoom);
             });
         });
-    }
-
-    fn copy_project_id(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let id = self.model.read(cx).doc().project().id.clone();
-        cx.write_to_clipboard(ClipboardItem::new_string(id));
-        window.push_notification(
-            localized(cx, "Project ID copied.", "ID проекта скопирован."),
-            cx,
-        );
     }
 
     /// A native document that has never been saved: no folder to write to, no provider that
@@ -288,90 +280,32 @@ impl Render for Toolbar {
             ))
             .on_click(cx.listener(|this, _, _, cx| this.step_zoom(ZOOM_STEP, cx)));
 
-        let commands: Vec<_> = cx
-            .global::<crate::ContributionRegistry>()
-            .commands()
-            .into_iter()
-            .filter(|command| command.menu)
-            .collect();
-        let toolbar = cx.entity().downgrade();
         let menu = Button::new("extension-commands")
             .small()
             .label("⋯")
             .tooltip(localized(cx, "More", "Ещё"))
-            .dropdown_menu(move |mut menu, _, cx| {
-                menu = menu
-                    .item(
-                        PopupMenuItem::new(localized(
-                            cx,
-                            "Import transcript…",
-                            "Импортировать текст…",
+            .dropdown_menu(move |mut menu, window, cx| {
+                let ctx = actions::snapshot(window, cx);
+                let lang = actions::lang(cx);
+                let mut previous_group: Option<String> = None;
+                for item in actions::registry(cx).menu(actions::MENU_EDITOR_OVERFLOW, &ctx) {
+                    if previous_group
+                        .as_deref()
+                        .is_some_and(|group| group != item.group)
+                    {
+                        menu = menu.separator();
+                    }
+                    previous_group = Some(item.group.to_string());
+                    let id = item.entry.id.clone();
+                    menu = menu.item(
+                        PopupMenuItem::new(SharedString::from(
+                            item.entry.title_in(lang).to_string(),
                         ))
-                        .on_click(|_, window, cx| {
+                        .on_click(move |_, window, cx| {
                             let shell = cx.global::<crate::ShellHandle>().clone();
-                            crate::screens::formats::import_document(shell, window, cx);
-                        }),
-                    )
-                    .item(
-                        PopupMenuItem::new(localized(cx, "Start", "Начало")).on_click(
-                            |_, window, cx| {
-                                cx.global::<crate::ShellHandle>()
-                                    .clone()
-                                    .show_home(window, cx);
-                            },
-                        ),
-                    )
-                    .item(
-                        PopupMenuItem::new(localized(cx, "Settings…", "Настройки…")).on_click(
-                            |_, window, cx| {
-                                cx.global::<crate::ShellHandle>()
-                                    .clone()
-                                    .show_settings(window, cx);
-                            },
-                        ),
-                    )
-                    .item(
-                        PopupMenuItem::new(localized(cx, "Extensions…", "Расширения…")).on_click(
-                            |_, window, cx| {
-                                cx.global::<crate::ShellHandle>()
-                                    .clone()
-                                    .show_extensions(window, cx);
-                            },
-                        ),
-                    )
-                    .item(
-                        PopupMenuItem::new(localized(
-                            cx,
-                            "Keyboard shortcuts…",
-                            "Сочетания клавиш…",
-                        ))
-                        .on_click(|_, window, cx| {
-                            crate::editor::panels::dialogs::hotkeys::open(window, cx)
-                        }),
-                    )
-                    .item(
-                        PopupMenuItem::new(localized(
-                            cx,
-                            "Copy project ID",
-                            "Скопировать ID проекта",
-                        ))
-                        .on_click({
-                            let toolbar = toolbar.clone();
-                            move |_, window, cx| {
-                                toolbar
-                                    .update(cx, |this, cx| this.copy_project_id(window, cx))
-                                    .ok();
-                            }
+                            shell.run(&id, serde_json::Value::Null, window, cx);
                         }),
                     );
-                for command in &commands {
-                    let id = command.id.clone();
-                    menu = menu.item(PopupMenuItem::new(command.label.clone()).on_click(
-                        move |_, window, cx| {
-                            let shell = cx.global::<crate::ShellHandle>().clone();
-                            shell.dispatch(&id, window, cx);
-                        },
-                    ));
                 }
                 menu
             });
@@ -380,7 +314,7 @@ impl Render for Toolbar {
             .label(localized(cx, "Export…", "Экспорт…"))
             .on_click(|_, window, cx| {
                 let shell = cx.global::<crate::ShellHandle>().clone();
-                crate::screens::formats::export_document(shell, window, cx);
+                shell.run("exaudio.core.export", serde_json::Value::Null, window, cx);
             });
 
         let badge = self.state_badge(cx);

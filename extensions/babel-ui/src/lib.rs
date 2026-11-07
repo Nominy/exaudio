@@ -16,11 +16,11 @@ use editor::panels::{
     transport::TransportStrip,
 };
 use exaudio_extension::ExtensionManifest;
-use exaudio_shell::contributions::{CommandContext, KeybindingContribution};
+use exaudio_shell::actions;
 use exaudio_shell::editor::model::EditorModel;
 use exaudio_shell::{
-    CommandContribution, ContributionRegistry, ModeContribution, PanelLocation,
-    ProviderContribution, ProviderRegistry, ShellHandle,
+    ContributionRegistry, ModeContribution, PanelLocation, ProviderContribution, ProviderRegistry,
+    ShellHandle,
 };
 use gpui_kit::*;
 use std::rc::Rc;
@@ -201,147 +201,139 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
                 .into()
         }),
     )?;
-    for (id, label, shortcut, action) in [
-        (
-            "exaudio.babel.submit",
-            t("Submit", "Отправить"),
-            Some("ctrl-enter"),
-            TaskPanels::request_submit
-                as fn(&mut TaskPanels, &mut Window, &mut Context<TaskPanels>),
-        ),
-        (
-            "exaudio.babel.skip",
-            t("Skip", "Пропустить"),
-            None,
-            TaskPanels::request_skip,
-        ),
-        (
-            "exaudio.babel.flag",
-            t("Flag recording", "Пометить запись"),
-            None,
-            TaskPanels::request_admin_flag,
-        ),
-        (
-            "exaudio.babel.drop-claim",
-            t("Release task", "Отпустить задачу"),
-            None,
-            TaskPanels::drop_claim,
-        ),
-        (
-            "exaudio.babel.magic-review",
-            "Magic Review",
-            None,
-            TaskPanels::magic_review,
-        ),
-    ] {
-        registry.register_command(
-            ID,
-            CommandContribution {
-                id: id.into(),
-                label: label.into(),
-                shortcut: shortcut.map(str::to_owned),
-                toolbar: false,
-                menu: true,
-                run: Rc::new(move |shell, window, cx| with_panels(shell, window, cx, action)),
-            },
-        )?;
-    }
-    registry.register_command(
-        ID,
-        CommandContribution {
-            id: "exaudio.babel.feedback".into(),
-            label: t("Feedback", "Отзыв").into(),
-            shortcut: None,
-            toolbar: false,
-            menu: true,
-            run: Rc::new(|shell, window, cx| {
+    actions::update(cx, |actions| -> anyhow::Result<()> {
+        for (id, action) in [
+            (
+                "exaudio.babel.submit",
+                TaskPanels::request_submit
+                    as fn(&mut TaskPanels, &mut Window, &mut Context<TaskPanels>),
+            ),
+            ("exaudio.babel.skip", TaskPanels::request_skip),
+            ("exaudio.babel.flag", TaskPanels::request_admin_flag),
+            ("exaudio.babel.drop-claim", TaskPanels::drop_claim),
+            ("exaudio.babel.magic-review", TaskPanels::magic_review),
+        ] {
+            actions.bind(
+                id,
+                Rc::new(move |shell, _, window, cx| with_panels(shell, window, cx, action)),
+            )?;
+        }
+        actions.bind(
+            "exaudio.babel.feedback",
+            Rc::new(|shell, _, window, cx| {
                 with_panels(shell, window, cx, |panels, _, cx| {
                     panels.toggle_drawer(Drawer::Feedback, cx)
                 })
             }),
-        },
-    )?;
-    registry.register_command(
-        ID,
-        CommandContribution {
-            id: "exaudio.babel.grader".into(),
-            label: t("Grade", "Оценить").into(),
-            shortcut: None,
-            toolbar: false,
-            menu: true,
-            run: Rc::new(|shell, window, cx| {
+        )?;
+        actions.bind(
+            "exaudio.babel.grader",
+            Rc::new(|shell, _, window, cx| {
                 with_panels(shell, window, cx, |panels, _, cx| panels.open_grader(cx))
             }),
-        },
-    )?;
-    registry.register_command(
-        ID,
-        CommandContribution {
-            id: "exaudio.babel.edit-annotation".into(),
-            label: t("Edit annotation", "Изменить аннотацию").into(),
-            shortcut: None,
-            toolbar: false,
-            menu: true,
-            run: Rc::new(|shell, window, cx| {
-                shell.dispatch_document_command(
-                    "exaudio.babel.edit-annotation",
-                    serde_json::Value::Null,
-                    window,
-                    cx,
-                )
+        )?;
+        actions.bind(
+            "exaudio.babel.edit-annotation",
+            Rc::new(|shell, arguments, window, cx| {
+                let Some(model) = shell.editor_model(cx) else {
+                    return;
+                };
+                let segment = arguments
+                    .get("segment_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .or_else(|| model.read(cx).doc().session().selected_segment_id.clone());
+                let Some(segment) = segment else {
+                    return;
+                };
+                let state = services::document_dialogs(&model, cx);
+                let opened = model.update(cx, |model, cx| {
+                    let result = model.update_doc(cx, |doc| {
+                        state.borrow_mut().open_edit_annotation(doc, &segment)
+                    });
+                    let opened = result.is_ok();
+                    model.apply_result(result, cx);
+                    opened
+                });
+                if opened {
+                    editor::panels::dialogs::edit_annotation::open(&model, window, cx);
+                }
             }),
-        },
-    )?;
-    registry.register_document_command(
-        ID,
-        "exaudio.babel.edit-annotation",
-        Rc::new(|shell, arguments, window, cx| {
-            let Some(model) = shell.editor_model(cx) else {
-                return;
-            };
-            let segment = arguments
-                .get("segment_id")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned)
-                .or_else(|| model.read(cx).doc().session().selected_segment_id.clone());
-            let Some(segment) = segment else {
-                return;
-            };
-            let state = services::document_dialogs(&model, cx);
-            let opened = model.update(cx, |model, cx| {
-                let result = model.update_doc(cx, |doc| {
-                    state.borrow_mut().open_edit_annotation(doc, &segment)
+        )?;
+        actions.bind(
+            "exaudio.babel.open-create-region",
+            Rc::new(|shell, arguments, window, cx| {
+                let model = model(&shell, cx);
+                let state = services::document_dialogs(&model, cx);
+                let opened = model.update(cx, |model, cx| {
+                    let result = model.update_doc(cx, |doc| {
+                        state
+                            .borrow_mut()
+                            .open_create_region_command(doc, &arguments)
+                    });
+                    let opened = result.is_ok();
+                    model.apply_result(result, cx);
+                    opened
                 });
-                let opened = result.is_ok();
-                model.apply_result(result, cx);
-                opened
-            });
-            if opened {
-                editor::panels::dialogs::edit_annotation::open(&model, window, cx);
-            }
-        }),
-    );
-    registry.register_document_command(
-        ID,
-        "exaudio.babel.open-create-region",
-        Rc::new(|shell, arguments, window, cx| {
-            let model = model(&shell, cx);
-            let state = services::document_dialogs(&model, cx);
-            let opened = model.update(cx, |model, cx| {
-                let result = model.update_doc(cx, |doc| {
-                    state
-                        .borrow_mut()
-                        .open_create_region_command(doc, &arguments)
-                });
-                let opened = result.is_ok();
-                model.apply_result(result, cx);
-                opened
-            });
-            if opened {
-                editor::panels::dialogs::create_region::open(&model, window, cx);
-            }
-        }),
-    );
+                if opened {
+                    editor::panels::dialogs::create_region::open(&model, window, cx);
+                }
+            }),
+        )?;
+        for (id, command) in [
+            ("exaudio.babel.autofix-row", "babel.autofix-row"),
+            ("exaudio.babel.autofix-all", "babel.autofix-all"),
+            ("exaudio.babel.skaz-selection", "babel.skaz-selection"),
+        ] {
+            actions.bind(
+                id,
+                Rc::new(move |shell, _, _, cx| {
+                    if let Some(model) = shell.editor_model(cx) {
+                        model.update(cx, |model, cx| {
+                            model.edit(cx, |doc| {
+                                doc.execute_command(command, &serde_json::Value::Null)
+                            })
+                        });
+                    }
+                }),
+            )?;
+        }
+        for digit in '0'..='9' {
+            actions.bind(
+                &format!("exaudio.babel.skaz-digit-{digit}"),
+                Rc::new(move |shell, _, _, cx| {
+                    if let Some(model) = shell.editor_model(cx) {
+                        let arguments = serde_json::json!({ "digit": digit.to_string() });
+                        model.update(cx, |model, cx| {
+                            model.edit(cx, |doc| {
+                                doc.execute_command("babel.skaz-digit", &arguments)
+                            })
+                        });
+                    }
+                }),
+            )?;
+        }
+        actions.bind(
+            "exaudio.babel.acknowledge-warning",
+            Rc::new(|shell, _, _, cx| {
+                if let Some(model) = shell.editor_model(cx) {
+                    let state = services::document_state(&model, cx);
+                    model.update(cx, |model, cx| {
+                        model.update_doc(cx, |doc| {
+                            doc.with_session(|project, session| {
+                                state
+                                    .borrow_mut()
+                                    .bind(session)
+                                    .toggle_warning_assertion(project)
+                            })
+                        });
+                    });
+                }
+            }),
+        )?;
+        Ok(())
+    })?;
+    let registry = cx.global_mut::<ContributionRegistry>();
     for mode in [ID, ERRORS_ID] {
         registry.register_save_handler(
             ID,
@@ -375,102 +367,6 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
             screens::local_files::confirm_leave(&model, window, cx, done);
         }),
     );
-    for (id, label, command) in [
-        (
-            "exaudio.babel.autofix-row",
-            t("Fix this segment", "Исправить сегмент"),
-            "babel.autofix-row",
-        ),
-        (
-            "exaudio.babel.autofix-all",
-            t("Fix all segments", "Исправить все сегменты"),
-            "babel.autofix-all",
-        ),
-        (
-            "exaudio.babel.skaz-selection",
-            t("Convert to СКАЗ", "Преобразовать в СКАЗ"),
-            "babel.skaz-selection",
-        ),
-    ] {
-        registry.register_command(
-            ID,
-            CommandContribution {
-                id: id.into(),
-                label: label.into(),
-                shortcut: None,
-                toolbar: false,
-                menu: true,
-                run: Rc::new(move |shell, _, cx| {
-                    if let Some(model) = shell.editor_model(cx) {
-                        model.update(cx, |model, cx| {
-                            model.edit(cx, |doc| {
-                                doc.execute_command(command, &serde_json::Value::Null)
-                            })
-                        });
-                    }
-                }),
-            },
-        )?;
-    }
-    for digit in '0'..='9' {
-        let id = format!("exaudio.babel.skaz-digit-{digit}");
-        registry.register_command(
-            ID,
-            CommandContribution {
-                id: id.clone(),
-                label: text::fill(
-                    t("Replace with {digit}", "Заменить на {digit}"),
-                    &[("digit", &digit.to_string())],
-                ),
-                shortcut: None,
-                toolbar: false,
-                menu: false,
-                run: Rc::new(move |shell, _, cx| {
-                    if let Some(model) = shell.editor_model(cx) {
-                        let arguments = serde_json::json!({ "digit": digit.to_string() });
-                        model.update(cx, |model, cx| {
-                            model.edit(cx, |doc| {
-                                doc.execute_command("babel.skaz-digit", &arguments)
-                            })
-                        });
-                    }
-                }),
-            },
-        )?;
-        registry.register_keybinding(
-            ID,
-            KeybindingContribution {
-                command: id,
-                shortcut: digit.to_string(),
-                context: CommandContext::TextSelection,
-            },
-        )?;
-    }
-    registry.register_command(
-        ID,
-        CommandContribution {
-            id: "exaudio.babel.acknowledge-warning".into(),
-            label: t("Dismiss warning", "Скрыть предупреждение").into(),
-            shortcut: None,
-            toolbar: false,
-            menu: true,
-            run: Rc::new(|shell, _, cx| {
-                if let Some(model) = shell.editor_model(cx) {
-                    let state = services::document_state(&model, cx);
-                    model.update(cx, |model, cx| {
-                        model.update_doc(cx, |doc| {
-                            doc.with_session(|project, session| {
-                                state
-                                    .borrow_mut()
-                                    .bind(session)
-                                    .toggle_warning_assertion(project)
-                            })
-                        });
-                    });
-                }
-            }),
-        },
-    )?;
     for id in [
         "exaudio.babel.feedback",
         "exaudio.babel.assistant",
@@ -480,53 +376,14 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
     ] {
         registry.set_panel_contexts(id, vec![ID.into(), ERRORS_ID.into()]);
     }
-    for id in [
-        "exaudio.babel.submit",
-        "exaudio.babel.skip",
-        "exaudio.babel.flag",
-        "exaudio.babel.drop-claim",
-        "exaudio.babel.magic-review",
-        "exaudio.babel.feedback",
-        "exaudio.babel.grader",
-    ] {
-        registry.set_command_contexts(id, vec![ID.into(), ERRORS_ID.into()]);
-    }
-    // Document commands backed by babel-lint/babel-tags providers exist in every Babel mode,
-    // including local Babel files, and nowhere else.
-    let babel_modes = || vec![ID.to_string(), ERRORS_ID.to_string(), FILE_ID.to_string()];
-    for id in [
-        "exaudio.babel.edit-annotation",
-        "exaudio.babel.autofix-row",
-        "exaudio.babel.autofix-all",
-        "exaudio.babel.skaz-selection",
-        "exaudio.babel.acknowledge-warning",
-    ] {
-        registry.set_command_contexts(id, babel_modes());
-    }
-    for digit in '0'..='9' {
-        registry.set_command_contexts(&format!("exaudio.babel.skaz-digit-{digit}"), babel_modes());
-    }
-    for (id, label, start) in [
-        (
-            "exaudio.babel.relay-start",
-            t("Start sub-account relay", "Запустить ретранслятор"),
-            true,
-        ),
-        (
-            "exaudio.babel.relay-stop",
-            t("Stop sub-account relay", "Остановить ретранслятор"),
-            false,
-        ),
-    ] {
-        registry.register_command(
-            ID,
-            CommandContribution {
-                id: id.into(),
-                label: label.into(),
-                shortcut: None,
-                toolbar: false,
-                menu: true,
-                run: Rc::new(move |_, _, cx| {
+    actions::update(cx, |actions| -> anyhow::Result<()> {
+        for (id, start) in [
+            ("exaudio.babel.relay-start", true),
+            ("exaudio.babel.relay-stop", false),
+        ] {
+            actions.bind(
+                id,
+                Rc::new(move |_, _, _, cx| {
                     let relay = screens::ShellModels::relay(cx);
                     relay.update(cx, |relay, cx| {
                         if start {
@@ -536,10 +393,11 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
                         }
                     });
                 }),
-            },
-        )?;
-        registry.set_command_contexts(id, babel_modes());
-    }
+            )?;
+        }
+        Ok(())
+    })?;
+    let registry = cx.global_mut::<ContributionRegistry>();
     registry.on_unload(
         ID,
         Rc::new(|cx| {
@@ -554,4 +412,41 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
         }),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use core::prelude::v1::test;
+
+    #[test]
+    fn manifest_declares_every_bound_action_with_its_clauses() {
+        let manifest = super::manifest().expect("manifest validates");
+        let ids: Vec<&str> = manifest
+            .contributes
+            .actions
+            .iter()
+            .map(|action| action.id.as_str())
+            .collect();
+        for id in [
+            "exaudio.babel.submit",
+            "exaudio.babel.edit-annotation",
+            "exaudio.babel.open-create-region",
+            "exaudio.babel.skaz-digit-0",
+            "exaudio.babel.skaz-digit-9",
+            "exaudio.babel.relay-stop",
+        ] {
+            assert!(ids.contains(&id), "{id} must be declared");
+        }
+        let digit = manifest
+            .contributes
+            .actions
+            .iter()
+            .find(|action| action.id == "exaudio.babel.skaz-digit-1")
+            .unwrap();
+        assert!(!digit.palette);
+        assert_eq!(
+            digit.keys[0].when.as_deref(),
+            Some("focus == 'transcriptText' && textSelection")
+        );
+    }
 }

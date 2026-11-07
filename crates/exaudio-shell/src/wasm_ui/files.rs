@@ -35,37 +35,41 @@ async fn response_until<T>(
     })
     .await
 }
+/// The declared action an importer/exporter registration binds to.
+pub(super) fn action_id(owner: &str, registration: &str) -> String {
+    format!("{owner}.{registration}")
+}
+/// Binds the host's import/export flow to the action `<owner>.<registration id>` that the
+/// manifest declares (title, menus and keys come from there). The file picker needs a
+/// window, which is why these flows are host handlers rather than guest `on-action`s.
 pub(super) fn register(owner: &str, registration: &w::Registration, cx: &mut App) -> Result<()> {
     let owner = owner.to_owned();
     let provider = registration.id.clone();
     let importer = matches!(registration.kind, w::ContributionKind::Importer);
-    let key = namespaced(&owner, &provider);
-    let title = registration.title.clone();
-    let registry_owner = owner.clone();
-    cx.update_global::<ContributionRegistry, _>(|registry, _| {
-        registry.register_command(
-            &registry_owner,
-            CommandContribution {
-                id: key,
-                label: title,
-                shortcut: None,
-                toolbar: false,
-                menu: true,
-                run: Rc::new(move |shell, window, cx| {
-                    if !crate::wasm_host::has_permission(
-                        &owner,
-                        exaudio_extension::Permission::FilePicker,
-                        cx,
-                    ) {
-                        return;
-                    }
-                    if importer {
-                        import(owner.clone(), provider.clone(), shell, window, cx);
-                    } else {
-                        export(owner.clone(), provider.clone(), shell, window, cx);
-                    }
-                }),
-            },
+    let id = action_id(&owner, &provider);
+    crate::actions::update(cx, |actions| {
+        actions.bind(
+            &id,
+            Rc::new(move |shell, _, window, cx| {
+                if !crate::wasm_host::has_permission(
+                    &owner,
+                    exaudio_extension::Permission::FilePicker,
+                    cx,
+                ) {
+                    return;
+                }
+                if importer {
+                    import(owner.clone(), provider.clone(), shell, window, cx);
+                } else {
+                    export(owner.clone(), provider.clone(), shell, window, cx);
+                }
+            }),
+        )
+    })
+    .map_err(|_| {
+        anyhow!(
+            "importer/exporter `{}` needs the declared action `{id}`",
+            registration.id
         )
     })
 }

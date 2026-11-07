@@ -6,7 +6,7 @@ mod waveform;
 use crate::screens::ui::localized;
 use crate::{
     ShellHandle,
-    contributions::{CommandContribution, ContributionRegistry, ModeContribution, PanelLocation},
+    contributions::{ContributionRegistry, ModeContribution, PanelLocation},
 };
 use anyhow::{Result, anyhow, bail};
 use exaudio_wasm::{Invocation, types as w};
@@ -105,11 +105,7 @@ fn tree_bytes(tree: &w::UiTree) -> usize {
                     | w::WidgetConfig::Layout(_)
                     | w::WidgetConfig::Numeric(_) => 0,
                 };
-                128 + node.id.len()
-                    + node.text.len()
-                    + node.value.len()
-                    + node.command.as_ref().map_or(0, String::len)
-                    + config
+                128 + node.id.len() + node.text.len() + node.value.len() + config
             })
             .sum::<usize>()
 }
@@ -170,6 +166,21 @@ pub(crate) fn preflight(owner: &str, outputs: &[exaudio_wasm::Output], cx: &mut 
                 {
                     bail!("provider was not declared in manifest");
                 }
+                if matches!(
+                    registration.kind,
+                    w::ContributionKind::Importer | w::ContributionKind::Exporter
+                ) && !manifest
+                    .contributes
+                    .actions
+                    .iter()
+                    .any(|action| action.id == files::action_id(owner, &registration.id))
+                {
+                    bail!(
+                        "importer/exporter `{}` needs the declared action `{}`",
+                        registration.id,
+                        files::action_id(owner, &registration.id)
+                    );
+                }
             }
             Output::Ui(tree) => {
                 validate(tree)?;
@@ -204,11 +215,14 @@ pub(crate) fn preflight(owner: &str, outputs: &[exaudio_wasm::Output], cx: &mut 
             | Output::ProviderStatus(_) => {
                 bail!("unsolicited request response during activation")
             }
+            Output::RunAction { .. } => bail!("actions cannot run during activation"),
             Output::Activated | Output::Removed => bail!("guest cannot publish lifecycle markers"),
             Output::Diagnostics(_)
             | Output::Decorations(_)
             | Output::Completions(_)
-            | Output::Overlay(_) => {}
+            | Output::Overlay(_)
+            | Output::SetContext { .. }
+            | Output::ClearContext { .. } => {}
         }
     }
     cx.update_global::<ContributionRegistry, _>(|registry, _| registry.reserve_modes(owner, &modes))
@@ -243,35 +257,6 @@ pub(crate) fn register(
     }
     let owner_string = owner.to_owned();
     match registration.kind {
-        w::ContributionKind::Command | w::ContributionKind::Menu => {
-            let guest_id = id.clone();
-            let owner = owner_string.clone();
-            cx.update_global::<ContributionRegistry, _>(|registry, _| {
-                registry.register_command(
-                    &owner_string,
-                    CommandContribution {
-                        id: key,
-                        label: title,
-                        shortcut: None,
-                        toolbar: true,
-                        menu: true,
-                        run: Rc::new(move |shell, _, cx| {
-                            let document_id = active_document(&shell, cx);
-                            crate::wasm_host::invoke(
-                                &owner,
-                                Invocation::Command(w::Command {
-                                    id: guest_id.clone(),
-                                    document_id,
-                                    selection: None,
-                                    arguments: vec![],
-                                }),
-                                cx,
-                            );
-                        }),
-                    },
-                )
-            })?;
-        }
         w::ContributionKind::Panel | w::ContributionKind::Inspector => {
             let location = if matches!(registration.kind, w::ContributionKind::Inspector) {
                 PanelLocation::Inspector
@@ -662,35 +647,6 @@ impl WasmPanel {
             return;
         }
         let document_id = active_document(&self.shell, cx);
-        if matches!(kind, w::UiEventKind::Click | w::UiEventKind::Submit)
-            && let Some(command) = &node.command
-        {
-            let arguments = vec![
-                w::Property {
-                    key: "contribution".into(),
-                    value: w::Scalar::Text(self.contribution.clone()),
-                },
-                w::Property {
-                    key: "node".into(),
-                    value: w::Scalar::Text(node.id.clone()),
-                },
-                w::Property {
-                    key: "value".into(),
-                    value: w::Scalar::Text(value),
-                },
-            ];
-            crate::wasm_host::invoke(
-                &self.owner,
-                Invocation::Command(w::Command {
-                    id: command.clone(),
-                    document_id,
-                    selection: None,
-                    arguments,
-                }),
-                cx,
-            );
-            return;
-        }
         crate::wasm_host::invoke(
             &self.owner,
             Invocation::Ui(w::UiEvent {
@@ -718,10 +674,7 @@ impl WasmPanel {
             .map(|n| {
                 (
                     n.id.clone(),
-                    format!(
-                        "{:?}:{:?}:{}:{:?}",
-                        n.widget, n.config, n.enabled, n.command
-                    ),
+                    format!("{:?}:{:?}:{}", n.widget, n.config, n.enabled),
                 )
             })
             .collect::<Vec<_>>();

@@ -53,6 +53,20 @@ pub enum Output {
     /// Answer to a `provider-status` event. The owner may deliver it to a waiting
     /// requester synchronously; it is never queued behind editor outputs.
     ProviderStatus(ProviderStatus),
+    /// The guest asked the shell to run one of its own declared actions or an
+    /// `exaudio.core.*` action; `args` is valid JSON. Never emitted during activation.
+    RunAction {
+        id: String,
+        args: String,
+    },
+    /// `when` context key `<extension-id>.<name>` set by the guest.
+    SetContext {
+        key: String,
+        value: Scalar,
+    },
+    ClearContext {
+        key: String,
+    },
     /// Removes ALL contributions, diagnostics, UI and queued work owned by the ID.
     Removed,
 }

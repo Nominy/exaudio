@@ -34,8 +34,8 @@ use studio_editor::timeline_model::{
 };
 use studio_waveform::{WaveformHit, WaveformHitTarget};
 
+use crate::actions::{self, IS_MAC};
 use crate::editor::model::{EditorEvent, EditorModel};
-use crate::keymap::{ActiveKeymap, IS_MAC};
 use geometry::{HANDLE_HIT_PX, Thumb, fraction_at, hit_test, x_at};
 use paint::{
     LaneScene, Palette, RegionMark, RegionMarks, paint_lane, paint_ruler, paint_scrollbar,
@@ -147,10 +147,11 @@ fn pointer_modifiers(modifiers: &Modifiers, cx: &App) -> PointerModifiers {
     }
 }
 
-/// `"{text} ({shortcut})"` with the action's first binding from the user's keymap.
+/// `"{text} ({shortcut})"` with the action's first effective binding.
 pub(crate) fn shortcut_hint(cx: &App, text: &str, action: EditorAction) -> SharedString {
-    match cx.global::<ActiveKeymap>().0.labels(action, IS_MAC).first() {
-        Some(label) => format!("{text} ({label})").into(),
+    let id = actions::core_id(action);
+    match actions::registry(cx).bindings_for(&id, IS_MAC).first() {
+        Some(chord) => format!("{text} ({})", chord.label(IS_MAC)).into(),
         None => SharedString::from(text.to_string()),
     }
 }

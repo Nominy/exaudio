@@ -6,9 +6,10 @@ pub mod status_bar;
 pub mod timeline;
 pub mod toolbar;
 pub mod transcript;
-use crate::keymap::{ActiveKeymap, keystroke_string};
+use crate::actions::{self, IS_MAC, keystroke_string};
 use crate::services::AppServices;
 use crate::{ContributionRegistry, PanelLocation, ShellHandle};
+use exaudio_extension::actions::{KeyChord, Value};
 use gpui_kit::component::Sizable;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::resizable::{h_resizable, resizable_panel, v_resizable};
@@ -18,7 +19,7 @@ use model::EditorModel;
 use panels::transport::TransportStrip;
 use status_bar::StatusBar;
 use studio_editor::edit::EditorAction;
-use studio_editor::edit::keymap::{FocusTarget, KeyFocus, audition_key_for};
+use studio_editor::edit::keymap::audition_key_for;
 use studio_services::prefs::EditorLayout;
 use timeline::TimelineView;
 use toolbar::Toolbar;
@@ -77,7 +78,7 @@ impl EditorScreen {
                         let command = command.clone();
                         let arguments = arguments.clone();
                         window.defer(cx, move |window, cx| {
-                            shell.dispatch_document_command(&command, arguments, window, cx)
+                            shell.run(&command, arguments, window, cx)
                         });
                     }
                 },
@@ -134,59 +135,20 @@ impl EditorScreen {
         }
         self.registry_generation = generation;
     }
-    fn key_focus(&self, window: &mut Window, cx: &mut App) -> KeyFocus {
-        let focused = self.transcript_pane.read(cx).focused_segment_id(window, cx);
-        KeyFocus {
-            target: if focused.is_some() {
-                FocusTarget::TranscriptText
-            } else if window.has_focused_input(cx) {
-                FocusTarget::Input
-            } else {
-                FocusTarget::Workspace
-            },
-            cut_preview_active: self.model.read(cx).doc().session().overlay.is_some(),
-            completions_open: false,
-        }
-    }
-    fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
-        if window.has_active_dialog(cx) || window.has_active_sheet(cx) {
-            return;
-        }
-        let stroke = keystroke_string(&event.keystroke);
-        let focus = self.key_focus(window, cx);
-        let selected = self
-            .transcript_pane
-            .read(cx)
-            .focused_segment_id(window, cx)
-            .and_then(|id| {
-                self.model
-                    .read(cx)
-                    .doc()
-                    .draft(&id)
-                    .map(|draft| !draft.selection().is_empty())
-            })
-            .unwrap_or(false);
-        let command = cx.global::<ContributionRegistry>().resolve_keybinding(
-            &stroke,
-            focus.target != FocusTarget::Workspace,
-            selected,
-        );
-        if let Some(command) = command {
-            self.shell.dispatch(&command, window, cx);
-            cx.stop_propagation();
-            return;
-        }
-        if focus.target == FocusTarget::Workspace
-            && let Some(key) = audition_key_for(&stroke)
-        {
-            self.model.update(cx, |m, cx| {
-                m.update_doc(cx, |d| d.set_audition_key(key, true))
-            });
-        }
-        let Some(action) = ActiveKeymap::resolve(cx, &event.keystroke, focus) else {
-            return;
-        };
-        let row = self.transcript_pane.read(cx).focused_segment_id(window, cx);
+    /// Runs an editor action: the doc handles it for the row named by `args.segment_id`
+    /// (else the focused row); app-level actions fall back to the screen.
+    pub fn perform(
+        &mut self,
+        action: EditorAction,
+        args: &serde_json::Value,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let row = args
+            .get("segment_id")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned)
+            .or_else(|| actions::focused_text_row(window, cx));
         let handled = self
             .model
             .update(cx, |m, cx| m.perform(action, row.as_deref(), cx));
@@ -199,6 +161,31 @@ impl EditorScreen {
                 _ => {}
             }
         }
+    }
+    fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        if window.has_active_dialog(cx) || window.has_active_sheet(cx) {
+            return;
+        }
+        let stroke = keystroke_string(&event.keystroke);
+        let ctx = actions::snapshot(window, cx);
+        if ctx.get("focus") == Some(&Value::from("workspace"))
+            && let Some(key) = audition_key_for(&stroke)
+        {
+            self.model.update(cx, |m, cx| {
+                m.update_doc(cx, |d| d.set_audition_key(key, true))
+            });
+        }
+        let Some(chord) = KeyChord::parse(&stroke) else {
+            return;
+        };
+        let Some(id) = actions::registry(cx).resolve(&chord, &ctx, IS_MAC).chosen else {
+            return;
+        };
+        // Deferred: the handler may update this screen, which is leased during the event.
+        let shell = self.shell.clone();
+        window.defer(cx, move |window, cx| {
+            shell.run(&id, serde_json::Value::Null, window, cx)
+        });
         cx.stop_propagation();
     }
     fn on_key_up(&mut self, event: &KeyUpEvent, _window: &mut Window, cx: &mut Context<Self>) {
@@ -354,13 +341,6 @@ impl TranscriptPane {
         cx.notify();
         true
     }
-
-    /// Segment whose row editor has keyboard focus, in any grid.
-    fn focused_segment_id(&self, window: &Window, cx: &App) -> Option<String> {
-        self.grids
-            .iter()
-            .find_map(|grid| grid.view.read(cx).focused_segment_id(window, cx))
-    }
 }
 
 impl Render for TranscriptPane {
@@ -428,14 +408,22 @@ impl Render for EditorScreen {
                 }
             });
         }
-        let commands = cx.global::<ContributionRegistry>().commands();
-        let buttons = commands.into_iter().filter(|c| c.toolbar).map(|command| {
-            let shell = self.shell.clone();
-            Button::new(SharedString::from(command.id))
-                .small()
-                .label(command.label)
-                .on_click(move |_, window, cx| (command.run)(shell.clone(), window, cx))
-        });
+        let ctx = actions::snapshot(window, cx);
+        let lang = actions::lang(cx);
+        let buttons: Vec<Button> = actions::registry(cx)
+            .menu(actions::MENU_EDITOR_TOOLBAR, &ctx)
+            .into_iter()
+            .map(|item| {
+                let shell = self.shell.clone();
+                let id = item.entry.id.clone();
+                Button::new(SharedString::from(id.clone()))
+                    .small()
+                    .label(SharedString::from(item.entry.title_in(lang).to_string()))
+                    .on_click(move |_, window, cx| {
+                        shell.run(&id, serde_json::Value::Null, window, cx)
+                    })
+            })
+            .collect();
         let surfaces = |location| {
             self.contributions
                 .iter()

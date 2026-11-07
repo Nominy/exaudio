@@ -11,7 +11,7 @@ use exaudio_extension::manifest::ExtensionManifest;
 use exaudio_shell::editor::model::EditorModel;
 use exaudio_shell::screens::ui::localized;
 use exaudio_shell::services::AppServices;
-use exaudio_shell::{CommandContribution, ContributionRegistry, PanelLocation, ShellHandle};
+use exaudio_shell::{ContributionRegistry, PanelLocation, ShellHandle, actions};
 use gpui_kit::*;
 use screens::ai_settings::AiSettingsView;
 use services::GoldServices;
@@ -58,10 +58,6 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
     let draft_panel_title = localized(cx, "AI draft", "Черновик ИИ");
     let denoise_title = localized(cx, "Denoise", "Убрать шум");
     let settings_title = localized(cx, "AI", "ИИ");
-    let draft_label = localized(cx, "Draft with AI…", "Черновик с ИИ…");
-    let align_label = localized(cx, "Align words", "Выровнять слова");
-    let fill_label = localized(cx, "Fill this segment", "Заполнить сегмент");
-    let settings_label = localized(cx, "AI settings…", "Настройки ИИ…");
     let registry = cx.global_mut::<ContributionRegistry>();
     registry.register_panel(
         ID,
@@ -94,58 +90,44 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
         PanelLocation::Settings,
         Rc::new(|_, window, cx| cx.new(|cx| AiSettingsView::new(window, cx)).into()),
     )?;
-    for (id, label, mode) in [
-        ("exaudio.gold.draft", draft_label, DraftMode::Draft),
-        ("exaudio.gold.align", align_label, DraftMode::TimestampsOnly),
-    ] {
-        let views = views.clone();
-        registry.register_command(
-            ID,
-            CommandContribution {
-                id: id.into(),
-                label: label.into(),
-                shortcut: None,
-                toolbar: true,
-                menu: true,
-                run: Rc::new(move |shell: ShellHandle, window, cx| {
+    actions::update(cx, |actions| -> anyhow::Result<()> {
+        for (id, mode) in [
+            ("exaudio.gold.draft", DraftMode::Draft),
+            ("exaudio.gold.align", DraftMode::TimestampsOnly),
+        ] {
+            let views = views.clone();
+            actions.bind(
+                id,
+                Rc::new(move |shell: ShellHandle, _, window, cx| {
                     if let Some(model) = shell.editor_model(cx) {
                         draft_view(model, &views, cx)
                             .update(cx, |panel, cx| panel.open(mode, window, cx));
                     }
                 }),
-            },
-        )?;
-    }
-    registry.register_command(
-        ID,
-        CommandContribution {
-            id: "exaudio.gold.transcribe-segment".into(),
-            label: fill_label.into(),
-            shortcut: Some("alt-shift-g".into()),
-            toolbar: false,
-            menu: true,
-            run: Rc::new(move |shell, window, cx| {
-                let focused = shell.focused_segment(cx);
+            )?;
+        }
+        actions.bind(
+            "exaudio.gold.transcribe-segment",
+            Rc::new(move |shell, args, window, cx| {
+                let focused = args
+                    .get("segment_id")
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_owned)
+                    .or_else(|| shell.focused_segment(cx));
                 if let Some(model) = shell.editor_model(cx) {
                     draft_view(model, &views, cx).update(cx, |panel, cx| {
                         panel.transcribe_segment(focused, window, cx)
                     });
                 }
             }),
-        },
-    )?;
-    registry.register_command(
-        ID,
-        CommandContribution {
-            id: "exaudio.gold.settings".into(),
-            label: settings_label.into(),
-            shortcut: None,
-            toolbar: false,
-            menu: true,
-            run: Rc::new(|_, window, cx| open_ai_settings(window, cx)),
-        },
-    )?;
-    registry.on_unload(
+        )?;
+        actions.bind(
+            "exaudio.gold.settings",
+            Rc::new(|_, _, window, cx| open_ai_settings(window, cx)),
+        )?;
+        Ok(())
+    })?;
+    cx.global_mut::<ContributionRegistry>().on_unload(
         ID,
         Rc::new(move |cx| {
             for view in unload_views
@@ -166,4 +148,34 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
         }),
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use core::prelude::v1::test;
+
+    #[test]
+    fn manifest_places_draft_and_align_on_the_toolbar() {
+        let manifest = super::manifest().expect("manifest validates");
+        let toolbar: Vec<&str> = manifest
+            .contributes
+            .actions
+            .iter()
+            .filter(|action| {
+                action
+                    .menus
+                    .iter()
+                    .any(|menu| menu.menu == "editor/toolbar")
+            })
+            .map(|action| action.id.as_str())
+            .collect();
+        assert_eq!(toolbar, ["exaudio.gold.draft", "exaudio.gold.align"]);
+        let fill = manifest
+            .contributes
+            .actions
+            .iter()
+            .find(|action| action.id == "exaudio.gold.transcribe-segment")
+            .unwrap();
+        assert_eq!(fill.keys[0].key, "alt-shift-g");
+    }
 }

@@ -268,6 +268,7 @@ fn state_declaring(
         host,
         grants,
         providers,
+        BTreeSet::from(["example.hello-panel.greet".to_string()]),
         Limits::default(),
         Arc::new(AtomicBool::new(false)),
     );
@@ -426,7 +427,6 @@ fn malformed_ui_parent_and_recursive_depth_are_rejected() {
         text: String::new(),
         value: String::new(),
         enabled: true,
-        command: None,
     };
     assert!(
         state
@@ -584,6 +584,122 @@ fn provider_setup_and_status_round_trip_through_registered_contribution() {
     state.staging = true;
     assert!(state.provider_setup_done(done).is_err());
 }
+#[test]
+fn run_action_targets_only_own_or_core_actions_with_json_arguments() {
+    let host = TestHost::new();
+    let mut state = state(host.clone(), BTreeSet::new());
+    state
+        .run_action("example.hello-panel.greet".into(), "null".into())
+        .unwrap();
+    state
+        .run_action("exaudio.core.export".into(), r#"{"segment_id":"s"}"#.into())
+        .unwrap();
+    for (id, args) in [
+        ("example.hello-panel.undeclared", "null"),
+        ("example.other.greet", "null"),
+        ("exaudio.core", "null"),
+        ("exaudio.core.", "null"),
+        ("example.hello-panel.greet", "{not json"),
+    ] {
+        assert!(
+            state.run_action(id.into(), args.into()).is_err(),
+            "{id} {args}"
+        );
+    }
+    let outputs = host.outputs.lock().unwrap();
+    assert_eq!(outputs.len(), 2);
+    assert!(matches!(
+        &outputs[0],
+        Output::RunAction { id, args } if id == "example.hello-panel.greet" && args == "null"
+    ));
+    assert!(matches!(&outputs[1], Output::RunAction { id, .. } if id == "exaudio.core.export"));
+    drop(outputs);
+    // Activation cannot run actions: handlers may not be bound and a failed candidate
+    // must not act on the user's behalf.
+    state.staging = true;
+    assert!(
+        state
+            .run_action("example.hello-panel.greet".into(), "null".into())
+            .is_err()
+    );
+}
+#[test]
+fn context_keys_are_namespaced_by_the_extension_id() {
+    let host = TestHost::new();
+    let mut state = state(host.clone(), BTreeSet::new());
+    state
+        .set_context("example.hello-panel.ready".into(), Scalar::Boolean(true))
+        .unwrap();
+    state
+        .set_context(
+            "example.hello-panel.mode.sub-key".into(),
+            Scalar::Text("x".into()),
+        )
+        .unwrap();
+    state
+        .clear_context("example.hello-panel.ready".into())
+        .unwrap();
+    for key in [
+        "ready",
+        "example.other.ready",
+        "example.hello-panel",
+        "example.hello-panel.",
+        "example.hello-panel.1st",
+        "example.hello-panel.a..b",
+        "example.hello-panel.has space",
+        "exaudio.core.editorOpen",
+    ] {
+        assert!(
+            state
+                .set_context(key.into(), Scalar::Boolean(true))
+                .is_err(),
+            "{key}"
+        );
+        assert!(state.clear_context(key.into()).is_err(), "{key}");
+    }
+    assert!(
+        state
+            .set_context("example.hello-panel.n".into(), Scalar::Number(f64::NAN))
+            .is_err()
+    );
+    assert!(
+        state
+            .set_context(
+                "example.hello-panel.t".into(),
+                Scalar::Text("x".repeat(1025))
+            )
+            .is_err()
+    );
+    let outputs = host.outputs.lock().unwrap();
+    assert!(matches!(
+        &outputs[0],
+        Output::SetContext { key, value: Scalar::Boolean(true) } if key == "example.hello-panel.ready"
+    ));
+    assert!(
+        matches!(&outputs[2], Output::ClearContext { key } if key == "example.hello-panel.ready")
+    );
+}
+#[test]
+fn importers_and_exporters_bind_to_declared_actions() {
+    let mut state = state(TestHost::new(), BTreeSet::new());
+    assert!(
+        state
+            .register(Registration {
+                id: "srt".into(),
+                kind: ContributionKind::Importer,
+                title: "SRT".into(),
+            })
+            .unwrap_err()
+            .contains("example.hello-panel.srt")
+    );
+    state
+        .register(Registration {
+            id: "greet".into(),
+            kind: ContributionKind::Exporter,
+            title: "Greeting".into(),
+        })
+        .unwrap();
+}
 fn wait(ticket: Ticket) -> Result<()> {
     // Test-only blocking wait; production UI uses Ticket::try_recv.
     ticket
@@ -603,10 +719,26 @@ fn canonical_alias_amplification_traps_before_owned_graph_allocation() {
     assert!(crate::lift::alias_probe(state(TestHost::new(), BTreeSet::new()), 128).is_err());
 }
 fn package(bytes: &[u8]) -> Package {
-    let manifest = serde_json::from_str(include_str!(
+    let mut manifest: ExtensionManifest = serde_json::from_str(include_str!(
         "../../../extensions/examples/hello-panel/manifest.json"
     ))
     .unwrap();
+    // The `runtime-probes` build answers these with deliberate traps; they are never
+    // part of the published manifest.
+    for probe in ["probe-trap", "probe-fuel", "probe-memory"] {
+        manifest
+            .contributes
+            .actions
+            .push(exaudio_extension::actions::ActionManifest {
+                id: format!("example.hello-panel.{probe}"),
+                title: exaudio_extension::actions::Localized::en(probe),
+                category: None,
+                when: None,
+                palette: false,
+                keys: vec![],
+                menus: vec![],
+            });
+    }
     Package {
         manifest,
         component: bytes.to_vec(),
@@ -617,6 +749,22 @@ fn package(bytes: &[u8]) -> Package {
         ]),
         required_by_open_modes: vec!["^0.1".parse().unwrap()],
     }
+}
+/// The panel button asks the shell to run the greeting action; the shell would dispatch
+/// it back as `on-action`. Returns that action invocation.
+fn greet_from_click(host: &TestHost, runtime: &Runtime) -> Result<Invocation> {
+    let before = host.outputs.lock().unwrap().len();
+    wait(runtime.invoke(click())?)?;
+    let outputs = host.outputs.lock().unwrap();
+    let (id, args) = outputs[before..]
+        .iter()
+        .find_map(|o| match o {
+            Output::RunAction { id, args } => Some((id.clone(), args.clone())),
+            _ => None,
+        })
+        .context("click did not request the greeting action")?;
+    assert_eq!(id, "example.hello-panel.greet");
+    Ok(Invocation::Action { id, args })
 }
 fn click() -> Invocation {
     Invocation::Ui(UiEvent {
@@ -666,7 +814,8 @@ fn real_component_activation_ui_transactions_diagnostics_reload_and_isolation() 
             .iter()
             .any(|o| matches!(o, Output::Diagnostics(d) if d.items.len() == 1))
     );
-    wait(runtime.invoke(click()).unwrap()).unwrap();
+    let greet = greet_from_click(&host, &runtime).unwrap();
+    wait(runtime.invoke(greet).unwrap()).unwrap();
     assert_eq!(
         host.document.lock().unwrap().segments[0].text,
         "Hello from Exaudio! "
@@ -798,37 +947,38 @@ fn real_component_activation_ui_transactions_diagnostics_reload_and_isolation() 
     assert_eq!(host.activated(), activated);
     assert_eq!(host.removed(), removed);
     host.reject_preflight.store(false, Ordering::Relaxed);
-    wait(runtime.invoke(click()).unwrap()).unwrap(); // Previous instance is still usable.
+    // Previous instance is still usable.
+    let greet = greet_from_click(&host, &runtime).unwrap();
+    wait(runtime.invoke(greet).unwrap()).unwrap();
     wait(runtime.load(package(&bytes)).unwrap()).unwrap();
     assert_eq!(host.removed(), removed);
     assert_eq!(host.activated(), activated + 1);
     let mut denied = package(&bytes);
     denied.grants.clear();
     wait(runtime.load(denied).unwrap()).unwrap();
+    let greet = greet_from_click(&host, &runtime).unwrap();
     assert!(
-        wait(runtime.invoke(click()).unwrap())
+        wait(runtime.invoke(greet).unwrap())
             .unwrap_err()
             .to_string()
             .contains("permission denied")
     );
     wait(runtime.unload().unwrap()).unwrap();
     assert!(runtime.load(package(&bytes)).is_err());
-    for command in ["probe-trap", "probe-fuel", "probe-memory"] {
+    for probe in ["probe-trap", "probe-fuel", "probe-memory"] {
         let runtime =
             Runtime::spawn("example.hello-panel".into(), host.clone(), limits.clone()).unwrap();
         wait(runtime.load(package(&bytes)).unwrap()).unwrap();
         let removed = host.removed();
         let activated = host.activated();
         let trapped = runtime
-            .invoke(Invocation::Command(Command {
-                id: command.into(),
-                document_id: None,
-                selection: None,
-                arguments: vec![],
-            }))
+            .invoke(Invocation::Action {
+                id: format!("example.hello-panel.{probe}"),
+                args: "null".into(),
+            })
             .unwrap();
         let queued = runtime.load(package(&bytes));
-        assert!(wait(trapped).is_err(), "{command}");
+        assert!(wait(trapped).is_err(), "{probe}");
         if let Ok(ticket) = queued {
             assert!(
                 wait(ticket).is_err(),
@@ -838,7 +988,7 @@ fn real_component_activation_ui_transactions_diagnostics_reload_and_isolation() 
         assert_eq!(
             host.removed(),
             removed + 1,
-            "{command} did not isolate instance"
+            "{probe} did not isolate instance"
         );
         assert_eq!(host.activated(), activated);
         assert!(runtime.invoke(click()).is_err());

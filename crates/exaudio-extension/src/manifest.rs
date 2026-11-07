@@ -7,6 +7,9 @@ use semver::{Version, VersionReq};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::actions::manifest::{Contributes, validate_actions};
+use crate::actions::when::WhenError;
+
 /// Host API version supported by this build (distinct from the application version).
 pub const API_VERSION: Version = Version::new(0, 1, 0);
 
@@ -101,6 +104,8 @@ pub struct ExtensionManifest {
     pub modes: Vec<ModeManifest>,
     #[serde(default)]
     pub providers: Vec<ProviderManifest>,
+    #[serde(default)]
+    pub contributes: Contributes,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Error)]
@@ -123,6 +128,20 @@ pub enum ManifestError {
     DuplicateProvider(String),
     #[error("mode `{mode}` references provider `{provider}` that is not declared")]
     UnknownProvider { mode: String, provider: String },
+    #[error("action `{action}` must be `{owner}.<name>` in dotted lowercase components")]
+    InvalidActionId { action: String, owner: String },
+    #[error("duplicate action identifier `{0}`")]
+    DuplicateAction(String),
+    #[error("action `{0}` has no English title")]
+    MissingTitle(String),
+    #[error("action `{action}` has an invalid when clause `{clause}`: {error}")]
+    InvalidWhen {
+        action: String,
+        clause: String,
+        error: WhenError,
+    },
+    #[error("action `{action}` has an invalid key `{key}`")]
+    InvalidKey { action: String, key: String },
 }
 
 /// Portable, path-safe identity: never used as an unchecked filesystem path.
@@ -214,6 +233,7 @@ impl ExtensionManifest {
                 }
             }
         }
+        validate_actions(&self.id, &self.contributes.actions)?;
         Ok(())
     }
 }

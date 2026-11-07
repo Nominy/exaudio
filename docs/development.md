@@ -29,7 +29,7 @@ cargo run -p studio-app --no-default-features --locked
 cargo run -p studio-app --locked
 ```
 
-`studio-app` remains the Cargo package/binary name used during development. Packaged releases use the Exaudio name. The default `batteries-included` feature selects `local`, `formats`, `basic-checks`, `gold` and `babel`; changing the build feature set is different from enabling/disabling an installed extension.
+`studio-app` remains the Cargo package/binary name used during development. Packaged releases use the Exaudio name. The default `batteries-included` feature selects `palette`, `local`, `formats`, `basic-checks`, `gold` and `babel`; changing the build feature set is different from enabling/disabling an installed extension. Bundled native extensions live under `extensions/`: `palette` (command palette, `Ctrl+Shift+P`), `local`, `formats`, `lint-basic`, `gold`/`gold-ui` and the `babel-*` family.
 
 **First-party code and build inputs:** Helper, reviewer/drafting and Babel integration extensions are the Exaudio author's own developments, not proprietary third-party extensions. Every build above, including the default all-batteries one, builds from a fresh checkout: the Babel linter's rule data (`babel-lint-data.json`, `error-category-names.json`) is tracked in `extensions/babel-lint/assets`. Only the parity fixtures described below are private. Keep credentials and private task content out of source and public fixtures.
 
@@ -82,6 +82,10 @@ Start with the [Rust SDK build/package guide](../sdk/rust/README.md) and [`hello
 The [marketplace index repository](https://github.com/Nominy/exaudio-extensions) references packages released from each author's GitHub repository. The endpoint is `https://raw.githubusercontent.com/Nominy/exaudio-extensions/main/index.json`. Publish immutable versioned artifacts with their source identity, byte size, SHA-256 and requested permissions; an index record is not a license or security endorsement. Do not embed API keys or assume that manifest declarations automatically grant host access.
 
 Native Rust extensions have application privileges. Installable WASM components use explicit typed host capabilities and resource limits, not arbitrary ambient filesystem/process/network access. Modes declare required extensions; removing a dependency while its mode is open is not a supported way to reduce the workspace's capabilities.
+
+### Actions
+
+Everything a user can invoke — menu items, toolbar buttons, keyboard shortcuts, hotkeys-dialog rows and command palette entries — is an action declared under `contributes.actions` in the extension manifest and registered in one `ActionRegistry`. The shape of a declaration, the `when` clause language, key chords, menu ids and the dispatch/activation rules are specified in [`docs/architecture/actions.md`](architecture/actions.md); the bundled `extensions/palette` extension is the smallest complete example (one action, one key, one menu placement, handler bound in `register`).
 
 ## Website development
 

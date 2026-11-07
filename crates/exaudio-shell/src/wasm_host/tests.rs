@@ -431,3 +431,99 @@ fn reopened_document_does_not_accept_prior_incarnation_handle() {
     assert!(host.snapshot(&cx, "document:1", 1024).is_err());
     assert!(receiver.try_recv().is_err());
 }
+
+fn hello_panel() -> ExtensionManifest {
+    serde_json::from_str(include_str!(
+        "../../../../extensions/examples/hello-panel/manifest.json"
+    ))
+    .unwrap()
+}
+
+/// Metadata comes from the manifest and is listed before the component runs; binding
+/// (what `activate` does once the entry exists) is what turns `run` into a dispatch.
+#[test]
+fn declared_actions_are_listed_before_activation_and_dispatch_once_bound() {
+    use crate::actions::{ActionHandler, Step, step};
+    use exaudio_extension::actions::{ActionRegistry, Context, Priority};
+    let manifest = hello_panel();
+    let mut registry: ActionRegistry<ActionHandler> = ActionRegistry::new();
+    registry
+        .register_owner(
+            &manifest.id,
+            &manifest.name,
+            manifest.contributes.actions.clone(),
+            Priority::Extension,
+        )
+        .unwrap();
+    let mut ctx = Context::new();
+    ctx.set("editorOpen", true);
+    let listed: Vec<&str> = registry.actions_in(&ctx).map(|e| e.id.as_str()).collect();
+    assert_eq!(listed, ["example.hello-panel.greet"]);
+    assert_eq!(
+        registry
+            .menu(crate::actions::MENU_EDITOR_OVERFLOW, &ctx)
+            .len(),
+        1
+    );
+    assert!(!registry.is_bound("example.hello-panel.greet"));
+    assert!(matches!(
+        step(&registry, "example.hello-panel.greet", false),
+        Step::Activate(owner) if owner == "example.hello-panel"
+    ));
+    for (id, handler) in action_handlers(&manifest.id, &manifest) {
+        registry.bind(&id, handler).unwrap();
+    }
+    assert!(matches!(
+        step(&registry, "example.hello-panel.greet", false),
+        Step::Invoke(_)
+    ));
+    // Handlers are only created for declared ids: a foreign manifest cannot bind here.
+    let mut other = hello_panel();
+    other.contributes.actions[0].id = "example.other.greet".into();
+    assert!(action_handlers("example.other", &other).len() == 1);
+    assert!(
+        registry
+            .bind(
+                "example.other.greet",
+                action_handlers("example.other", &other)[0].1.clone()
+            )
+            .is_err()
+    );
+}
+
+#[test]
+fn on_action_arguments_are_an_object_with_the_visible_document() {
+    let parse = |text: String| serde_json::from_str::<serde_json::Value>(&text).unwrap();
+    assert_eq!(
+        parse(action_args(serde_json::Value::Null, None)),
+        serde_json::json!({})
+    );
+    assert_eq!(
+        parse(action_args(
+            serde_json::json!({"segment_id": "s"}),
+            Some("document:1".into())
+        )),
+        serde_json::json!({"segment_id": "s", "document_id": "document:1"})
+    );
+    assert_eq!(
+        parse(action_args(serde_json::json!(7), Some("document:1".into()))),
+        serde_json::json!({"value": 7, "document_id": "document:1"})
+    );
+}
+
+#[test]
+fn guest_context_keys_must_be_namespaced_by_the_owner() {
+    assert!(context_owned("example.hello-panel", "example.hello-panel.ready").is_ok());
+    for key in [
+        "example.hello-panel",
+        "example.hello-panel.",
+        "editorOpen",
+        "example.other.x",
+    ] {
+        assert!(context_owned("example.hello-panel", key).is_err(), "{key}");
+    }
+    assert_eq!(
+        context_value(w::Scalar::Text("x".into())),
+        exaudio_extension::actions::Value::from("x")
+    );
+}

@@ -25,6 +25,7 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::rc::Rc;
 
+use exaudio_extension::actions::KeyChord;
 use exaudio_extension::document::Completion;
 use gpui_kit::component::input::{InputEvent, InputState, RopeExt as _, TextareaState};
 use gpui_kit::component::scroll::ScrollableElement as _;
@@ -33,14 +34,13 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::keymap::{FocusTarget, KeyFocus};
 use studio_editor::edit::time::TimeField;
 use studio_editor::edit::{EditorDoc, Outcome, TextSelection};
 use studio_editor::timeline_model::LaneColor;
 use studio_editor::transcript_model::{TranscriptActionCommand, TranscriptRowView};
 
+use crate::actions::{self, IS_MAC, keystroke_string};
 use crate::editor::model::{EditorEvent, EditorModel};
-use crate::keymap::{ActiveKeymap, keystroke_string};
 use crate::screens::ui::localized;
 use layout::{
     ACTIONS_W, CELL_PX, ID_W, LINT_W, REVIEWER_W, RowMetrics, TEXT_PX, TIME_W, TRACK_W, TextMetrics,
@@ -228,14 +228,6 @@ impl TranscriptView {
     /// Lane this grid is limited to; `None` for the grid of every lane.
     pub fn lane_id(&self) -> Option<&str> {
         self.lane.as_ref().map(|lane| lane.lane_id.as_str())
-    }
-
-    /// Segment whose text editor currently has keyboard focus.
-    pub fn focused_segment_id(&self, window: &Window, cx: &App) -> Option<String> {
-        self.text_row
-            .as_ref()
-            .filter(|_| self.text_focused && self.text_input.focus_handle(cx).is_focused(window))
-            .map(ToString::to_string)
     }
 
     /// Rows of this grid: the doc's rows under the track filter, limited to the lane.
@@ -463,6 +455,7 @@ impl TranscriptView {
 
         self.text_row = Some(SharedString::from(segment_id.to_string()));
         self.text_focused = true;
+        actions::set_text_row(segment_id.to_string(), self.text_input.focus_handle(cx), cx);
         self.load_text_editor(text, selection, window, cx);
         self.text_input.update(cx, |input, cx| {
             input.set_placeholder(
@@ -633,6 +626,7 @@ impl TranscriptView {
                 cx.notify();
             }
             InputEvent::Focus => {
+                actions::set_text_row(segment_id.to_string(), self.text_input.focus_handle(cx), cx);
                 self.text_focused = true;
                 self.model.update(cx, |model, cx| {
                     model.edit(cx, |doc| doc.set_text_focus(Some(&segment_id)));
@@ -704,50 +698,29 @@ impl TranscriptView {
             cx.stop_propagation();
             return;
         }
-        if !self.text_focused || !self.text_input.focus_handle(cx).is_focused(window) {
+        if !self.text_focused
+            || self.text_row.is_none()
+            || !self.text_input.focus_handle(cx).is_focused(window)
+        {
             return;
         }
-        let Some(segment_id) = self.text_row.clone() else {
-            return;
-        };
         self.sync_text_selection(cx);
 
-        let keystroke = &event.keystroke;
-        let (focus, has_selection) = {
-            let doc = self.model.read(cx).doc();
-            let focus = KeyFocus {
-                target: FocusTarget::TranscriptText,
-                cut_preview_active: doc.session().overlay.is_some(),
-                completions_open: doc.completions(&segment_id).is_some(),
-            };
-            let has_selection = doc
-                .draft(&segment_id)
-                .is_some_and(|draft| !draft.selection().is_empty());
-            (focus, has_selection)
-        };
-
-        if let Some(action) = ActiveKeymap::resolve(cx, keystroke, focus) {
-            let handled = self
-                .model
-                .update(cx, |model, cx| model.perform(action, Some(&segment_id), cx));
-            if handled {
-                cx.stop_propagation();
-                cx.notify();
-            }
-            return;
-        }
-
-        let command = cx
-            .global::<crate::ContributionRegistry>()
-            .resolve_keybinding(&keystroke_string(keystroke), true, has_selection);
-        if let Some(command) = command {
+        let stroke = keystroke_string(&event.keystroke);
+        let ctx = actions::snapshot(window, cx);
+        let resolved = KeyChord::parse(&stroke)
+            .and_then(|chord| actions::registry(cx).resolve(&chord, &ctx, IS_MAC).chosen);
+        if let Some(id) = resolved {
+            // Deferred: the handler may update this view, which is leased during the event.
             let shell = cx.global::<crate::ShellHandle>().clone();
-            shell.dispatch(&command, window, cx);
+            window.defer(cx, move |window, cx| {
+                shell.run(&id, serde_json::Value::Null, window, cx)
+            });
             cx.stop_propagation();
             return;
         }
 
-        match keystroke_string(keystroke).as_str() {
+        match stroke.as_str() {
             // Enter leaves the row (no line breaks in transcript text); the blur that follows
             // commits its text (`InputEvent::Blur`).
             "enter" | "shift-enter" => {

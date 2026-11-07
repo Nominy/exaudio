@@ -32,11 +32,13 @@ pub fn is_active(cx: &App) -> bool {
 pub fn install(cx: &mut App) -> Option<async_channel::Receiver<TrayCommand>> {
     #[cfg(windows)]
     {
-        let commands = cx
-            .global::<crate::ContributionRegistry>()
-            .commands()
-            .into_iter()
-            .map(|c| (c.id, c.label))
+        // Actions usable with nothing open: enabled extension actions whose clauses hold in
+        // an empty context.
+        let lang = crate::actions::lang(cx);
+        let commands = crate::actions::registry(cx)
+            .actions_in(&exaudio_extension::actions::Context::new())
+            .filter(|entry| entry.palette && entry.owner != exaudio_extension::actions::CORE_OWNER)
+            .map(|entry| (entry.id.clone(), entry.title_in(lang).to_string()))
             .collect();
         let labels = windows_tray::Labels {
             open: crate::screens::ui::localized(cx, "Open Exaudio", "Открыть Exaudio"),

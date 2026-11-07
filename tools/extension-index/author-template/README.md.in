@@ -1,9 +1,10 @@
 # @@EXTENSION_ID@@
 
 This is a standalone Exaudio extension repository owned by `@@OWNER@@/@@REPOSITORY@@`.
-It contains real starter functionality: a panel and command that insert a greeting in one
-undoable document transaction, plus empty-segment diagnostics. Customize that implementation
-and the manifest before publishing your extension.
+It contains real starter functionality: a panel and a declared action
+(`@@EXTENSION_ID@@.insert-greeting`, shown in the ⋯ menu and the command palette) that insert
+a greeting in one undoable document transaction, plus empty-segment diagnostics. Customize
+that implementation and the manifest (`contributes.actions`) before publishing your extension.
 
 The SDK dependency is fetched from `@@SDK_URL@@`, pinned to full commit
 `@@SDK_COMMIT@@`. There are **no relative dependencies on a Exaudio checkout**. Cargo checks
@@ -34,7 +35,7 @@ actual build inputs but does not pretend those transitive dependencies were pinn
 source commit. Subsequent releases should use a committed lockfile.
 
 Load the archive as a developer source in Exaudio, explicitly approve its SHA256 and requested
-permissions, and exercise its panel/command/diagnostics. The example requests document read
+permissions, and exercise its panel/action/diagnostics. The example requests document read
 and edit only. Declaring permissions does not grant them. Runtime/ABI validation and your
 functional tests remain necessary; archive validation alone is not an extension test.
 

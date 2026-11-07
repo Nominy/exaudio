@@ -260,19 +260,19 @@ impl CapabilityPanel {
                                 .icon(gpui_kit::assets::IconName::WandSparkles)
                                 .disabled(read_only || !cx.global::<ContributionRegistry>().is_enabled("exaudio.gold"))
                                 .on_click(cx.listener(|this, _, window, cx| {
-                                    this.shell.dispatch("exaudio.gold.draft", window, cx);
+                                    this.shell.run("exaudio.gold.draft", serde_json::Value::Null, window, cx);
                                 })),
                         )
                         .child(button("dr-timestamps", localized(cx, "Align words", "Выровнять слова"))
                             .disabled(!cx.global::<ContributionRegistry>().is_enabled("exaudio.gold"))
                             .on_click(cx.listener(|this, _, window, cx| {
-                                this.shell.dispatch("exaudio.gold.align", window, cx);
+                                this.shell.run("exaudio.gold.align", serde_json::Value::Null, window, cx);
                             })))
                         .child(
                             button("dr-transcribe", localized(cx, "Fill this segment", "Заполнить сегмент"))
                                 .disabled(read_only || !cx.global::<ContributionRegistry>().is_enabled("exaudio.gold"))
                                 .on_click(cx.listener(|this, _, window, cx| {
-                                    this.shell.dispatch("exaudio.gold.transcribe-segment", window, cx);
+                                    this.shell.run("exaudio.gold.transcribe-segment", serde_json::Value::Null, window, cx);
                                 })),
                         )
                         .child(
@@ -286,7 +286,7 @@ impl CapabilityPanel {
                         .child(
                             button("dr-ai-settings", localized(cx, "AI settings", "Настройки ИИ"))
                                 .disabled(!cx.global::<ContributionRegistry>().is_enabled("exaudio.gold"))
-                                .on_click(cx.listener(|this, _, window, cx| this.shell.dispatch("exaudio.gold.settings", window, cx))),
+                                .on_click(cx.listener(|this, _, window, cx| this.shell.run("exaudio.gold.settings", serde_json::Value::Null, window, cx))),
                         ),
                 )
                 .child(muted(

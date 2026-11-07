@@ -1,5 +1,8 @@
 use crate::Result;
-use exaudio_extension::{ExtensionManifest, Permission, Runtime};
+use exaudio_extension::{
+    ExtensionManifest, Permission, Runtime,
+    actions::{ActionManifest, Contributes, Localized, MenuPlacement},
+};
 use exaudio_marketplace::{Catalog, CatalogExtension, Repository};
 use semver::Version;
 use std::{collections::BTreeMap, path::Path};
@@ -75,10 +78,26 @@ fn render(spec: &Spec<'_>) -> Result<BTreeMap<&'static str, String>> {
     let manifest = ExtensionManifest {
         id: spec.id.to_owned(), name: spec.id.to_owned(), version: version.clone(),
         api: format!("^{}", exaudio_extension::API_VERSION).parse()?, runtime: Runtime::Wasm,
-        description: "An independently authored panel and command with undoable greeting insertion and empty-segment diagnostics.".into(),
+        description: "An independently authored panel and action with undoable greeting insertion and empty-segment diagnostics.".into(),
         license: "MIT".into(), dependencies: BTreeMap::new(),
         permissions: vec![Permission::DocumentRead, Permission::DocumentEdit], modes: Vec::new(),
         providers: Vec::new(),
+        contributes: Contributes {
+            actions: vec![ActionManifest {
+                id: format!("{}.insert-greeting", spec.id),
+                title: Localized::en("Insert greeting"),
+                category: None,
+                when: Some("editorOpen".into()),
+                palette: true,
+                keys: Vec::new(),
+                menus: vec![MenuPlacement {
+                    menu: "editor/overflow".into(),
+                    group: spec.id.to_owned(),
+                    order: 0,
+                    when: None,
+                }],
+            }],
+        },
     };
     manifest.validate()?;
     let crate_name = spec.id.replace('.', "-");
@@ -118,7 +137,7 @@ fn render(spec: &Spec<'_>) -> Result<BTreeMap<&'static str, String>> {
         ),
         (
             "src/lib.rs",
-            include_str!("../author-template/lib.rs").to_owned(),
+            render_template(include_str!("../author-template/lib.rs")),
         ),
         (
             "rust-toolchain.toml",
@@ -194,9 +213,14 @@ mod tests {
             assert!(workflow.contains(required), "missing {required}");
         }
         assert!(files["src/lib.rs"].contains("host::propose"));
+        assert!(files["src/lib.rs"].contains("\"fixture.author.insert-greeting\""));
         assert!(!files["src/lib.rs"].contains("runtime-probes"));
         let manifest: ExtensionManifest = serde_json::from_str(&files["manifest.json"]).unwrap();
         assert_eq!(manifest.id, spec.id);
+        assert_eq!(
+            manifest.contributes.actions[0].id,
+            "fixture.author.insert-greeting"
+        );
     }
 
     #[test]

@@ -31,6 +31,7 @@ use super::layout::{
     has_review_chips,
 };
 use super::wrap::WrappedText;
+use crate::actions;
 
 /// Per-row inputs gathered by the view before rendering.
 pub(super) struct RowParams<'a> {
@@ -832,7 +833,7 @@ impl TranscriptView {
                 .icon(IconName::EllipsisVertical)
                 .ghost()
                 .xsmall()
-                .dropdown_menu(move |mut menu, _, cx| {
+                .dropdown_menu(move |mut menu, window, cx| {
                     for entry in &entries {
                         if matches!(
                             *entry,
@@ -913,6 +914,26 @@ impl TranscriptView {
                                 });
                             }),
                         );
+                    }
+                    let ctx = actions::snapshot(window, cx);
+                    let lang = actions::lang(cx);
+                    let contributed: Vec<(String, String)> = actions::registry(cx)
+                        .menu(actions::MENU_ROW_CONTEXT, &ctx)
+                        .into_iter()
+                        .map(|item| (item.entry.id.clone(), item.entry.title_in(lang).to_string()))
+                        .collect();
+                    if !contributed.is_empty() {
+                        menu = menu.separator();
+                    }
+                    for (id, title) in contributed {
+                        let segment_id = segment_id.clone();
+                        menu = menu.item(PopupMenuItem::new(SharedString::from(title)).on_click(
+                            move |_, window, cx| {
+                                let shell = cx.global::<crate::ShellHandle>().clone();
+                                let args = serde_json::json!({ "segment_id": segment_id.as_ref() });
+                                shell.run(&id, args, window, cx);
+                            },
+                        ));
                     }
                     menu
                 }),

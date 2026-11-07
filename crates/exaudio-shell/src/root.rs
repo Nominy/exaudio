@@ -139,49 +139,41 @@ impl ShellHandle {
         model.update(cx, |model, _| model.own_recovery(recovery));
         Ok(model)
     }
-    pub fn dispatch_document_command(
-        &self,
-        command: &str,
-        arguments: serde_json::Value,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        let handler = cx
-            .global::<ContributionRegistry>()
-            .document_command(command);
-        if let Some(handler) = handler {
-            handler(self.clone(), arguments, window, cx);
-        } else {
-            window.push_notification(
+    /// Runs an action with JSON arguments (`{"segment_id": …}` for row-scoped invocations,
+    /// `Null` otherwise). An unbound action activates its owner and is retried once; an
+    /// unknown, disabled or still unbound action shows "This command isn't available."
+    pub fn run(&self, id: &str, args: serde_json::Value, window: &mut Window, cx: &mut App) {
+        use crate::actions::{Step, activate_owner, registry, step};
+        let handler = match step(registry(cx), id, false) {
+            Step::Invoke(handler) => Some(handler),
+            Step::Activate(owner) => {
+                if let Err(error) = activate_owner(&owner, cx) {
+                    eprintln!("activating {owner} for {id}: {error:#}");
+                }
+                match step(registry(cx), id, true) {
+                    Step::Invoke(handler) => Some(handler),
+                    _ => None,
+                }
+            }
+            Step::Unavailable => None,
+        };
+        match handler {
+            Some(handler) => handler(self.clone(), args, window, cx),
+            None => window.push_notification(
                 ui::error_notification(
                     ui::localized(
                         cx,
                         "This command isn't available.",
                         "Эта команда недоступна.",
                     ),
-                    Some(command.to_string().into()),
+                    Some(id.to_string().into()),
                 ),
                 cx,
-            );
+            ),
         }
     }
-    pub fn dispatch(&self, command: &str, window: &mut Window, cx: &mut App) {
-        let handler = cx.global::<ContributionRegistry>().command(command);
-        if let Some(handler) = handler {
-            handler(self.clone(), window, cx);
-        } else {
-            window.push_notification(
-                ui::error_notification(
-                    ui::localized(
-                        cx,
-                        "This command isn't available.",
-                        "Эта команда недоступна.",
-                    ),
-                    Some(command.to_string().into()),
-                ),
-                cx,
-            );
-        }
+    pub fn editor_screen(&self, cx: &App) -> Option<Entity<EditorScreen>> {
+        self.0.upgrade()?.read(cx).editor_screen()
     }
 }
 enum Screen {
@@ -218,6 +210,16 @@ impl StudioRoot {
             Screen::Editor { model, .. } => Some(model.clone()),
             _ => None,
         }
+    }
+    fn editor_screen(&self) -> Option<Entity<EditorScreen>> {
+        match &self.screen {
+            Screen::Editor { screen, .. } => Some(screen.clone()),
+            _ => None,
+        }
+    }
+    /// Mode whose launch window or document is current.
+    pub fn launched_mode(&self) -> Option<&str> {
+        self.launched.as_deref()
     }
     pub fn open_document(
         &mut self,

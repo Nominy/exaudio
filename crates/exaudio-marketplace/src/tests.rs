@@ -26,6 +26,7 @@ fn manifest(id: &str, version: &str) -> ExtensionManifest {
         permissions: Vec::new(),
         modes: Vec::new(),
         providers: Vec::new(),
+        contributes: Default::default(),
     }
 }
 

@@ -22,4 +22,4 @@ pub use doc::{
     remove_word_final_ellipsis,
 };
 pub use draft::{SegmentDraft, TextSelection};
-pub use keymap::{EditorAction, KeyContext, Keymap};
+pub use keymap::{EditorAction, KeyContext};

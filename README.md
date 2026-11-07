@@ -35,6 +35,7 @@ Requirements: Windows 10/11 x64, an audio output and writable space for projects
 - **Checks.** A Checks column flags empty text, overlaps on the same track and stray spaces, with safe one-click fixes. Extensions add their own rules.
 - **Import / export.** SRT, WebVTT and plain text in and out through the Formats extension (**Commands → Import transcript…** / **Export…**). The native project folder keeps a copy of the audio and every segment.
 - **Extensions.** Commands, panels, checks, formats and modes come from extensions: bundled ones are native Rust, installable ones are sandboxed WASM.
+- **Command palette (Ctrl+Shift+P).** Every command the editor and its extensions offer, searchable by name, with its shortcut beside it.
 
 Start shows one tile per installed mode. **Local** opens audio and projects on this computer without an account. **Babel**, **Babel error review** and **Babel file** are optional modes supplied by the author's Babel integration; they need their own service access and are not needed for Local. Exaudio is not an official Babel product and does not claim Babel endorsement.
 

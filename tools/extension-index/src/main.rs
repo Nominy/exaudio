@@ -1,3 +1,4 @@
+mod actions;
 mod author;
 
 use std::{
@@ -122,7 +123,9 @@ async fn main() {
             cancellation.cancel();
         }
     });
-    let result = run(&control).await;
+    let arguments: Vec<String> = std::env::args().skip(1).collect();
+    let args: Vec<&str> = arguments.iter().map(String::as_str).collect();
+    let result = run(&args, &control).await;
     signal.abort();
     if let Err(error) = result {
         eprintln!("error: {error}");
@@ -130,11 +133,9 @@ async fn main() {
     }
 }
 
-async fn run(control: &OperationControl) -> Result<()> {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let args: Vec<&str> = arguments.iter().map(String::as_str).collect();
+async fn run(args: &[&str], control: &OperationControl) -> Result<()> {
     let limits = Limits::default();
-    match args.as_slice() {
+    match args {
         ["init-index", destination] => {
             std::fs::create_dir(destination)?;
             std::fs::write(
@@ -181,8 +182,21 @@ async fn run(control: &OperationControl) -> Result<()> {
             catalog(previous)?.validate_successor(&catalog(path)?)?;
             println!("valid catalog and immutable release history");
         }
-        ["inspect", path] => print(&catalog(path)?)?,
-        ["inspect", path, query] => print(&catalog(path)?.search(query))?,
+        ["inspect", path] => {
+            let index = catalog(path)?;
+            print(&serde_json::json!({
+                "catalog": index,
+                "actions": release_actions(index.extensions.iter()),
+            }))?;
+        }
+        ["inspect", path, query] => {
+            let index = catalog(path)?;
+            let hits = index.search(query);
+            print(&serde_json::json!({
+                "catalog": hits,
+                "actions": release_actions(hits.iter().copied()),
+            }))?;
+        }
         ["fetch", source, cache] | ["fetch", source, cache, "--offline"] => {
             let client = MarketplaceClient::new(source, cache)?;
             let snapshot = client
@@ -244,11 +258,15 @@ async fn run(control: &OperationControl) -> Result<()> {
         }
         ["validate-package", path, id, version, package] => {
             let index = catalog(path)?;
-            print(&exaudio_marketplace::validate_package(
+            let manifest = exaudio_marketplace::validate_package(
                 &bytes(package, limits.compressed_bytes)?,
                 release(&index, id, version)?,
                 limits,
-            )?)?;
+            )?;
+            print(&serde_json::json!({
+                "manifest": manifest,
+                "actions": actions::summarize(&manifest),
+            }))?;
         }
         ["plan-mode", path, id, version, mode, store, host, grants] => {
             let index = catalog(path)?;
@@ -430,6 +448,24 @@ async fn run(control: &OperationControl) -> Result<()> {
     Ok(())
 }
 
+/// `contributes.actions` of every release of the given catalog entries.
+fn release_actions<'a>(
+    entries: impl Iterator<Item = &'a CatalogExtension>,
+) -> Vec<actions::ReleaseActions<'a>> {
+    entries
+        .flat_map(|entry| {
+            entry
+                .releases
+                .iter()
+                .map(|release| actions::ReleaseActions {
+                    id: &entry.id,
+                    version: release.version.to_string(),
+                    actions: actions::summarize(&release.manifest),
+                })
+        })
+        .collect()
+}
+
 fn pack(
     manifest: &str,
     component: &str,
@@ -514,4 +550,55 @@ fn pack(
         .map_err(|error| error.error)?;
     preview.source = std::fs::canonicalize(output)?;
     print(&preview)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A component header is enough for packaging; the manifest's `when` is what fails.
+    #[tokio::test]
+    async fn pack_rejects_a_manifest_whose_action_when_clause_is_invalid() {
+        let directory = tempfile::tempdir().unwrap();
+        let manifest = directory.path().join("manifest.json");
+        std::fs::write(
+            &manifest,
+            serde_json::json!({
+                "id": "fixture.broken",
+                "name": "Broken",
+                "version": "0.1.0",
+                "api": "^0.1.0",
+                "runtime": "wasm",
+                "description": "invalid when clause",
+                "license": "MIT",
+                "contributes": { "actions": [{
+                    "id": "fixture.broken.go",
+                    "title": { "en": "Go" },
+                    "when": "editorOpen &&"
+                }] }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let module = directory.path().join("module.wasm");
+        std::fs::write(&module, b"\0asm\x0d\0\x01\0").unwrap();
+        let output = directory.path().join("fixture.broken-0.1.0.exaudio");
+        let error = run(
+            &[
+                "pack",
+                manifest.to_str().unwrap(),
+                module.to_str().unwrap(),
+                output.to_str().unwrap(),
+            ],
+            &OperationControl::default(),
+        )
+        .await
+        .unwrap_err()
+        .to_string();
+        assert!(
+            error.contains("fixture.broken.go") && error.contains("when"),
+            "{error}"
+        );
+        assert!(!output.exists(), "no artifact may be left behind");
+    }
 }

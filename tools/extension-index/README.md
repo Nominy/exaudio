@@ -19,7 +19,8 @@ template never publishes a conflicting `catalog.json` default.
 
 `init-author OWNER REPOSITORY EXTENSION_ID VERSION SDK_GITHUB_URL FULL_SDK_COMMIT DESTINATION`
 generates a standalone extension repository from `author-template/`. It supplies working
-panel/command/diagnostic Rust source, an exact manifest, MIT notices, a pinned toolchain,
+panel/action/diagnostic Rust source, an exact manifest (declaring the
+`<EXTENSION_ID>.insert-greeting` action), MIT notices, a pinned toolchain,
 and a GitHub Actions release workflow. Cargo's SDK dependency uses an explicit GitHub
 `git` URL and full `rev`, never `../../../sdk/rust`. The same revision supplies the
 validator CLI. All template variables are resolved before the new directory is published.
@@ -69,6 +70,13 @@ cargo run -p exaudio-extension-index -- enable INDEX.json ID STORE HOST.json
 cargo run -p exaudio-extension-index -- uninstall ID STORE HOST.json
 cargo run -p exaudio-extension-index -- rollback INDEX.json STORE HOST.json
 ```
+
+`inspect` and `validate-package` print an `actions` summary next to the catalog/manifest:
+every `contributes.actions` entry with its id, English title, `when`, default keys
+(`key (mac: chord) when …`) and menu placements (`menu/group[@order] when …`). Every
+command that parses a manifest runs `ExtensionManifest::validate`, so an action id outside
+the extension's prefix, an unparsable `when` clause or an invalid chord is reported as an
+error and the catalog, package or archive is rejected.
 
 `SELECTION.json` and `DEPENDENCIES.json` are arrays of objects with `id`, exact `version`
 and a `package` local archive path. For network installation only, `package` is optional.
@@ -164,7 +172,7 @@ toolchain, package `manifest.json`, `module.wasm`, and optional `assets/LICENSE`
 `preview-developer`. Explicitly approve its reported digest/capabilities; install into a
 new chosen temporary STORE using an empty template catalog and no dependencies only if the
 example has none. Inspect `active.json` for developer provenance and a complete pinned
-package. Have the host load `module_path`, invoke the example command and observe its real
+package. Have the host load `module_path`, invoke the example action and observe its real
 contribution/document effect. Then disable/uninstall with an active requirement: expect a
 blocker and unchanged generation. Remove that requirement and disable/uninstall: expect
 inventory change with rollback files retained. Rollback restores the prior snapshot. A

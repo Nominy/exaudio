@@ -75,11 +75,15 @@ pub struct Package {
 }
 pub enum Invocation {
     Event(types::Event),
-    Command(types::Command),
+    /// A declared action (`manifest.contributes.actions`) with its JSON arguments.
+    Action {
+        id: String,
+        args: String,
+    },
     Ui(types::UiEvent),
 }
 enum Work {
-    Load(Package),
+    Load(Box<Package>),
     Invoke(Invocation),
     Unload,
 }
@@ -180,7 +184,7 @@ impl Runtime {
                                     &extension_id,
                                     services.clone(),
                                     &limits,
-                                    package,
+                                    *package,
                                     request.cancellation,
                                 ) {
                                     Ok(mut replacement) => {
@@ -273,7 +277,7 @@ impl Runtime {
         })
     }
     pub fn load(&self, package: Package) -> Result<Ticket> {
-        self.submit(Work::Load(package))
+        self.submit(Work::Load(Box::new(package)))
     }
     pub fn invoke(&self, invocation: Invocation) -> Result<Ticket> {
         self.submit(Work::Invoke(invocation))
@@ -363,6 +367,13 @@ impl Instance {
             .iter()
             .map(|provider| provider.id.clone())
             .collect();
+        let actions = package
+            .manifest
+            .contributes
+            .actions
+            .iter()
+            .map(|action| action.id.clone())
+            .collect();
         let mut store = Store::new(
             engine,
             State::new(
@@ -370,6 +381,7 @@ impl Instance {
                 services,
                 package.grants,
                 providers,
+                actions,
                 limits.clone(),
                 cancellation.clone(),
             ),
@@ -421,13 +433,14 @@ impl Instance {
         let guest = self.guest.exaudio_extension_guest();
         let result = match invocation {
             Invocation::Event(event) => guest.call_on_event(&mut self.store, &event),
-            Invocation::Command(command) => {
-                if self.store.data().registrations.get(&command.id)
-                    != Some(&types::ContributionKind::Command)
-                {
-                    return Err(GuestFailure("unknown command".into()).into());
+            Invocation::Action { id, args } => {
+                if !self.store.data().actions.contains(&id) {
+                    return Err(GuestFailure("unknown action".into()).into());
                 }
-                guest.call_on_command(&mut self.store, &command)
+                if args.len() > self.store.data().limits.output_bytes {
+                    return Err(GuestFailure("action argument limit exceeded".into()).into());
+                }
+                guest.call_on_action(&mut self.store, &id, &args)
             }
             Invocation::Ui(event) => {
                 if !self

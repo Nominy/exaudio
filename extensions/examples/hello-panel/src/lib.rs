@@ -1,9 +1,10 @@
-use exaudio_sdk::{Guest, ProviderHandler, host, types::*};
+use exaudio_sdk::{ActionArgs, ActionHandler, Guest, ProviderHandler, host, types::*};
 use std::cell::RefCell;
 
 const ACCOUNT: &str = "example.hello.account";
 const NOTES: &str = "example.hello.notes";
 const NAME_SECRET: &str = "name";
+const GREET: &str = "example.hello-panel.greet";
 
 struct HelloPanel;
 
@@ -25,7 +26,6 @@ fn sign_in_ui(hint: &str) -> Result<(), String> {
         text: text.into(),
         value: String::new(),
         enabled: true,
-        command: None,
     };
     let mut nodes = vec![
         node(
@@ -203,20 +203,76 @@ fn diagnostics(document_id: &str) -> Result<(), String> {
     })
 }
 
+/// `example.hello-panel.greet`: declared in `manifest.json`, so it shows in the ⋯ menu,
+/// the palette and on Ctrl+Alt+G before this component is even loaded.
+fn greet(args: ActionArgs) -> Result<(), String> {
+    let id = args.document()?;
+    let document = host::snapshot(id)?;
+    let edits = if let Some(segment) = document.segments.first() {
+        exaudio_sdk::insert_text(
+            &document,
+            &segment.id,
+            0,
+            "Hello from Exaudio! ".into(),
+            "Insert greeting".into(),
+        )?
+    } else {
+        let lane = document
+            .lanes
+            .first()
+            .ok_or("document has no lane to insert into")?;
+        Transaction {
+            document_id: document.id.clone(),
+            expected_revision: document.revision,
+            label: "Insert greeting".into(),
+            edits: vec![Edit::InsertSegment(Segment {
+                id: format!("hello-{}", document.revision),
+                lane: lane.id.clone(),
+                speaker_id: lane.speaker_id.clone(),
+                start_ms: 0,
+                end_ms: 1000,
+                text: "Hello from Exaudio! ".into(),
+                metadata: Vec::new(),
+            })],
+        }
+    };
+    host::propose(&edits)?;
+    diagnostics(id)
+}
+
+#[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
+fn probe_trap(_: ActionArgs) -> Result<(), String> {
+    core::arch::wasm32::unreachable()
+}
+#[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
+fn probe_fuel(_: ActionArgs) -> Result<(), String> {
+    loop {
+        core::hint::spin_loop();
+    }
+}
+#[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
+fn probe_memory(_: ActionArgs) -> Result<(), String> {
+    let data = vec![1u8; 64 * 1024 * 1024];
+    core::hint::black_box(data);
+    Err("memory probe unexpectedly succeeded".into())
+}
+
+const ACTIONS: &[(&str, ActionHandler)] = &[
+    (GREET, greet),
+    #[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
+    ("example.hello-panel.probe-trap", probe_trap),
+    #[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
+    ("example.hello-panel.probe-fuel", probe_fuel),
+    #[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
+    ("example.hello-panel.probe-memory", probe_memory),
+];
+
 impl Guest for HelloPanel {
     fn activate() -> Result<(), String> {
-        #[cfg(feature = "runtime-probes")]
-        for id in ["probe-trap", "probe-fuel", "probe-memory"] {
-            host::register(&Registration {
-                id: id.into(),
-                kind: ContributionKind::Command,
-                title: id.into(),
-            })?;
-        }
-        exaudio_sdk::command_panel(
-            "insert-greeting",
+        exaudio_sdk::button_panel(
             "hello-panel",
             "Hello from an extension",
+            "insert",
             "Insert greeting",
         )?;
         host::register(&Registration {
@@ -235,55 +291,8 @@ impl Guest for HelloPanel {
     fn deactivate() {
         // The host removes every owned contribution, even if a guest traps here.
     }
-    fn on_command(value: Command) -> Result<(), String> {
-        #[cfg(all(feature = "runtime-probes", target_arch = "wasm32"))]
-        match value.id.as_str() {
-            "probe-trap" => core::arch::wasm32::unreachable(),
-            "probe-fuel" => loop {
-                core::hint::spin_loop();
-            },
-            "probe-memory" => {
-                let data = vec![1u8; 64 * 1024 * 1024];
-                core::hint::black_box(data);
-                return Err("memory probe unexpectedly succeeded".into());
-            }
-            _ => {}
-        }
-        if value.id != "insert-greeting" {
-            return Err("unknown command".into());
-        }
-        let id = value.document_id.ok_or("open a document first")?;
-        let document = host::snapshot(&id)?;
-        let edits = if let Some(segment) = document.segments.first() {
-            exaudio_sdk::insert_text(
-                &document,
-                &segment.id,
-                0,
-                "Hello from Exaudio! ".into(),
-                "Insert greeting".into(),
-            )?
-        } else {
-            let lane = document
-                .lanes
-                .first()
-                .ok_or("document has no lane to insert into")?;
-            Transaction {
-                document_id: document.id.clone(),
-                expected_revision: document.revision,
-                label: "Insert greeting".into(),
-                edits: vec![Edit::InsertSegment(Segment {
-                    id: format!("hello-{}", document.revision),
-                    lane: lane.id.clone(),
-                    speaker_id: lane.speaker_id.clone(),
-                    start_ms: 0,
-                    end_ms: 1000,
-                    text: "Hello from Exaudio! ".into(),
-                    metadata: Vec::new(),
-                })],
-            }
-        };
-        host::propose(&edits)?;
-        diagnostics(&id)
+    fn on_action(id: String, args: String) -> Result<(), String> {
+        exaudio_sdk::dispatch_action(ACTIONS, &id, &args)
     }
     fn on_ui_event(value: UiEvent) -> Result<(), String> {
         if value.contribution == ACCOUNT {
@@ -304,12 +313,11 @@ impl Guest for HelloPanel {
             && value.node == "insert"
             && value.kind == UiEventKind::Click
         {
-            Self::on_command(Command {
-                id: "insert-greeting".into(),
-                document_id: value.document_id,
-                selection: None,
-                arguments: Vec::new(),
-            })
+            // The panel button is just another way to invoke the declared action.
+            exaudio_sdk::run_action(
+                GREET,
+                &exaudio_sdk::serde_json::json!({ "document_id": value.document_id }),
+            )
         } else {
             Ok(())
         }

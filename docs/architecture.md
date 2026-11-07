@@ -133,9 +133,10 @@ the Unity editor.
   region styling, hit-testable interactive handles that emit events.
 - **Toolbar, menus, status bar** — buttons, toggles, dropdowns, menu items with `when` clauses,
   status-bar items with click actions.
-- **Command palette and keybindings** — commands with titles, default chords, contexts
-  (`transcript`, `timeline`, `global`, mode/kind-specific) and conflict reporting in the shared
-  keymap editor.
+- **Actions, command palette and keybindings** — one `ActionRegistry` (see
+  `architecture/actions.md`): manifest-declared actions with localized titles, `when` clauses,
+  default chords and menu placements; user-rebindable per action id with conflict reporting
+  in the hotkeys dialog; menus, toolbar, keyboard and the palette are views over it.
 - **Notifications** — toasts, progress, confirmation prompts.
 - **Settings pages** — auto-generated from a JSON Schema, or a custom view.
 
@@ -327,7 +328,7 @@ the shell or core internals.
 
 ### 3.2 WASM (`wit/exaudio-extension.wit`, world `exaudio:extension/extension@0.1.0`)
 
-The guest exports lifecycle, command, UI-event and document-event callbacks. Providers
+The guest exports lifecycle, `on-action`, UI-event and document-event callbacks. Providers
 publish typed diagnostics, completions, decorations, UI trees and overlays through host
 imports; mode, provider (setup/status/sign-out) and format requests are typed events.
 `sdk/rust` wraps the generated bindings.

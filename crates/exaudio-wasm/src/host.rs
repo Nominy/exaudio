@@ -27,6 +27,9 @@ pub(crate) struct State {
     /// Provider types declared in the manifest: the only instances whose per-instance
     /// secrets/storage this extension may touch, and the only `provider` registrations allowed.
     pub providers: BTreeSet<String>,
+    /// Action ids declared in the manifest: the only ids `on-action` is called with, and
+    /// (besides `exaudio.core.*`) the only ones `run-action` may target.
+    pub actions: BTreeSet<String>,
     pub ui_nodes: BTreeMap<String, BTreeSet<String>>,
     pub remaining: usize,
 }
@@ -36,6 +39,7 @@ impl State {
         services: Arc<dyn HostServices>,
         grants: BTreeSet<Permission>,
         providers: BTreeSet<String>,
+        actions: BTreeSet<String>,
         limits: Limits,
         cancellation: Arc<AtomicBool>,
     ) -> Self {
@@ -60,6 +64,7 @@ impl State {
             staged: Vec::new(),
             registrations: BTreeMap::new(),
             providers,
+            actions,
             ui_nodes: BTreeMap::new(),
             remaining: limits.output_bytes,
             limits,
@@ -246,6 +251,35 @@ fn valid_key(key: &str) -> Result<(), String> {
         Ok(())
     }
 }
+/// `exaudio.core.<name>`: shell and editor actions every extension may run.
+pub(crate) fn is_core_action(id: &str) -> bool {
+    id.strip_prefix(exaudio_extension::actions::CORE_OWNER)
+        .is_some_and(|rest| rest.len() > 1 && rest.starts_with('.'))
+        && exaudio_extension::manifest::valid_id(id)
+}
+/// Context keys are `<extension-id>.<name>` in `when` key syntax
+/// (`[a-zA-Z_][a-zA-Z0-9_.-]*`, no empty dotted components).
+pub(crate) fn context_key(owner: &str, key: &str) -> Result<(), String> {
+    let name = key
+        .strip_prefix(owner)
+        .and_then(|rest| rest.strip_prefix('.'))
+        .ok_or_else(|| format!("context keys must start with `{owner}.`"))?;
+    let valid = key.len() <= 128
+        && name
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && name
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.' || c == '-')
+        && !name.ends_with('.')
+        && !name.contains("..");
+    if valid {
+        Ok(())
+    } else {
+        Err("invalid context key".into())
+    }
+}
 pub(crate) fn check_url(url: &str, grants: &BTreeSet<Permission>) -> Result<url::Url, String> {
     let parsed = url::Url::parse(url).map_err(|e| e.to_string())?;
     if parsed.scheme() != "https"
@@ -304,9 +338,59 @@ impl Host for State {
         {
             return Err("provider was not declared in manifest".into());
         }
+        if matches!(
+            descriptor.kind,
+            ContributionKind::Importer | ContributionKind::Exporter
+        ) && !self
+            .actions
+            .contains(&format!("{}.{}", self.id, descriptor.id))
+        {
+            return Err(format!(
+                "importer/exporter `{}` needs the declared action `{}.{}`",
+                descriptor.id, self.id, descriptor.id
+            ));
+        }
         self.registrations
             .insert(descriptor.id.clone(), descriptor.kind);
         self.publish(Output::Registered(descriptor));
+        Ok(())
+    }
+    fn run_action(&mut self, id: String, args: String) -> Result<(), String> {
+        self.live_mutation()?;
+        self.budget(32 + id.len() + args.len())?;
+        if !self.actions.contains(&id) && !is_core_action(&id) {
+            return Err(
+                "run-action may only target this extension's own or exaudio.core actions".into(),
+            );
+        }
+        if serde_json::from_str::<serde_json::Value>(&args).is_err() {
+            return Err("action arguments must be JSON".into());
+        }
+        self.publish(Output::RunAction { id, args });
+        Ok(())
+    }
+    fn set_context(&mut self, key: String, value: Scalar) -> Result<(), String> {
+        let size = match &value {
+            Scalar::Text(text) => text.len(),
+            Scalar::Number(_) | Scalar::Boolean(_) => 8,
+        };
+        self.budget(32 + key.len() + size)?;
+        context_key(&self.id, &key)?;
+        if let Scalar::Number(number) = value
+            && !number.is_finite()
+        {
+            return Err("context numbers must be finite".into());
+        }
+        if size > 1024 {
+            return Err("context text exceeds 1 KiB".into());
+        }
+        self.publish(Output::SetContext { key, value });
+        Ok(())
+    }
+    fn clear_context(&mut self, key: String) -> Result<(), String> {
+        self.budget(32 + key.len())?;
+        context_key(&self.id, &key)?;
+        self.publish(Output::ClearContext { key });
         Ok(())
     }
     fn publish_diagnostics(&mut self, value: Diagnostics) -> Result<(), String> {
@@ -413,11 +497,7 @@ impl Host for State {
                     .nodes
                     .iter()
                     .map(|n| {
-                        64 + n.id.len()
-                            + n.text.len()
-                            + n.value.len()
-                            + n.command.as_ref().map_or(0, String::len)
-                            + config_size(&n.config)
+                        64 + n.id.len() + n.text.len() + n.value.len() + config_size(&n.config)
                     })
                     .sum::<usize>(),
         )?;
@@ -439,9 +519,6 @@ impl Host for State {
             };
             if depth > self.limits.ui_depth {
                 return Err("UI depth limit exceeded".into());
-            }
-            if let Some(command) = &node.command {
-                self.registered(command, ContributionKind::Command)?;
             }
             depths.push(depth);
             enabled.push(node.enabled && node.parent.is_none_or(|parent| enabled[parent as usize]));

@@ -1,0 +1,22 @@
+{
+  "id": "exaudio.palette",
+  "name": "Command palette",
+  "version": "0.1.0",
+  "api": "^0.1",
+  "runtime": "native",
+  "description": "Find and run any command by name.",
+  "license": "MIT",
+  "dependencies": {},
+  "permissions": [],
+  "contributes": {
+    "actions": [
+      {
+        "id": "exaudio.palette.open",
+        "title": { "en": "Command palette…", "ru": "Палитра команд…" },
+        "palette": false,
+        "keys": [{ "key": "ctrl-shift-p" }],
+        "menus": [{ "menu": "editor/overflow", "group": "9_navigation", "order": -100 }]
+      }
+    ]
+  }
+}

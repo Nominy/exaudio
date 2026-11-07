@@ -1,8 +1,8 @@
 //! The native editor shell. Domain behavior is supplied by document providers and owned contributions.
+pub mod actions;
 pub mod app;
 pub mod contributions;
 pub mod editor;
-pub mod keymap;
 pub mod root;
 pub mod screens;
 pub mod services;
@@ -12,8 +12,7 @@ pub mod zoom;
 pub mod wasm_host;
 pub mod wasm_ui;
 pub use contributions::{
-    CommandContribution, ContributionRegistry, ModeContribution, ModeLaunchContext,
-    PanelContribution, PanelLocation,
+    ContributionRegistry, ModeContribution, ModeLaunchContext, PanelContribution, PanelLocation,
 };
 pub mod providers;
 use exaudio_extension::document::DocumentEnvironment;

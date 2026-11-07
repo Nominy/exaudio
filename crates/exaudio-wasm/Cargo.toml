@@ -8,6 +8,7 @@ license.workspace = true
 anyhow.workspace = true
 exaudio-extension.workspace = true
 semver = "1.0"
+serde_json.workspace = true
 url.workspace = true
 wasmtime = { version = "38", default-features = false, features = ["component-model", "cranelift", "runtime", "std", "wat"] }
 tempfile.workspace = true
@@ -18,6 +19,3 @@ windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Securit
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[dev-dependencies]
-serde_json.workspace = true

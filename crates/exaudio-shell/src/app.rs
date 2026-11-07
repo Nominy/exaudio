@@ -1,7 +1,6 @@
 //! Native window composition. The executable explicitly supplies bundled contributions.
 use crate::{
     ContributionRegistry, ProviderRegistry, ShellHandle,
-    keymap::ActiveKeymap,
     root::StudioRoot,
     screens::{ShellModels, settings, ui},
     services::AppServices,
@@ -20,7 +19,11 @@ pub fn run(register: impl FnOnce(&mut App) -> anyhow::Result<()> + 'static) {
             cx.set_global(providers);
             settings::apply_saved_theme(cx);
             ui::sync_language(cx);
-            ActiveKeymap::init(cx);
+            crate::actions::init(cx);
+            crate::actions::set_activation_hook(
+                std::rc::Rc::new(crate::wasm_host::activate_owner),
+                cx,
+            );
             crate::zoom::init(cx);
             ShellModels::init(cx);
             let registration_error = register(cx).err().map(|e| {
@@ -105,7 +108,9 @@ pub fn run(register: impl FnOnce(&mut App) -> anyhow::Result<()> + 'static) {
                         if window
                             .update(cx, |_, window, cx| match command {
                                 TrayCommand::Restore => tray::show_window(window),
-                                TrayCommand::Command(id) => shell.dispatch(&id, window, cx),
+                                TrayCommand::Command(id) => {
+                                    shell.run(&id, serde_json::Value::Null, window, cx)
+                                }
                                 TrayCommand::Exit => {
                                     tray::show_window(window);
                                     shell

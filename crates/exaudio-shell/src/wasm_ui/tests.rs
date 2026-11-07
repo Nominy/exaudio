@@ -43,7 +43,6 @@ fn node(id: &str, parent: Option<u32>) -> w::UiNode {
         text: String::new(),
         value: String::new(),
         enabled: true,
-        command: None,
     }
 }
 #[test]

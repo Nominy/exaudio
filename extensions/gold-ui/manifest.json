@@ -14,5 +14,21 @@
     { "kind": "storage" },
     { "kind": "secrets" },
     { "kind": "network", "scope": "reviewgen.ovh" }
-  ]
+  ],
+  "contributes": {
+    "actions": [
+      { "id": "exaudio.gold.draft", "title": { "en": "Draft with AI…", "ru": "Черновик с ИИ…" }, "category": { "en": "AI tools", "ru": "ИИ-инструменты" },
+        "when": "editorOpen",
+        "menus": [{ "menu": "editor/toolbar", "group": "5_gold", "order": 0 }, { "menu": "editor/overflow", "group": "5_gold", "order": 0 }] },
+      { "id": "exaudio.gold.align", "title": { "en": "Align words", "ru": "Выровнять слова" }, "category": { "en": "AI tools", "ru": "ИИ-инструменты" },
+        "when": "editorOpen",
+        "menus": [{ "menu": "editor/toolbar", "group": "5_gold", "order": 1 }, { "menu": "editor/overflow", "group": "5_gold", "order": 1 }] },
+      { "id": "exaudio.gold.transcribe-segment", "title": { "en": "Fill this segment", "ru": "Заполнить сегмент" }, "category": { "en": "AI tools", "ru": "ИИ-инструменты" },
+        "when": "editorOpen",
+        "keys": [{ "key": "alt-shift-g" }],
+        "menus": [{ "menu": "editor/overflow", "group": "5_gold", "order": 2 }] },
+      { "id": "exaudio.gold.settings", "title": { "en": "AI settings…", "ru": "Настройки ИИ…" }, "category": { "en": "AI tools", "ru": "ИИ-инструменты" },
+        "menus": [{ "menu": "editor/overflow", "group": "5_gold", "order": 3 }] }
+    ]
+  }
 }

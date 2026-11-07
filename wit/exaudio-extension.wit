@@ -41,15 +41,18 @@ interface types {
     record asset-config { asset-id: string, alt: string, width: u32, height: u32 }
     record waveform-config { document-id: string, lane-id: string, start-ms: u64, end-ms: u64, channel: u32 }
     variant widget-config { plain, layout(layout-config), input(input-config), choices(choice-config), numeric(number-config), table(table-config), asset(asset-config), waveform(waveform-config) }
-    // Flat tree: parent precedes child; tabs' option keys identify child node IDs.
-    record ui-node { id: string, parent: option<u32>, widget: widget, config: widget-config, text: string, value: string, enabled: bool, command: option<string> }
+    // Flat tree: parent precedes child; tabs' option keys identify child node IDs. Clicks
+    // arrive as `ui-event`s; run an action from there with `run-action` when needed.
+    record ui-node { id: string, parent: option<u32>, widget: widget, config: widget-config, text: string, value: string, enabled: bool }
     record ui-tree { contribution: string, nodes: list<ui-node> }
-    enum contribution-kind { command, panel, inspector, menu, diagnostics, completions, decorations, overlay, event, mode, importer, exporter, provider }
+    // User-invocable actions are declared in the manifest (`contributes.actions`), never
+    // registered at runtime; an `importer`/`exporter` registration binds the host's file
+    // flow to the declared action `<extension-id>.<registration-id>`.
+    enum contribution-kind { panel, inspector, diagnostics, completions, decorations, overlay, event, mode, importer, exporter, provider }
     record registration { id: string, kind: contribution-kind, title: string }
     enum ui-event-kind { click, change, submit, row-select, hover }
     record ui-event { contribution: string, node: string, kind: ui-event-kind, value: string, document-id: option<string> }
     record selection { document-id: string, revision: u64, ranges: list<text-range> }
-    record command { id: string, document-id: option<string>, selection: option<selection>, arguments: list<property> }
     record document-event { document-id: string, revision: u64 }
     record completion-request { request-id: u64, document-id: string, revision: u64, segment-id: string, byte-offset: u32 }
     // A configured account of a provider type. Credentials live in the instance's own
@@ -79,10 +82,17 @@ interface types {
 }
 
 interface host {
-    use types.{document, transaction, registration, diagnostics, completions, decorations, overlay, ui-tree, progress, audio-request, audio-data, http-request, http-response, selection, transport, mode-document, import-result, export-result, provider-instance, provider-setup-result, provider-status};
+    use types.{document, transaction, registration, diagnostics, completions, decorations, overlay, ui-tree, progress, audio-request, audio-data, http-request, http-response, selection, transport, mode-document, import-result, export-result, provider-instance, provider-setup-result, provider-status, scalar};
     snapshot: func(document-id: string) -> result<document, string>;
     propose: func(transaction: transaction) -> result<u64, string>;
     register: func(descriptor: registration) -> result<_, string>;
+    // Runs a declared action of this extension or an `exaudio.core.*` action; `args` is a
+    // JSON value (`{}` when there are none). Unavailable during activation/deactivation.
+    run-action: func(id: string, args: string) -> result<_, string>;
+    // Sets a `when` context key. Keys must be `<extension-id>.<name>`; values are read by
+    // every clause that names them. `clear-context` makes the key read as `false` again.
+    set-context: func(key: string, value: scalar) -> result<_, string>;
+    clear-context: func(key: string) -> result<_, string>;
     publish-diagnostics: func(value: diagnostics) -> result<_, string>;
     publish-completions: func(value: completions) -> result<_, string>;
     publish-decorations: func(value: decorations) -> result<_, string>;
@@ -117,11 +127,13 @@ interface host {
 }
 
 interface guest {
-    use types.{event, command, ui-event};
+    use types.{event, ui-event};
     activate: func() -> result<_, string>;
     deactivate: func();
     on-event: func(value: event) -> result<_, string>;
-    on-command: func(value: command) -> result<_, string>;
+    // A declared action was invoked (menu, key, palette, hotkey or this extension's own
+    // `run-action`). `args` is JSON: `{"segment_id": …}` for row-scoped invocations, else `null`.
+    on-action: func(id: string, args: string) -> result<_, string>;
     on-ui-event: func(value: ui-event) -> result<_, string>;
 }
 

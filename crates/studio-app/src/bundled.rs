@@ -8,6 +8,12 @@ use gpui_kit::BorrowAppContext;
 pub fn register(cx: &mut App) -> anyhow::Result<()> {
     // Dependency extensions register before the modes that require them. Native activators
     // are retained by the shell so a disabled bundle can be enabled again without restart.
+    #[cfg(feature = "palette")]
+    exaudio_shell::contributions::register_native_extension(
+        exaudio_palette::manifest()?,
+        exaudio_palette::register,
+        cx,
+    )?;
     #[cfg(feature = "formats")]
     exaudio_shell::contributions::register_native_extension(
         exaudio_formats::manifest(),

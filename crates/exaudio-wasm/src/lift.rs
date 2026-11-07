@@ -182,7 +182,7 @@ impl Take for WidgetConfig {
         })
     }
 }
-record!(UiNode { id: WasmStr => "id", parent: Option<u32> => "parent", widget: types::Widget => "widget", config: WidgetConfig => "config", text: WasmStr => "text", value: WasmStr => "value", enabled: bool => "enabled", command: Option<WasmStr> => "command" });
+record!(UiNode { id: WasmStr => "id", parent: Option<u32> => "parent", widget: types::Widget => "widget", config: WidgetConfig => "config", text: WasmStr => "text", value: WasmStr => "value", enabled: bool => "enabled" });
 record!(UiTree { contribution: WasmStr => "contribution", nodes: WasmList<UiNode> => "nodes" });
 record!(Registration { id: WasmStr => "id", kind: types::ContributionKind => "kind", title: WasmStr => "title" });
 record!(Progress { task_id: u64 => "task-id", label: WasmStr => "label", completed: u64 => "completed", total: Option<u64> => "total" });
@@ -270,6 +270,9 @@ pub(crate) fn add_to_linker(linker: &mut Linker<State>) -> Result<()> {
     import_args!("instance-storage-get", instance_storage_get, (instance: ProviderInstance, key: WasmStr));
     import_args!("instance-storage-set", instance_storage_set, (instance: ProviderInstance, key: WasmStr, value: WasmList<u8>));
     import_args!("provider-setup-cancel", provider_setup_cancel, (provider: WasmStr, request_id: u64));
+    import_args!("run-action", run_action, (id: WasmStr, args: WasmStr));
+    import_args!("set-context", set_context, (key: WasmStr, value: Scalar));
+    import!("clear-context", clear_context, WasmStr);
     host.func_wrap(
         "cancelled",
         |mut store: StoreContextMut<'_, State>, (): ()| Ok((store.data_mut().cancelled(),)),

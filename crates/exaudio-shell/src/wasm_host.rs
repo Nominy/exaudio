@@ -15,6 +15,7 @@ use gpui_kit::*;
 use std::{
     collections::{BTreeMap, BTreeSet},
     path::PathBuf,
+    rc::Rc,
     sync::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
@@ -633,6 +634,12 @@ pub fn activate(
     cx.update_global::<ContributionRegistry, _>(|registry, _| {
         registry.register_manifest(manifest.clone(), grants.into_iter().collect(), true)
     })?;
+    if let Err(error) = crate::contributions::sync_owner_actions(&owner, cx)
+        .and_then(|()| bind_actions(&owner, &manifest, cx))
+    {
+        crate::contributions::force_remove_owner(&owner, cx);
+        return Err(error);
+    }
     let pending = PendingActivation {
         manifest: manifest.clone(),
         grants: status.grants.clone(),
@@ -1024,13 +1031,17 @@ fn consume(owner: &str, shell: &ShellHandle, output: Output, cx: &mut App) {
                             .expect("publications")
                             .completion_registered = false;
                         entry.status.contributions.clear();
-                        let result = cx.update_global::<ContributionRegistry, _>(|registry, _| {
-                            registry.register_manifest(
-                                entry.manifest.clone(),
-                                entry.status.grants.iter().cloned().collect(),
-                                true,
-                            )
-                        });
+                        let manifest = entry.manifest.clone();
+                        let result = cx
+                            .update_global::<ContributionRegistry, _>(|registry, _| {
+                                registry.register_manifest(
+                                    manifest.clone(),
+                                    entry.status.grants.iter().cloned().collect(),
+                                    true,
+                                )
+                            })
+                            .and_then(|()| crate::contributions::sync_owner_actions(owner, cx))
+                            .and_then(|()| bind_actions(owner, &manifest, cx));
                         if let Err(error) = result {
                             entry.activation_error = Some(error.to_string());
                         }
@@ -1111,6 +1122,15 @@ fn consume(owner: &str, shell: &ShellHandle, output: Output, cx: &mut App) {
         } => crate::wasm_ui::provider_setup_cancelled(owner, &provider, request_id, cx),
         // Already delivered to its requester by the bridge; only logged here.
         Output::ProviderStatus(_) => Ok(()),
+        Output::RunAction { id, args } => run_requested(owner, &id, &args, shell, cx),
+        Output::SetContext { key, value } => context_owned(owner, &key).map(|()| {
+            crate::actions::set_context(&key, context_value(value), cx);
+            cx.refresh_windows();
+        }),
+        Output::ClearContext { key } => context_owned(owner, &key).map(|()| {
+            crate::actions::clear_context(&key, cx);
+            cx.refresh_windows();
+        }),
         Output::Removed | Output::Activated => unreachable!(),
     };
     match result {
@@ -1126,6 +1146,120 @@ fn consume(owner: &str, shell: &ShellHandle, output: Output, cx: &mut App) {
             });
             record(owner, "Problem", &error.to_string(), cx);
         }
+    }
+}
+
+// ---- actions ----------------------------------------------------------------------------
+
+/// Activation hook for `ShellHandle::run` (`actions::set_activation_hook`). Every enabled
+/// WASM extension is started at startup and its declared actions are bound the moment
+/// [`activate`] creates the entry, so a running or still-starting extension is already
+/// bound (invocations queue behind the guest load). Packages and grants belong to the
+/// extensions screen; a stopped extension cannot be restarted from here.
+pub fn activate_owner(owner: &str, cx: &mut App) -> Result<()> {
+    let running = cx
+        .try_global::<WasmExtensions>()
+        .is_some_and(|state| state.entries.contains_key(owner));
+    anyhow::ensure!(running, "{owner} isn't running. Turn it on in Extensions.");
+    Ok(())
+}
+/// Binds every action the manifest declares to a handler dispatching `on-action` to the
+/// component. Importer/exporter registrations later rebind their own ids to the host's
+/// file flows (`wasm_ui::files`).
+fn bind_actions(owner: &str, manifest: &ExtensionManifest, cx: &mut App) -> Result<()> {
+    crate::actions::update(cx, |registry| {
+        for (id, handler) in action_handlers(owner, manifest) {
+            registry.bind(&id, handler)?;
+        }
+        Ok(())
+    })
+}
+/// One `on-action` dispatching handler per declared action.
+fn action_handlers(
+    owner: &str,
+    manifest: &ExtensionManifest,
+) -> Vec<(String, crate::actions::ActionHandler)> {
+    manifest
+        .contributes
+        .actions
+        .iter()
+        .map(|action| {
+            let owner = owner.to_owned();
+            let id = action.id.clone();
+            let handler: crate::actions::ActionHandler =
+                Rc::new(move |shell, args, _window, cx| {
+                    let document = shell
+                        .editor_model(cx)
+                        .filter(|model| document_associated(&owner, model, cx))
+                        .map(|model| document_handle(&model));
+                    invoke(
+                        &owner,
+                        Invocation::Action {
+                            id: id.clone(),
+                            args: action_args(args, document),
+                        },
+                        cx,
+                    );
+                });
+            (action.id.clone(), handler)
+        })
+        .collect()
+}
+/// `on-action` receives a JSON object: the shell's arguments (`{"segment_id": …}` or
+/// `null`) plus `document_id` when the extension may see the open document.
+fn action_args(args: serde_json::Value, document: Option<String>) -> String {
+    let mut args = match args {
+        serde_json::Value::Object(map) => map,
+        serde_json::Value::Null => serde_json::Map::new(),
+        other => serde_json::Map::from_iter([("value".to_owned(), other)]),
+    };
+    if let Some(document) = document {
+        args.insert("document_id".into(), document.into());
+    }
+    serde_json::Value::Object(args).to_string()
+}
+/// A guest's `run-action`: its own declared actions or `exaudio.core.*`, dispatched like
+/// a user invocation through the first window.
+fn run_requested(
+    owner: &str,
+    id: &str,
+    args: &str,
+    shell: &ShellHandle,
+    cx: &mut App,
+) -> Result<()> {
+    let own = id
+        .strip_prefix(owner)
+        .is_some_and(|rest| rest.starts_with('.'));
+    let core = id
+        .strip_prefix(exaudio_extension::actions::CORE_OWNER)
+        .is_some_and(|rest| rest.starts_with('.'));
+    anyhow::ensure!(
+        own || core,
+        "run-action target `{id}` is not this extension's"
+    );
+    let args: serde_json::Value = serde_json::from_str(args)?;
+    let window = cx
+        .windows()
+        .into_iter()
+        .next()
+        .ok_or_else(|| anyhow!("no window to run `{id}` in"))?;
+    let shell = shell.clone();
+    let id = id.to_owned();
+    window.update(cx, move |_, window, cx| shell.run(&id, args, window, cx))
+}
+fn context_owned(owner: &str, key: &str) -> Result<()> {
+    anyhow::ensure!(
+        key.strip_prefix(owner)
+            .is_some_and(|rest| rest.len() > 1 && rest.starts_with('.')),
+        "context key `{key}` is not namespaced by {owner}"
+    );
+    Ok(())
+}
+fn context_value(value: w::Scalar) -> exaudio_extension::actions::Value {
+    match value {
+        w::Scalar::Text(text) => text.into(),
+        w::Scalar::Number(number) => number.into(),
+        w::Scalar::Boolean(flag) => flag.into(),
     }
 }
 fn remove_owned(owner: &str, cx: &mut App) {
