@@ -255,7 +255,7 @@ jobs:
       - name: Build and package (Windows)
         if: ${{ matrix.platform == 'win' }}
         shell: pwsh
-        run: ./tools/package-windows.ps1 -UpdateChannel stable -ReleaseNotes (Join-Path $env:RUNNER_TEMP "release-notes/release-notes.md")
+        run: ./tools/package-windows.ps1 -UpdateChannel stable -Version $env:VERSION -ReleaseNotes (Join-Path $env:RUNNER_TEMP "release-notes/release-notes.md")
 
       - name: Build and package (macOS / Linux)
         if: ${{ matrix.platform != 'win' }}
