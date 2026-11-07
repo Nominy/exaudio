@@ -70,7 +70,7 @@ An extension is a package with a manifest and code:
   "id": "acme.filler-words",
   "name": "Filler words",
   "version": "1.0.0",
-  "api": "^0.1",
+  "api": "^0.2",
   "description": "Highlights filler words and offers to remove them.",
   "license": "MIT",
   "runtime": "wasm",
@@ -326,7 +326,7 @@ Rust extensions may also return arbitrary gpui views for panels, windows, inspec
 launch windows and provider setup views. Built-ins are Rust extensions; they never reach into
 the shell or core internals.
 
-### 3.2 WASM (`wit/exaudio-extension.wit`, world `exaudio:extension/extension@0.1.0`)
+### 3.2 WASM (`wit/exaudio-extension.wit`, world `exaudio:extension/extension@0.2.0`)
 
 The guest exports lifecycle, `on-action`, UI-event and document-event callbacks. Providers
 publish typed diagnostics, completions, decorations, UI trees and overlays through host

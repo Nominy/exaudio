@@ -827,7 +827,7 @@ mod tests {
     use exaudio_extension::ExtensionManifest;
     use std::rc::Rc;
     fn manifest(id: &str) -> ExtensionManifest {
-        serde_json::from_value(serde_json::json!({"id":id,"name":id,"version":"1.0.0","api":"^0.1","runtime":"native","description":"Test contribution","license":"MIT","dependencies":{},"permissions":[],"modes":[]})).unwrap()
+        serde_json::from_value(serde_json::json!({"id":id,"name":id,"version":"1.0.0","api":"^0.2","runtime":"native","description":"Test contribution","license":"MIT","dependencies":{},"permissions":[],"modes":[]})).unwrap()
     }
     #[test]
     fn mode_entry_resolves_versions_and_blocks_required_unload() {

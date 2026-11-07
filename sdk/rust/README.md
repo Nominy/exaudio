@@ -1,6 +1,6 @@
 # Exaudio Rust component SDK
 
-The API is `exaudio:extension/extension@0.1.0` in `wit/exaudio-extension.wit`.
+The API is `exaudio:extension/extension@0.2.0` in `wit/exaudio-extension.wit`.
 `exaudio-sdk` generates guest bindings with wit-bindgen 0.46; `exaudio-wasm` generates
 host bindings with Wasmtime 38. There is no WASI linker, ambient filesystem,
 process spawning, networking, clock or random source. Use the typed host imports.
@@ -35,7 +35,7 @@ background work. Cargo compilation is a restart boundary (incremental artifacts
 survive cancellation); a failed smoke test restarts the test, not an external or
 paid operation. Do not publish the `runtime-probes` feature build.
 
-`package.ps1` emits an immutable `example.hello-panel-0.1.0.exaudio`, plus its byte
+`package.ps1` emits an immutable `example.hello-panel-0.2.0.exaudio`, plus its byte
 size and SHA-256 receipt. The ZIP has `manifest.json`, `module.wasm`, and
 `assets/LICENSE`, matching the GitHub marketplace installer. It refuses to replace
 an existing release artifact. Upload that file to the author's versioned GitHub

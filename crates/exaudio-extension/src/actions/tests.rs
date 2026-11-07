@@ -405,7 +405,7 @@ fn action(id: &str, title: &str, keys: &[&str]) -> ActionManifest {
 
 fn manifest_with(actions: serde_json::Value) -> Result<ExtensionManifest, serde_json::Error> {
     serde_json::from_value(serde_json::json!({
-        "id": "acme.tool", "name": "Tool", "version": "1.0.0", "api": "^0.1",
+        "id": "acme.tool", "name": "Tool", "version": "1.0.0", "api": "^0.2",
         "runtime": "wasm", "description": "", "license": "MIT",
         "contributes": { "actions": actions }
     }))
@@ -435,7 +435,7 @@ fn manifest_actions_deserialize_with_defaults_and_validate() {
 #[test]
 fn manifest_without_contributes_validates_and_has_no_actions() {
     let manifest: ExtensionManifest = serde_json::from_value(serde_json::json!({
-        "id": "acme.tool", "name": "Tool", "version": "1.0.0", "api": "^0.1",
+        "id": "acme.tool", "name": "Tool", "version": "1.0.0", "api": "^0.2",
         "runtime": "wasm", "description": "", "license": "MIT"
     }))
     .expect("deserializes");

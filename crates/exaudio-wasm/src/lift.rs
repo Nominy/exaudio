@@ -200,8 +200,8 @@ record!(ProviderStatus { instance: ProviderInstance => "instance", state: types:
 
 pub(crate) fn add_to_linker(linker: &mut Linker<State>) -> Result<()> {
     // WIT's type-only dependency has no host functions or resources.
-    linker.instance("exaudio:extension/types@0.1.0")?;
-    let mut host = linker.instance("exaudio:extension/host@0.1.0")?;
+    linker.instance("exaudio:extension/types@0.2.0")?;
+    let mut host = linker.instance("exaudio:extension/host@0.2.0")?;
     macro_rules! import {
         ($wit:literal, $method:ident, $ty:ty) => {
             host.func_wrap(

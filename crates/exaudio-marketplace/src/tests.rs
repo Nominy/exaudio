@@ -18,7 +18,7 @@ fn manifest(id: &str, version: &str) -> ExtensionManifest {
         id: id.into(),
         name: "Test extension".into(),
         version: version.parse().unwrap(),
-        api: "^0.1".parse().unwrap(),
+        api: "^0.2".parse().unwrap(),
         runtime: Runtime::Wasm,
         description: "Test fixture only".into(),
         license: "MIT".into(),

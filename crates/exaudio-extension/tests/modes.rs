@@ -7,7 +7,7 @@ fn extension(id: &str, version: &str, dependencies: &[(&str, &str)]) -> Extensio
         id: id.into(),
         name: id.into(),
         version: version.parse().unwrap(),
-        api: "^0.1".parse().unwrap(),
+        api: "^0.2".parse().unwrap(),
         runtime: Runtime::Wasm,
         description: String::new(),
         license: "MIT".into(),
@@ -161,6 +161,31 @@ fn newer_host_api_releases_remain_visible_but_are_not_selected() {
     assert_eq!(plan.extensions[0].version, compatible.version);
     assert!(matches!(
         resolve_mode(&owner, "example.edit", &[&future]),
+        Err(ResolveError::Unsatisfied { .. })
+    ));
+}
+
+#[test]
+fn releases_built_against_the_previous_host_api_are_rejected() {
+    let mut stale = extension("example.checks", "1.0.0", &[]);
+    stale.api = "^0.1".parse().unwrap();
+    stale.validate().expect("still valid catalog metadata");
+    match stale.check_host_compatibility() {
+        Err(exaudio_extension::ManifestError::IncompatibleApi {
+            extension,
+            required,
+            available,
+        }) => {
+            assert_eq!(extension, "example.checks");
+            assert_eq!(required, "^0.1".parse().unwrap());
+            assert_eq!(available, exaudio_extension::API_VERSION);
+            assert_eq!(available.to_string(), "0.2.0");
+        }
+        other => panic!("expected IncompatibleApi, got {other:?}"),
+    }
+    let owner = owner(&[("example.checks", "^1")]);
+    assert!(matches!(
+        resolve_mode(&owner, "example.edit", &[&stale]),
         Err(ResolveError::Unsatisfied { .. })
     ));
 }

@@ -1,4 +1,4 @@
-package exaudio:extension@0.1.0;
+package exaudio:extension@0.2.0;
 
 interface types {
     variant scalar { text(string), number(f64), boolean(bool) }

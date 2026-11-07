@@ -2,7 +2,7 @@
   "id": "exaudio.palette",
   "name": "Command palette",
   "version": "0.1.0",
-  "api": "^0.1",
+  "api": "^0.2",
   "runtime": "native",
   "description": "Find and run any command by name.",
   "license": "MIT",

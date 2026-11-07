@@ -747,7 +747,7 @@ fn package(bytes: &[u8]) -> Package {
             Permission::DocumentEdit,
             Permission::Secrets,
         ]),
-        required_by_open_modes: vec!["^0.1".parse().unwrap()],
+        required_by_open_modes: vec!["^0.2".parse().unwrap()],
     }
 }
 /// The panel button asks the shell to run the greeting action; the shell would dispatch

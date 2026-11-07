@@ -11,7 +11,7 @@ use crate::actions::manifest::{Contributes, validate_actions};
 use crate::actions::when::WhenError;
 
 /// Host API version supported by this build (distinct from the application version).
-pub const API_VERSION: Version = Version::new(0, 1, 0);
+pub const API_VERSION: Version = Version::new(0, 2, 0);
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]

@@ -567,7 +567,7 @@ mod tests {
                 "id": "fixture.broken",
                 "name": "Broken",
                 "version": "0.1.0",
-                "api": "^0.1.0",
+                "api": "^0.2.0",
                 "runtime": "wasm",
                 "description": "invalid when clause",
                 "license": "MIT",
