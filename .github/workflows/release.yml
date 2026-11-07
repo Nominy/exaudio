@@ -1,19 +1,19 @@
-# Push a tag that matches crates/studio-app's version (e.g. v0.3.0) to build Exaudio natively
-# for Windows, macOS (Apple silicon + Intel) and Linux, pack each with Velopack (one channel per
-# platform: `win`, `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64`) and publish ONE GitHub
-# release with every installer, the update packages, the per-channel feed files and SHA256SUMS.
-# Installed stable builds update from these releases; tags with a "-" become pre-releases,
-# which stable builds ignore.
+# Builds Exaudio natively for Windows, macOS (Apple silicon + Intel) and Linux, packs each with
+# Velopack (one channel per platform: `win`, `osx-arm64`, `osx-x64`, `linux-x64`,
+# `linux-arm64`) and publishes ONE GitHub release with every installer, the update packages,
+# the per-channel feed files and SHA256SUMS. Installed stable builds update from these
+# releases; tags with a "-" become pre-releases, which stable builds ignore.
 #
-# Manual runs: `tag` rebuilds an existing tag; `dry_run` builds and checks every platform's
-# packages from the current ref (or `tag`) as version `<next patch>-dry.<run>` (so delta
-# packages against the latest release still get exercised) and keeps them as a workflow
-# artifact without touching GitHub Releases.
+# Run it from `main` with the `tag` input (`gh workflow run release.yml --ref main -f tag=v0.4.0`).
+# Actions caches are scoped per ref, so only runs on `main` see the compiler caches saved by
+# earlier runs on `main`; a tag push on its own deliberately triggers nothing.
+#
+# `dry_run` builds and checks every platform's packages from the current ref (or `tag`) as
+# version `<next patch>-dry.<run>` (so delta packages against the latest release still get
+# exercised) and keeps them as a workflow artifact without touching GitHub Releases.
 name: Release
 
 on:
-  push:
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       tag:
@@ -167,6 +167,9 @@ jobs:
       APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
       APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
       APPLE_NOTARY_PROFILE: ${{ secrets.APPLE_NOTARY_PROFILE }}
+      # rust-cache keeps dependency artifacts; sccache keeps compiled workspace crates too.
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
 
     steps:
       - name: Check out the release ref
@@ -180,6 +183,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           shared-key: release-${{ matrix.platform }}
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
 
       - name: Install Linux build dependencies
         if: ${{ startsWith(matrix.platform, 'linux') }}
@@ -267,6 +272,11 @@ jobs:
           set -euo pipefail
           export RELEASE_NOTES="$RUNNER_TEMP/release-notes/release-notes.md"
           bash ./tools/package-unix.sh
+
+      - name: Compiler cache statistics
+        if: ${{ always() }}
+        shell: bash
+        run: sccache --show-stats
 
       - name: Check the packages
         shell: bash
@@ -386,6 +396,8 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
+          # No checkout in this job: gh cannot infer the repository from git.
+          GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           notes="release-notes/release-notes.md"

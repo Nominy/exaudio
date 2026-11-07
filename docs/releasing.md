@@ -51,12 +51,18 @@ Ubuntu 22.04 so the AppImage's glibc floor is 2.35; macOS builds target macOS 14
 1. Bump `version` in `crates/studio-app/Cargo.toml` (SemVer, e.g. `0.3.1`) and run any cargo
    command (`cargo check -p studio-app`) so `Cargo.lock` follows.
 2. Commit and push to `main`; wait for CI.
-3. Tag and push the tag:
+3. Tag, push the tag, and start the release **from `main`** (a tag push by itself triggers
+   nothing: Actions caches are scoped per ref, and only runs on `main` reuse the compiler
+   caches of earlier runs — a cold build takes 3-4x longer):
 
    ```powershell
    git tag v0.3.1
    git push origin v0.3.1
+   gh workflow run release.yml --ref main -f tag=v0.3.1
    ```
+
+Builds use `Swatinem/rust-cache` for dependency artifacts plus `sccache` (GitHub Actions
+cache backend) for compiled workspace crates; `sccache --show-stats` is printed per build job.
 
 `release.yml` then runs three stages:
 
