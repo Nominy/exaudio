@@ -182,7 +182,17 @@ if [[ -n "$release_notes" ]]; then
 fi
 
 if [[ "$host_os" == "osx" ]]; then
-  pack_args+=(--bundleId "$bundle_id")
+  # The bundle icon: an .icns rendered from the 512 px app icon (vpk accepts .icns only).
+  iconset="$stage_dir-icon/Exaudio.iconset"
+  icns="$stage_dir-icon/Exaudio.icns"
+  rm -rf "$stage_dir-icon"
+  mkdir -p "$iconset"
+  for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$repo_root/assets/app/exaudio-512.png" --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    sips -z "$((size * 2))" "$((size * 2))" "$repo_root/assets/app/exaudio-512.png" --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+  done
+  iconutil -c icns "$iconset" -o "$icns"
+  pack_args+=(--icon "$icns" --bundleId "$bundle_id")
   # Optional signing inputs:
   # APPLE_DEVELOPER_ID_APPLICATION="Developer ID Application: Example, Inc. (TEAMID)"
   # APPLE_DEVELOPER_ID_INSTALLER="Developer ID Installer: Example, Inc. (TEAMID)"

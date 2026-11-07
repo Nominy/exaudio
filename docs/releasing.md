@@ -76,9 +76,10 @@ Ubuntu 22.04 so the AppImage's glibc floor is 2.35; macOS builds target macOS 14
    - packs: Windows `tools/package-windows.ps1 -UpdateChannel stable` (`vpk pack`, pack id
      `Exaudio`, main exe `Exaudio.exe`, icon `assets/app/exaudio.ico`, channel `win`);
      macOS and Linux `UPDATE_CHANNEL=stable tools/package-unix.sh` (channel = Velopack
-     runtime, bundle id `io.github.nominy.exaudio`; macOS wraps the Velopack-packed
-     `Exaudio.app` into `Exaudio-mac-<arch>.dmg` with `hdiutil`, Linux takes Velopack's
-     `Exaudio-linux-<arch>.AppImage` with icon `assets/app/exaudio-512.png`);
+     runtime, bundle id `io.github.nominy.exaudio`, icon rendered from
+     `assets/app/exaudio-512.png`; macOS wraps the Velopack-packed `Exaudio.app` into
+     `Exaudio-mac-<arch>.dmg` with `hdiutil`, Linux takes Velopack's
+     `Exaudio-linux-<arch>.AppImage`);
    - checks the expected assets exist and uploads `target/velopack/Publish` as the artifact
      `exaudio-<version>-<platform>`.
 3. **publish** (`ubuntu-latest`): downloads every platform's payload, re-verifies each file
