@@ -2,7 +2,7 @@
 //!
 //! Two channels: **Stable** reads GitHub Releases of [`STABLE_REPO_URL`] (pre-releases
 //! excluded; one release carries a Velopack channel per OS/CPU); **Alpha** reads the VPS feed
-//! every `main` build is published to (Windows and macOS; Linux has no alpha feed yet).
+//! every `main` build is published to (Windows and Linux on every push, macOS on demand).
 //!
 //! Compile-time env: `STUDIO_UPDATE_CHANNEL` (`stable` | `alpha`, the channel this build
 //! was packaged for; unset means `stable`), `STUDIO_ALPHA_FEED_URL` (alpha feed baked into

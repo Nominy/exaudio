@@ -1,0 +1,154 @@
+# Every push to main packages Linux alpha builds (x64 and arm64 AppImages, pack id Exaudio,
+# Velopack channel `alpha`, tools/package-unix.sh) and publishes each to its per-architecture
+# VPS alpha feed, the feed Linux alpha builds update from (studio-services updater).
+name: Linux Alpha
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_to_vps:
+        description: Publish to the VPS alpha feed (push builds always publish).
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: alpha-linux
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CHANNEL: alpha
+
+jobs:
+  package:
+    name: Package Linux alpha (${{ matrix.runtime }})
+    if: github.repository == 'Nominy/exaudio'
+    runs-on: ${{ matrix.runner }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runtime: linux-x64
+            runner: ubuntu-22.04
+          - runtime: linux-arm64
+            runner: ubuntu-22.04-arm
+
+    env:
+      RUNTIME: ${{ matrix.runtime }}
+      FEED_SUFFIX: ${{ matrix.runtime }}
+      FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.runtime }}
+      STUDIO_ALPHA_FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.runtime }}
+      REMOTE_PATH: /var/www/exaudio/alpha/${{ matrix.runtime }}
+      PUBLISH_DIR: ${{ github.workspace }}/target/velopack/Publish
+      STUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
+      # rust-cache keeps dependency artifacts; sccache keeps compiled workspace crates too.
+      SCCACHE_GHA_ENABLED: "true"
+      RUSTC_WRAPPER: sccache
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Resolve the alpha version
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/studio-app/Cargo.toml)"
+          if [[ ! "$base" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "studio-app version must be numeric major.minor.patch; found '$base'." >&2
+            exit 1
+          fi
+          # The next patch's pre-release sorts above the current stable and below the next one.
+          version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-alpha.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "Alpha version: $version"
+
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-${{ matrix.runtime }}
+
+      - uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Install Linux build dependencies
+        uses: ./.github/actions/linux-build-deps
+
+      - name: Install .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore pinned Velopack CLI
+        run: dotnet tool restore
+
+      - name: Prime the previous alpha for delta packages
+        shell: bash
+        run: |
+          set -uo pipefail
+          release_dir="$GITHUB_WORKSPACE/target/velopack/Releases"
+          rm -rf "$release_dir" "$PUBLISH_DIR"
+          mkdir -p "$release_dir"
+          if ! dotnet tool run vpk -- download http --url "$FEED_URL" --channel alpha --outputDir "$release_dir"; then
+            echo "::warning::No previous $RUNTIME alpha to delta against; packaging full artifacts only."
+            rm -rf "$release_dir"
+            mkdir -p "$release_dir"
+          fi
+          exit 0
+
+      - name: Build and package
+        shell: bash
+        env:
+          UPDATE_CHANNEL: alpha
+        run: bash ./tools/package-unix.sh
+
+      - name: Compiler cache statistics
+        if: ${{ always() }}
+        shell: bash
+        run: sccache --show-stats
+
+      - name: Check the packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          for asset in Exaudio-alpha.AppImage "releases.$CHANNEL.json" publish-manifest.json; do
+            if [[ ! -s "$PUBLISH_DIR/$asset" ]]; then
+              echo "::error::Packaging did not produce $asset" >&2
+              ls -l "$PUBLISH_DIR" >&2
+              exit 1
+            fi
+          done
+          if ! compgen -G "$PUBLISH_DIR/Exaudio-$VERSION-*full.nupkg" > /dev/null; then
+            echo "::error::Packaging did not produce the $VERSION full package" >&2
+            ls -l "$PUBLISH_DIR" >&2
+            exit 1
+          fi
+          ls -l "$PUBLISH_DIR"
+
+      - name: Publish to the VPS alpha feed
+        if: ${{ github.event_name == 'push' || inputs.publish_to_vps }}
+        shell: bash
+        env:
+          ALPHA_SSH_HOST: ${{ secrets.ALPHA_SSH_HOST }}
+          ALPHA_SSH_USER: ${{ secrets.ALPHA_SSH_USER }}
+          ALPHA_SSH_PRIVATE_KEY: ${{ secrets.ALPHA_SSH_PRIVATE_KEY }}
+          ALPHA_SSH_PORT: ${{ secrets.ALPHA_SSH_PORT }}
+          ALPHA_SSH_KNOWN_HOSTS: ${{ secrets.ALPHA_SSH_KNOWN_HOSTS }}
+        run: bash ./tools/publish-alpha-unix.sh
+
+      - name: Upload the publish payload
+        uses: actions/upload-artifact@v5
+        with:
+          name: exaudio-alpha-${{ matrix.runtime }}
+          path: target/velopack/Publish/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 3

@@ -17,7 +17,7 @@ feeds the parity tooling and the self-skipping parity tests (see
 | Channel | Who gets it | Built by | Velopack channel | Feed |
 | --- | --- | --- | --- | --- |
 | Stable | everyone (default for release downloads) | `v*` tag → `release.yml` | one per platform: `win`, `osx-arm64`, `osx-x64`, `linux-x64`, `linux-arm64` | GitHub Releases of `Nominy/exaudio` (pre-releases excluded); each release carries every platform's `releases.<channel>.json` |
-| Alpha | testers | every push to `main` → `alpha.yml` (Windows); manual `macos-alpha.yml` | `alpha` | `https://reviewgen.ovh/exaudio/alpha/win-x64`, `.../mac-arm64`, `.../mac-x64` (no Linux alpha feed) |
+| Alpha | testers | every push to `main` → `alpha.yml` (Windows) and `linux-alpha.yml` (Linux x64, arm64); manual `macos-alpha.yml` | `alpha` | `https://reviewgen.ovh/exaudio/alpha/win-x64`, `.../linux-x64`, `.../linux-arm64`, `.../mac-arm64`, `.../mac-x64` |
 
 Stable download endpoints (`https://github.com/Nominy/exaudio/releases/latest/download/<asset>`):
 
@@ -206,14 +206,31 @@ Velopack's `Exaudio-alpha-Portable.zip`) and can publish to:
 
 `STUDIO_ALPHA_FEED_URL` bakes each target's feed into its build. `macos-14-large` is a
 larger runner and is billed even for public repositories; skip `sonoma-amd64` unless that is
-intended. Linux builds bake `https://reviewgen.ovh/exaudio/alpha/linux-<arch>`, which nothing
-publishes to yet: on Linux the Alpha channel reports a feed error until that feed exists.
+intended. Publishing goes through `tools/publish-alpha-unix.sh` (the same incoming-directory,
+verify, promote-metadata-last and rollback steps as the Windows publisher).
+
+### Linux alpha
+
+Every push to `main` also runs `linux-alpha.yml` (serialized, never cancelled), one job per
+architecture:
+
+| Runner | Runtime | Asset | Feed |
+| --- | --- | --- | --- |
+| `ubuntu-22.04` | `linux-x64` | `Exaudio-alpha.AppImage` | `https://reviewgen.ovh/exaudio/alpha/linux-x64` |
+| `ubuntu-22.04-arm` | `linux-arm64` | `Exaudio-alpha.AppImage` | `https://reviewgen.ovh/exaudio/alpha/linux-arm64` |
+
+Each job uses the alpha version scheme above (with its own run number), downloads the
+previous alpha from its feed for delta packages, packs with
+`UPDATE_CHANNEL=alpha tools/package-unix.sh` and publishes `target/velopack/Publish` with
+`tools/publish-alpha-unix.sh` to `/var/www/exaudio/alpha/linux-<arch>`. Push runs always
+publish; a manual dispatch publishes only with `publish_to_vps: true`. The AppImage needs
+`chmod +x` once; it then updates itself from the feed.
 
 ## Secrets
 
 | Secret | Used by | Required |
 | --- | --- | --- |
-| `ALPHA_SSH_HOST` | `alpha.yml`, `macos-alpha.yml` publish | yes, for publishing |
+| `ALPHA_SSH_HOST` | `alpha.yml`, `linux-alpha.yml`, `macos-alpha.yml` publish | yes, for publishing |
 | `ALPHA_SSH_USER` | same | yes, for publishing |
 | `ALPHA_SSH_PRIVATE_KEY` | same; deploy key with write access to the incoming and feed directories | yes, for publishing |
 | `ALPHA_SSH_KNOWN_HOSTS` | same; the server's `known_hosts` line(s), e.g. from `ssh-keyscan -p <port> <host>` checked against the server | yes, for publishing |
