@@ -54,6 +54,10 @@ pub(crate) struct DirectXRenderer {
     /// In that case we want to discard the first frame that we draw as we got reset in the middle of a frame
     /// meaning we lost all the allocated gpu textures and scene resources.
     skip_draws: bool,
+
+    /// Path vertices of the current batch, kept across frames so a batch fills an allocation
+    /// that already fits instead of regrowing (and copying) a new one every frame.
+    path_vertices: Vec<PathRasterizationSprite>,
 }
 
 /// Direct3D objects
@@ -194,6 +198,7 @@ impl DirectXRenderer {
             width: 1,
             height: 1,
             skip_draws: false,
+            path_vertices: Vec::new(),
         })
     }
 
@@ -633,27 +638,33 @@ impl DirectXRenderer {
         }
 
         // Collect all vertices and sprites for a single draw call
-        let mut vertices = Vec::new();
-
+        let mut vertices = std::mem::take(&mut self.path_vertices);
+        vertices.clear();
+        vertices.reserve(paths.iter().map(|path| path.vertices.len()).sum());
         for path in paths {
+            let color = path.color;
+            let bounds = path.clipped_bounds();
             vertices.extend(path.vertices.iter().map(|v| PathRasterizationSprite {
                 xy_position: v.xy_position,
                 st_position: v.st_position,
-                color: path.color,
-                bounds: path.clipped_bounds(),
+                color,
+                bounds,
             }));
         }
 
-        self.pipelines.path_rasterization_pipeline.update_buffer(
+        let uploaded = self.pipelines.path_rasterization_pipeline.update_buffer(
             &devices.device,
             &devices.device_context,
             &vertices,
-        )?;
+        );
+        let vertex_count = vertices.len() as u32;
+        self.path_vertices = vertices;
+        uploaded?;
 
         self.pipelines.path_rasterization_pipeline.draw(
             &devices.device_context,
             D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST,
-            vertices.len() as u32,
+            vertex_count,
             1,
         )?;
 

@@ -87,6 +87,8 @@ incremental = true
 debug = 0
 
 # Patched gpui Windows platform: shortcut keys use physical key positions under any
-# keyboard layout (src/events.rs). Release shaders compile with the Windows SDK's fxc.
+# keyboard layout (src/events.rs); path batches refill one retained vertex buffer instead of
+# regrowing a new one every frame (src/directx_renderer.rs). Release shaders compile with the
+# Windows SDK's fxc.
 [patch.crates-io]
 gpui-pre-windows = { path = "vendor/gpui-pre-windows" }

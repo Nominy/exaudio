@@ -16,11 +16,13 @@
 
 mod find_bar;
 pub use find_bar::FindBar;
+mod fast_row;
 mod layout;
 mod row;
+mod row_style;
 mod wrap;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::rc::Rc;
@@ -80,6 +82,8 @@ pub struct TranscriptView {
     tag_highlight: Cell<Option<usize>>,
 
     metrics: RowMetrics,
+    /// Shaped texts and row shapes of the painted rows ([`fast_row::FastRow`]).
+    fast_rows: Rc<RefCell<fast_row::FastRowCache>>,
     /// Width of the text column from the last layout (measured by the header).
     text_column_width: Rc<Cell<Pixels>>,
     frame: Frame,
@@ -217,6 +221,7 @@ impl TranscriptView {
             tag_scroll: ScrollHandle::new(),
             tag_highlight: Cell::new(None),
             metrics: RowMetrics::default(),
+            fast_rows: Rc::default(),
             text_column_width: Rc::new(Cell::new(px(0.))),
             frame: Frame::default(),
             render_key,
@@ -1092,31 +1097,66 @@ impl TranscriptView {
             })
             .collect();
 
+        let fast_rows = Rc::clone(&self.fast_rows);
         wraps
             .into_iter()
             .map(|(row, text_wrap, index)| {
-                let params = RowParams {
-                    row,
-                    doc,
-                    text_wrap,
-                    height: sizes.get(index).map_or(px(32.), |size| size.height),
-                    metrics,
-                    lane_color: self
-                        .frame
-                        .lane_colors
-                        .get(&row.lane_id)
-                        .copied()
-                        .unwrap_or(fallback),
-                    is_find_match: self.frame.find_matches.contains(&row.segment_id),
-                    is_playing,
-                    text_editing: self.text_row.as_deref() == Some(row.segment_id.as_str()),
-                    time_editing: self
-                        .time_cell
+                let height = sizes.get(index).map_or(px(32.), |size| size.height);
+                let lane_color = self
+                    .frame
+                    .lane_colors
+                    .get(&row.lane_id)
+                    .copied()
+                    .unwrap_or(fallback);
+                let is_find_match = self.frame.find_matches.contains(&row.segment_id);
+                let text_editing = self.text_row.as_deref() == Some(row.segment_id.as_str());
+                let time_editing = self
+                    .time_cell
+                    .as_ref()
+                    .filter(|(id, _)| id.as_ref() == row.segment_id)
+                    .map(|(_, field)| *field);
+                let has_open_editor = text_editing
+                    || time_editing.is_some()
+                    || self.speaker_menu.as_deref() == Some(row.segment_id.as_str())
+                    || self
+                        .speaker_rename
                         .as_ref()
-                        .filter(|(id, _)| id.as_ref() == row.segment_id)
-                        .map(|(_, field)| *field),
-                };
-                self.render_row(params, cx)
+                        .is_some_and(|(id, _)| id.as_ref() == row.segment_id);
+                let fast = fast_row::fast_row(
+                    fast_row::FastRowParams {
+                        row,
+                        doc,
+                        text_wrap: Rc::clone(&text_wrap),
+                        height,
+                        metrics,
+                        lane_color,
+                        is_find_match,
+                        is_playing,
+                        has_open_editor,
+                    },
+                    &fast_rows,
+                    self,
+                    window,
+                    cx,
+                );
+                match fast {
+                    Some(fast) => fast.into_any_element(),
+                    None => self.render_row(
+                        RowParams {
+                            row,
+                            doc,
+                            text_wrap,
+                            height,
+                            metrics,
+                            lane_color,
+                            is_find_match,
+                            is_playing,
+                            text_editing,
+                            time_editing,
+                        },
+                        cx,
+                    ),
+                }
             })
             .collect()
     }
@@ -1157,7 +1197,7 @@ impl TranscriptView {
 
     fn render_header(&self, doc: &EditorDoc, cx: &Context<Self>) -> impl IntoElement {
         let theme = cx.theme();
-        let cells = doc.session().transcript_visible_cells(doc.project());
+        let cells = doc.transcript_visible_cells();
         let width = self.text_column_width.clone();
         let label = |text: &'static str, w: Option<Rems>| {
             div()
@@ -1346,6 +1386,9 @@ impl Render for TranscriptView {
         let model = self.model.read(cx);
         let doc = model.doc();
         let rows = self.rows(doc);
+        if !Rc::ptr_eq(&rows, &self.frame.rows) {
+            self.fast_rows.borrow_mut().retain_rows(&rows);
+        }
         let font_family = cx.theme().font_family.clone();
         let sizes = self.metrics.row_sizes(
             &rows,
@@ -1371,7 +1414,6 @@ impl Render for TranscriptView {
                 )
             })
             .collect();
-        let sizes = Rc::new(sizes);
         let is_empty = rows.is_empty();
         self.frame = Frame {
             rows,

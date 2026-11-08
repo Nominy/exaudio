@@ -333,6 +333,8 @@ pub struct Drafts {
     map: BTreeMap<String, SegmentDraft>,
     pub(crate) cross_row_undo: Vec<CrossRowTextEdit>,
     pub(crate) cross_row_redo: Vec<CrossRowTextEdit>,
+    /// Bumped by every access that can change a draft (see [`Self::revision`]).
+    revision: u64,
 }
 
 impl Drafts {
@@ -342,11 +344,23 @@ impl Drafts {
         drafts
     }
 
+    /// Counter that changes whenever any draft may have changed (every mutable access counts,
+    /// whether or not it wrote). Equal revisions mean equal drafts, so views can cache what
+    /// they derive from drafts.
+    pub fn revision(&self) -> u64 {
+        self.revision
+    }
+
+    fn touch(&mut self) {
+        self.revision = self.revision.wrapping_add(1);
+    }
+
     pub fn get(&self, segment_id: &str) -> Option<&SegmentDraft> {
         self.map.get(segment_id)
     }
 
     pub(crate) fn get_mut(&mut self, segment_id: &str) -> Option<&mut SegmentDraft> {
+        self.touch();
         self.map.get_mut(segment_id)
     }
 
@@ -371,6 +385,7 @@ impl Drafts {
 
     /// Recreates every draft from the project and drops all local histories.
     pub fn reset(&mut self, project: &Project) {
+        self.touch();
         self.cross_row_undo.clear();
         self.cross_row_redo.clear();
         self.map = project
@@ -382,6 +397,7 @@ impl Drafts {
 
     /// Adds drafts for new segments, drops drafts of removed segments, keeps unapplied edits.
     pub fn sync_preserving_existing(&mut self, project: &Project) {
+        self.touch();
         self.cross_row_undo.clear();
         self.cross_row_redo.clear();
         let current: BTreeSet<&str> = project.segments.iter().map(|s| s.id.as_str()).collect();
@@ -396,6 +412,7 @@ impl Drafts {
 
     /// Recreates one draft from the project (or removes it when the segment is gone).
     pub fn refresh(&mut self, project: &Project, segment_id: &str) {
+        self.touch();
         match project.segment(segment_id) {
             Some(segment) => {
                 self.map
@@ -408,6 +425,7 @@ impl Drafts {
     }
 
     pub fn remove(&mut self, segment_id: &str) {
+        self.touch();
         self.map.remove(segment_id);
     }
 

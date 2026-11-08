@@ -7,12 +7,11 @@
 //! row and only recomputed when the text, the column width or the font size (zoom) changes.
 
 use std::collections::{HashMap, HashSet};
-use std::hash::{DefaultHasher, Hash, Hasher};
 use std::rc::Rc;
 
 use gpui_kit::*;
 use studio_editor::edit::EditorDoc;
-use studio_editor::edit::draft::byte_offset;
+use studio_editor::edit::draft::{SegmentDraft, byte_offset};
 use studio_editor::edit::time::TimeField;
 use studio_editor::transcript_model::{TranscriptRowKind, TranscriptRowView};
 
@@ -70,51 +69,100 @@ impl TextMetrics {
     }
 }
 
-/// Cache key of a measured text: its hash, wrap width and font size.
-#[derive(Clone, Copy, PartialEq)]
+/// Cache key of a measured text: the text itself, wrap width and font size. Every row is
+/// checked on each render; comparing the stored text is cheaper than hashing it and cannot
+/// collide.
 struct CacheKey {
-    hash: u64,
+    text: Box<str>,
     width: Pixels,
     font_size: Pixels,
 }
 
 impl CacheKey {
     fn new(text: &str, width: Pixels, font_size: Pixels) -> Self {
-        let mut hasher = DefaultHasher::new();
-        text.hash(&mut hasher);
         Self {
-            hash: hasher.finish(),
+            text: text.into(),
             width,
             font_size,
         }
     }
+
+    fn matches(&self, text: &str, width: Pixels, font_size: Pixels) -> bool {
+        self.width == width && self.font_size == font_size && *self.text == *text
+    }
 }
 
-/// Row wrap and diff line-count caches keyed by segment id.
+/// Row wrap and diff line-count caches keyed by segment id, plus the heights of the last
+/// measured row list.
 #[derive(Default)]
 pub(super) struct RowMetrics {
     text: HashMap<String, (CacheKey, Rc<WrappedText>)>,
     aux: HashMap<String, (CacheKey, usize)>,
     font_family: SharedString,
+    sizes: Option<(SizesKey, Rc<Vec<Size<Pixels>>>)>,
+}
+
+/// Everything row heights derive from. Rows are compared by identity: the doc rebuilds them
+/// whenever their contents change, and the key holds them so the address is not reused.
+struct SizesKey {
+    rows: Rc<[TranscriptRowView]>,
+    generation: u64,
+    drafts_revision: u64,
+    wrap_width: Pixels,
+    rem: Pixels,
+    font_size: Pixels,
+    line_height: Pixels,
+    /// Diff rows of an empty word diff measure a localized placeholder.
+    language: &'static str,
+}
+
+impl SizesKey {
+    fn matches(&self, other: &Self) -> bool {
+        Rc::ptr_eq(&self.rows, &other.rows)
+            && self.generation == other.generation
+            && self.drafts_revision == other.drafts_revision
+            && self.wrap_width == other.wrap_width
+            && self.rem == other.rem
+            && self.font_size == other.font_size
+            && self.line_height == other.line_height
+            && std::ptr::eq(self.language, other.language)
+    }
 }
 
 impl RowMetrics {
-    /// Heights of every row for the given text-column width.
+    /// Heights of every row for the given text-column width. Scrolling re-renders the grid
+    /// without changing any of their inputs, so the last result is reused.
     pub fn row_sizes(
         &mut self,
-        rows: &[TranscriptRowView],
+        rows: &Rc<[TranscriptRowView]>,
         doc: &EditorDoc,
         text_column_width: Pixels,
         font_family: &SharedString,
         window: &Window,
-    ) -> Vec<Size<Pixels>> {
+    ) -> Rc<Vec<Size<Pixels>>> {
         if &self.font_family != font_family {
             self.text.clear();
             self.aux.clear();
+            self.sizes = None;
             self.font_family = font_family.clone();
         }
         let metrics = TextMetrics::for_window(window);
         let wrap_width = text_wrap_width(text_column_width, metrics);
+        let key = SizesKey {
+            rows: Rc::clone(rows),
+            generation: doc.generation(),
+            drafts_revision: doc.drafts().revision(),
+            wrap_width,
+            rem: metrics.rem,
+            font_size: metrics.font_size,
+            line_height: metrics.line_height,
+            language: studio_editor::i18n::localized("en", "ru"),
+        };
+        if let Some((cached, sizes)) = &self.sizes
+            && cached.matches(&key)
+        {
+            return Rc::clone(sizes);
+        }
         let font = font(font_family.clone());
         let shaper = Shaper {
             font: &font,
@@ -122,18 +170,20 @@ impl RowMetrics {
             window,
         };
 
-        let sizes = rows
-            .iter()
-            .map(|row| {
-                let height = self.row_height(row, doc, wrap_width, &shaper);
-                size(px(0.), height)
-            })
-            .collect();
+        let sizes: Rc<Vec<Size<Pixels>>> = Rc::new(
+            rows.iter()
+                .map(|row| {
+                    let height = self.row_height(row, doc, wrap_width, &shaper);
+                    size(px(0.), height)
+                })
+                .collect(),
+        );
         if self.text.len() > rows.len() || self.aux.len() > rows.len() {
             let ids: HashSet<&str> = rows.iter().map(|row| row.segment_id.as_str()).collect();
             self.text.retain(|id, _| ids.contains(id.as_str()));
             self.aux.retain(|id, _| ids.contains(id.as_str()));
         }
+        self.sizes = Some((key, Rc::clone(&sizes)));
         sizes
     }
 
@@ -146,8 +196,9 @@ impl RowMetrics {
     ) -> Pixels {
         let metrics = shaper.metrics;
         let line_height = metrics.line_height;
+        let draft = doc.draft(&row.segment_id);
         let text_lines = self
-            .cached_wrap(&row.segment_id, display_text(row, doc), wrap_width, shaper)
+            .cached_wrap(&row.segment_id, shown_text(row, draft), wrap_width, shaper)
             .line_count();
         let mut text_block = line_height * text_lines as f32 + TEXT_PY * 2.;
 
@@ -157,11 +208,15 @@ impl RowMetrics {
         if row.diff.is_some() {
             let diff_text = diff_display_text(row);
             let diff_width = (wrap_width - metrics.px(DIFF_BADGE_W)).max(px(40.));
-            let key = CacheKey::new(&diff_text, diff_width, metrics.font_size);
             let diff_lines = match self.aux.get(&row.segment_id) {
-                Some((cached, lines)) if *cached == key => *lines,
+                Some((cached, lines))
+                    if cached.matches(&diff_text, diff_width, metrics.font_size) =>
+                {
+                    *lines
+                }
                 _ => {
                     let lines = shaper.lines(&diff_text, diff_width);
+                    let key = CacheKey::new(&diff_text, diff_width, metrics.font_size);
                     self.aux.insert(row.segment_id.clone(), (key, lines));
                     lines
                 }
@@ -183,8 +238,7 @@ impl RowMetrics {
             }
         }
 
-        let time_block = doc
-            .draft(&row.segment_id)
+        let time_block = draft
             .filter(|draft| {
                 draft.time_error(TimeField::Start).is_some()
                     || draft.time_error(TimeField::End).is_some()
@@ -243,13 +297,14 @@ impl RowMetrics {
         wrap_width: Pixels,
         shaper: &Shaper,
     ) -> Rc<WrappedText> {
-        let key = CacheKey::new(text, wrap_width, shaper.metrics.font_size);
+        let font_size = shaper.metrics.font_size;
         if let Some((cached, wrap)) = self.text.get(segment_id)
-            && *cached == key
+            && cached.matches(text, wrap_width, font_size)
         {
             return Rc::clone(wrap);
         }
         let wrap = Rc::new(shaper.wrap(text, wrap_width));
+        let key = CacheKey::new(text, wrap_width, font_size);
         self.text
             .insert(segment_id.to_string(), (key, Rc::clone(&wrap)));
         wrap
@@ -258,12 +313,14 @@ impl RowMetrics {
 
 /// Text shown in a row's text cell: the draft for editable rows, else the row text.
 pub(super) fn display_text<'a>(row: &'a TranscriptRowView, doc: &'a EditorDoc) -> &'a str {
-    if row.row_kind == TranscriptRowKind::Annotation
-        && let Some(draft) = doc.draft(&row.segment_id)
-    {
-        draft.text()
-    } else {
-        &row.text
+    shown_text(row, doc.draft(&row.segment_id))
+}
+
+/// [`display_text`] for a row whose draft was already looked up.
+fn shown_text<'a>(row: &'a TranscriptRowView, draft: Option<&'a SegmentDraft>) -> &'a str {
+    match draft {
+        Some(draft) if row.row_kind == TranscriptRowKind::Annotation => draft.text(),
+        _ => &row.text,
     }
 }
 

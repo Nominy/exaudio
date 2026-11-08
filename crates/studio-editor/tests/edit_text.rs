@@ -25,6 +25,30 @@ fn an_empty_transcript_has_no_core_text_diagnostic() {
     assert!(doc.drafts().draft_lint(segment).is_none());
 }
 
+/// Views cache what they derive from drafts (row heights) by the drafts revision: every
+/// change to a draft's text or times must move it, and reads must not.
+#[test]
+fn drafts_revision_moves_with_every_draft_change() {
+    let mut doc = doc(vec![seg("a", "lane-1", 1.0, 3.0, "hello")]);
+    let revision = |doc: &EditorDoc| doc.drafts().revision();
+
+    let before = revision(&doc);
+    let _ = doc.draft("a");
+    let _ = doc.transcript_rows();
+    assert_eq!(revision(&doc), before, "reads keep the revision");
+
+    set_text_with_caret_at_end(&mut doc, "a", "hello world");
+    let typed = revision(&doc);
+    assert_ne!(typed, before, "typing moves the revision");
+
+    ok(doc.set_time_draft("a", TimeField::Start, "00:01.50".to_string()));
+    assert_ne!(
+        revision(&doc),
+        typed,
+        "editing a time cell moves the revision"
+    );
+}
+
 // ---- helpers ------------------------------------------------------------------------------
 
 /// Types `text` into the row with the caret after `caret_chars` chars.

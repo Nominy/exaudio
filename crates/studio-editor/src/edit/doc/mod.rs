@@ -40,7 +40,7 @@ use super::text::TextMoveError;
 use super::time::TimeEditError;
 use crate::editor_model::{EditorSession, ProblemCounts};
 use crate::timing::WordTimings;
-use crate::transcript_model::{TranscriptRowView, speaker_label};
+use crate::transcript_model::{TranscriptRowView, TranscriptRowVisibleCells, speaker_label};
 use crate::workflow::StudioWorkflow;
 use exaudio_extension::document::{DocumentEnvironment, Severity};
 
@@ -397,6 +397,15 @@ impl EditorDoc {
         };
         *self.rows_cache.borrow_mut() = Some((key, Rc::clone(&rows)));
         rows
+    }
+
+    /// Cells the transcript shows, read from the cached rows (building every row just to read
+    /// the first one is far too slow to repeat on each rendered frame).
+    pub fn transcript_visible_cells(&self) -> TranscriptRowVisibleCells {
+        self.transcript_rows()
+            .first()
+            .map(|row| row.visible_cells)
+            .unwrap_or_default()
     }
 
     /// Error/warning counts behind the problem summary, cached per generation (linting every

@@ -619,16 +619,39 @@ fn paint_line(
     let height = px((canvas_height / scale) as f32);
     if split_x > left {
         let area = Bounds::new(point(left, top), size(split_x - left, height));
+        let half = triangles_near(&path, left, split_x);
         window.with_content_mask(Some(ContentMask { bounds: area }), |window| {
-            window.paint_path(path.clone(), played);
+            window.paint_path(half, played);
         });
     }
     if split_x < right {
         let area = Bounds::new(point(split_x, top), size(right - split_x, height));
+        let half = triangles_near(&path, split_x, right);
         window.with_content_mask(Some(ContentMask { bounds: area }), |window| {
-            window.paint_path(path, unplayed);
+            window.paint_path(half, unplayed);
         });
     }
+}
+
+/// The triangles of `path` reaching into `x0..=x1` (with a pixel of slack), keeping the whole
+/// path's bounds. Painted under a content mask inside `x0..=x1`, this is pixel-identical to
+/// painting `path`: every dropped triangle lies wholly outside the mask, which the rasterizer
+/// clips away, and the unchanged bounds keep the clip rect, draw order and copy-back region.
+fn triangles_near(path: &Path<Pixels>, x0: Pixels, x1: Pixels) -> Path<Pixels> {
+    let (x0, x1) = (f32::from(x0) - 1., f32::from(x1) + 1.);
+    let mut half = Path::new(path.bounds.origin);
+    half.vertices.reserve(path.vertices.len());
+    for triangle @ [a, b, c] in path.vertices.as_chunks::<3>().0 {
+        let xs = [a.xy_position.x, b.xy_position.x, c.xy_position.x].map(f32::from);
+        let min = xs[0].min(xs[1]).min(xs[2]);
+        let max = xs[0].max(xs[1]).max(xs[2]);
+        if max >= x0 && min <= x1 {
+            half.vertices.extend_from_slice(triangle);
+        }
+    }
+    // Set directly rather than grown per kept triangle: the whole path's bounds.
+    half.bounds = path.bounds;
+    half
 }
 
 /// Draws an overview row: one value per device pixel (the loudest absolute peak in that
@@ -870,10 +893,13 @@ pub fn paint_overview(
             size(bounds.size.width, px(row_height)),
         )
     };
-    for (block, color) in scene.blocks.iter().zip(scene.block_colors.iter()) {
-        let row = row_bounds(block.lane_row.min(rows - 1));
-        window.paint_quad(fill(
-            Bounds::new(
+    let blocks: Vec<(Bounds<Pixels>, Hsla)> = scene
+        .blocks
+        .iter()
+        .zip(scene.block_colors.iter())
+        .map(|(block, color)| {
+            let row = row_bounds(block.lane_row.min(rows - 1));
+            let area = Bounds::new(
                 point(
                     row.left() + px(block.left_percent / 100.0 * width),
                     row.top(),
@@ -882,9 +908,24 @@ pub fn paint_overview(
                     px((block.width_percent / 100.0 * width).max(1.0)),
                     row.size.height,
                 ),
-            ),
-            color.opacity(0.22),
-        ));
+            );
+            (area, color.opacity(0.22))
+        })
+        .collect();
+    // One segment block per segment: a thousand blocks are a thousand draw-order lookups on
+    // every frame that replays the overview. Painted inside a layer covering all of them they
+    // share one order; they are all quads, so they still draw in this order, and anything
+    // painted later over any block still lands above it.
+    if let Some(cover) = blocks
+        .iter()
+        .map(|(area, _)| *area)
+        .reduce(|a, b| a.union(&b))
+    {
+        window.paint_layer(cover, |window| {
+            for (area, color) in blocks {
+                window.paint_quad(fill(area, color));
+            }
+        });
     }
     for lane in scene.lanes.iter() {
         paint_overview_peaks(
@@ -978,7 +1019,7 @@ pub fn paint_scrollbar(
 #[cfg(test)]
 mod tests {
     // Not a glob: `gpui_kit::*` exports its own `test` attribute.
-    use super::Band;
+    use super::{Band, triangles_near};
     use gpui_kit::px;
 
     fn area(points: &[(f32, f32)]) -> f32 {
@@ -1025,5 +1066,36 @@ mod tests {
         band.extend([(px(3.), px(1.), px(5.)), (px(3.), px(2.), px(5.))]);
         band.extend(std::iter::empty());
         assert!(band.into_path().is_none());
+    }
+
+    /// Each painted half keeps every triangle that can reach its clip (including the ones
+    /// straddling the split) and the whole path's bounds, so its clip rect is unchanged.
+    #[test]
+    fn half_keeps_triangles_reaching_its_range_and_the_whole_bounds() {
+        let mut band = Band::default();
+        // Columns 1 px apart: triangles cover x 0..1, 1..2, ..., 9..10.
+        band.extend((0..=10).map(|x| (px(x as f32), px(2.0 + (x % 3) as f32), px(10.))));
+        let path = band.into_path().expect("non-empty band");
+        let x_range = |half: &gpui_kit::Path<gpui_kit::Pixels>| {
+            let xs = half.vertices.iter().map(|v| f32::from(v.xy_position.x));
+            (
+                xs.clone().fold(f32::MAX, f32::min),
+                xs.fold(f32::MIN, f32::max),
+            )
+        };
+
+        // Split mid-column: both halves keep the straddling 4..5 column (plus one of slack).
+        let left = triangles_near(&path, px(0.), px(4.5));
+        let right = triangles_near(&path, px(4.5), px(10.));
+        assert_eq!(x_range(&left), (0.0, 6.0));
+        assert_eq!(x_range(&right), (3.0, 10.0));
+        assert!(left.vertices.len() < path.vertices.len());
+        assert!(right.vertices.len() < path.vertices.len());
+        assert_eq!(left.bounds, path.bounds);
+        assert_eq!(right.bounds, path.bounds);
+
+        // A clip covering everything keeps the path as it was.
+        let all = triangles_near(&path, px(0.), px(10.));
+        assert_eq!(all.vertices.len(), path.vertices.len());
     }
 }

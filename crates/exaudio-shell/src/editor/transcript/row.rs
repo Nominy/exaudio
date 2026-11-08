@@ -26,9 +26,14 @@ use studio_editor::transcript_model::{
 
 use super::TranscriptView;
 use super::layout::{
-    ACTIONS_W, CELL_PX, DIFF_BADGE_W, ID_W, LINT_W, REVIEWER_W, ROW_PY, SMALL_LINE_H, TEXT_PX,
-    TEXT_PY, TIME_W, TRACK_W, TextMetrics, WRAP_MARGIN, diff_display_text, display_text,
-    has_review_chips,
+    ACTIONS_W, CELL_PX, DIFF_BADGE_W, LINT_W, ROW_PY, SMALL_LINE_H, TEXT_PX, TEXT_PY, TIME_W,
+    TRACK_W, TextMetrics, WRAP_MARGIN, diff_display_text, display_text, has_review_chips,
+};
+use super::row_style::{
+    centered_cell_box, empty_lint_box, id_box, reviewer_box, row_bar, row_box, row_hover,
+    speaker_box, speaker_dot, speaker_label_box, speaker_label_hover, speaker_label_interactive,
+    speaker_name_box, static_text_body, static_text_box, static_text_interactive, text_cell_box,
+    time_box, time_value_box, time_value_hover, time_value_interactive,
 };
 use super::wrap::WrappedText;
 use crate::actions;
@@ -51,6 +56,10 @@ pub(super) struct RowParams<'a> {
 }
 
 impl TranscriptView {
+    /// The element row. Plain rows are drawn by [`super::fast_row::FastRow`] instead, which
+    /// mirrors this tree for them: a change to an annotation row's boxes goes through
+    /// [`super::row_style`] (shared), and a new cell, state or interaction must be added to
+    /// `FastRow` or to the conditions that leave a row to this element tree.
     pub(super) fn render_row(&self, params: RowParams, cx: &Context<Self>) -> AnyElement {
         if params.row.row_kind == TranscriptRowKind::Annotation {
             self.render_annotation_row(params, cx)
@@ -74,76 +83,49 @@ impl TranscriptView {
         } = params;
         let theme = cx.theme();
         let cells = row.visible_cells;
-        let highlighted = row.is_selected
-            || doc.session().selected_segment_id.as_deref() == Some(row.segment_id.as_str());
+        let (highlighted, background) = row_background(row, doc, is_playing, is_find_match, theme);
         let segment_id: SharedString = row.segment_id.clone().into();
 
-        let background = if highlighted && is_playing {
-            theme.accent.opacity(0.9)
-        } else if highlighted {
-            theme.list_active
-        } else if is_find_match {
-            theme.warning.opacity(0.10)
-        } else {
-            theme.background
-        };
-        h_flex()
-            .id(SharedString::from(format!(
+        row_box(
+            div().id(SharedString::from(format!(
                 "transcript-row:{}",
                 row.segment_id
-            )))
-            .relative()
-            .w_full()
-            .h(height)
-            .items_start()
-            .py(ROW_PY)
-            .overflow_hidden()
-            .border_b_1()
-            .border_color(theme.border)
-            .bg(background)
-            .when(!highlighted, |row| {
-                row.hover(|style| style.bg(cx.theme().list_hover))
+            ))),
+            height,
+            background,
+            theme,
+        )
+        .when(!highlighted, |row| row.hover(row_hover(theme)))
+        .when(highlighted, |row| row.child(row_bar(div(), theme)))
+        .on_mouse_down(MouseButton::Left, {
+            let segment_id = segment_id.clone();
+            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                this.press_row(&segment_id, event.click_count, window, cx);
             })
-            .when(highlighted, |row| {
-                row.child(
-                    div()
-                        .absolute()
-                        .left_0()
-                        .top_0()
-                        .bottom_0()
-                        .w(px(2.))
-                        .bg(theme.primary),
-                )
-            })
-            .on_mouse_down(MouseButton::Left, {
-                let segment_id = segment_id.clone();
-                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                    this.press_row(&segment_id, event.click_count, window, cx);
-                })
-            })
-            .when(cells.id, |el| el.child(id_cell(row, metrics, theme)))
-            .when(cells.track, |el| {
-                el.child(self.speaker_cell(row, doc, metrics, lane_color, cx))
-            })
-            .when(cells.start, |el| {
-                el.child(self.time_cell(row, doc, TimeField::Start, time_editing, metrics, cx))
-            })
-            .when(cells.end, |el| {
-                el.child(self.time_cell(row, doc, TimeField::End, time_editing, metrics, cx))
-            })
-            .when(cells.reviewer, |el| {
-                el.child(reviewer_cell(row, metrics, theme))
-            })
-            .when(cells.text, |el| {
-                el.child(self.text_cell(row, doc, &text_wrap, metrics, text_editing, cx))
-            })
-            .when(cells.linter, |el| {
-                el.child(self.lint_cell(row, doc, metrics, cx))
-            })
-            .when(cells.actions, |el| {
-                el.child(self.actions_cell(row, metrics, cx))
-            })
-            .into_any_element()
+        })
+        .when(cells.id, |el| el.child(id_cell(row, metrics, theme)))
+        .when(cells.track, |el| {
+            el.child(self.speaker_cell(row, doc, metrics, lane_color, cx))
+        })
+        .when(cells.start, |el| {
+            el.child(self.time_cell(row, doc, TimeField::Start, time_editing, metrics, cx))
+        })
+        .when(cells.end, |el| {
+            el.child(self.time_cell(row, doc, TimeField::End, time_editing, metrics, cx))
+        })
+        .when(cells.reviewer, |el| {
+            el.child(reviewer_cell(row, metrics, theme))
+        })
+        .when(cells.text, |el| {
+            el.child(self.text_cell(row, doc, &text_wrap, metrics, text_editing, cx))
+        })
+        .when(cells.linter, |el| {
+            el.child(self.lint_cell(row, doc, metrics, cx))
+        })
+        .when(cells.actions, |el| {
+            el.child(self.actions_cell(row, metrics, cx))
+        })
+        .into_any_element()
     }
 
     /// Speaker cell: a dot in the speaker's colour and the speaker label (lane-coloured). The
@@ -167,10 +149,7 @@ impl TranscriptView {
         let speaker_id = project
             .segment(&row.segment_id)
             .map(|segment| segment.speaker_id.as_str());
-        let speaker_index =
-            speaker_id.and_then(|id| project.speakers.iter().position(|speaker| speaker.id == id));
-        let dot_color =
-            speaker_index.map_or(theme.muted_foreground, |index| speaker_color(index, theme));
+        let dot_color = speaker_dot_color(row, doc, theme);
 
         let content = if renaming {
             div()
@@ -185,50 +164,28 @@ impl TranscriptView {
                 .into_any_element()
         } else {
             let segment_id: SharedString = row.segment_id.clone().into();
-            h_flex()
-                .id(SharedString::from(format!(
+            speaker_label_box(
+                div().id(SharedString::from(format!(
                     "transcript-speaker:{}",
                     row.segment_id
-                )))
-                .w_full()
-                .h(metrics.line_height)
-                .gap_1p5()
-                .items_center()
-                .px_1()
-                .rounded(theme.radius)
-                .child(
-                    div()
-                        .flex_none()
-                        .size(rems(0.5))
-                        .rounded_full()
-                        .bg(dot_color),
-                )
-                .child(
-                    div()
-                        .min_w_0()
-                        .text_sm()
-                        .line_height(metrics.line_height)
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(lane_color)
-                        .truncate()
-                        .child(row.speaker_label.clone()),
-                )
-                .when(!row.is_read_only, |label| {
-                    label
-                        .cursor_pointer()
-                        .hover(|style| style.bg(theme.secondary))
-                        .when(menu_open, |label| label.bg(theme.secondary))
-                        .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
-                            this.open_speaker_menu(&segment_id, window, cx);
-                        }))
-                })
-                .into_any_element()
+                ))),
+                metrics,
+                theme,
+            )
+            .child(speaker_dot(div(), dot_color))
+            .child(speaker_name_box(div(), metrics, lane_color).child(row.speaker_label.clone()))
+            .when(!row.is_read_only, |label| {
+                speaker_label_interactive(label)
+                    .hover(speaker_label_hover(theme))
+                    .when(menu_open, |label| label.bg(theme.secondary))
+                    .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
+                        this.open_speaker_menu(&segment_id, window, cx);
+                    }))
+            })
+            .into_any_element()
         };
 
-        v_flex()
-            .w(TRACK_W)
-            .flex_none()
-            .px(rems(CELL_PX.0 - 0.25))
+        speaker_box(div())
             .child(content)
             .when(!row.annotation_kind.is_transcription(), |cell| {
                 cell.child(
@@ -386,11 +343,7 @@ impl TranscriptView {
     ) -> AnyElement {
         let theme = cx.theme();
         let draft = doc.draft(&row.segment_id);
-        let value: SharedString = match (draft, field) {
-            (Some(draft), field) => draft.time_value(field).to_string().into(),
-            (None, TimeField::Start) => row.start_time.clone().into(),
-            (None, TimeField::End) => row.end_time.clone().into(),
-        };
+        let value = time_value(row, doc, field);
         let error = draft.and_then(|draft| draft.time_error(field));
 
         let content = if editing == Some(field) {
@@ -402,50 +355,31 @@ impl TranscriptView {
                 .into_any_element()
         } else {
             let segment_id: SharedString = row.segment_id.clone().into();
-            div()
-                .id(SharedString::from(format!(
+            time_value_box(
+                div().id(SharedString::from(format!(
                     "transcript-time:{}:{}",
                     row.segment_id,
                     field_key(field)
-                )))
-                // The time input's box (line-height tall, 1px border, 4px padding, centred
-                // text), so the value does not move when the cell opens for editing.
-                .w_full()
-                .h(metrics.line_height)
-                .flex()
-                .items_center()
-                .px_1()
-                .border_1()
-                .border_color(transparent_black())
-                .text_xs()
-                .line_height(metrics.line_height)
-                .text_color(theme.foreground.opacity(0.85))
-                .child(value)
-                .when(!row.is_read_only, |cell| {
-                    cell.cursor_text()
-                        .rounded(theme.radius)
-                        .hover(|style| style.bg(theme.secondary))
-                        .on_mouse_down(
-                            MouseButton::Left,
-                            cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                                cx.stop_propagation();
-                                this.press_time_cell(
-                                    &segment_id,
-                                    field,
-                                    event.click_count,
-                                    window,
-                                    cx,
-                                );
-                            }),
-                        )
-                })
-                .into_any_element()
+                ))),
+                metrics,
+                theme,
+            )
+            .child(value)
+            .when(!row.is_read_only, |cell| {
+                time_value_interactive(cell, theme)
+                    .hover(time_value_hover(theme))
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                            cx.stop_propagation();
+                            this.press_time_cell(&segment_id, field, event.click_count, window, cx);
+                        }),
+                    )
+            })
+            .into_any_element()
         };
 
-        v_flex()
-            .w(TIME_W)
-            .flex_none()
-            .px(rems(CELL_PX.0 - 0.25))
+        time_box(div())
             .child(content)
             .when_some(error, |cell, error| {
                 cell.child(
@@ -502,10 +436,7 @@ impl TranscriptView {
             self.static_text(row, doc, text_wrap, metrics, cx)
         };
 
-        v_flex()
-            .relative()
-            .flex_1()
-            .min_w_0()
+        text_cell_box(div())
             .child(text)
             .when(!extension_decorations.is_empty(), |cell| {
                 cell.child(
@@ -580,80 +511,73 @@ impl TranscriptView {
             let line_height = metrics.line_height;
             let text_wrap = Rc::clone(text_wrap);
 
-            div()
-                .id(SharedString::from(format!(
-                    "transcript-text:{}",
-                    row.segment_id
-                )))
-                .relative()
-                .whitespace_nowrap()
-                .child(styled)
-                .when_some(ghost, |el, ghost| {
-                    el.child(
-                        canvas(
-                            |_, _, _| {},
-                            move |_, _, window, _| {
-                                if let Some(origin) = caret_layout.position_for_index(ghost) {
-                                    window.paint_quad(fill(
-                                        Bounds::new(origin, size(px(2.), line_height)),
-                                        ghost_color,
-                                    ));
-                                }
-                            },
-                        )
-                        .absolute()
-                        .size_full(),
+            static_text_body(div().id(SharedString::from(format!(
+                "transcript-text:{}",
+                row.segment_id
+            ))))
+            .child(styled)
+            .when_some(ghost, |el, ghost| {
+                el.child(
+                    canvas(
+                        |_, _, _| {},
+                        move |_, _, window, _| {
+                            if let Some(origin) = caret_layout.position_for_index(ghost) {
+                                window.paint_quad(fill(
+                                    Bounds::new(origin, size(px(2.), line_height)),
+                                    ghost_color,
+                                ));
+                            }
+                        },
                     )
-                })
-                .on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, event: &MouseDownEvent, window, cx| {
-                        let byte =
-                            text_wrap.to_source(match layout.index_for_position(event.position) {
-                                Ok(index) | Err(index) => index,
-                            });
-                        let modifiers = event.modifiers;
-                        // Helper word seek: a plain Alt+Click (no Ctrl/Shift/Meta).
-                        if modifiers.alt
-                            && !modifiers.control
-                            && !modifiers.shift
-                            && !modifiers.platform
-                        {
-                            cx.stop_propagation();
-                            this.seek_to_word_at_byte(&segment_id, byte, cx);
-                        } else if editable {
-                            cx.stop_propagation();
-                            this.activate_text_at_byte(&segment_id, byte, window, cx);
-                        }
-                    }),
+                    .absolute()
+                    .size_full(),
                 )
-                .into_any_element()
+            })
+            .on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, event: &MouseDownEvent, window, cx| {
+                    let byte =
+                        text_wrap.to_source(match layout.index_for_position(event.position) {
+                            Ok(index) | Err(index) => index,
+                        });
+                    let modifiers = event.modifiers;
+                    // Helper word seek: a plain Alt+Click (no Ctrl/Shift/Meta).
+                    if modifiers.alt
+                        && !modifiers.control
+                        && !modifiers.shift
+                        && !modifiers.platform
+                    {
+                        cx.stop_propagation();
+                        this.seek_to_word_at_byte(&segment_id, byte, cx);
+                    } else if editable {
+                        cx.stop_propagation();
+                        this.activate_text_at_byte(&segment_id, byte, window, cx);
+                    }
+                }),
+            )
+            .into_any_element()
         };
 
         let segment_id: SharedString = row.segment_id.clone().into();
-        div()
-            .id(SharedString::from(format!(
+        static_text_box(
+            div().id(SharedString::from(format!(
                 "transcript-text-cell:{}",
                 row.segment_id
-            )))
-            .w_full()
-            .pl(TEXT_PX)
-            .pr(TEXT_PX + WRAP_MARGIN)
-            .py(TEXT_PY)
-            .text_sm()
-            .line_height(metrics.line_height)
-            .text_color(theme.foreground)
-            .when(editable, |el| {
-                el.cursor_text().on_mouse_down(
-                    MouseButton::Left,
-                    cx.listener(move |this, _: &MouseDownEvent, window, cx| {
-                        cx.stop_propagation();
-                        this.activate_text_at_end(&segment_id, window, cx);
-                    }),
-                )
-            })
-            .child(body)
-            .into_any_element()
+            ))),
+            metrics,
+            theme,
+        )
+        .when(editable, |el| {
+            static_text_interactive(el).on_mouse_down(
+                MouseButton::Left,
+                cx.listener(move |this, _: &MouseDownEvent, window, cx| {
+                    cx.stop_propagation();
+                    this.activate_text_at_end(&segment_id, window, cx);
+                }),
+            )
+        })
+        .child(body)
+        .into_any_element()
     }
 
     /// Text of a row with unreviewed low-confidence words: words are underlined and seek on
@@ -767,7 +691,7 @@ impl TranscriptView {
             .children(chips)
     }
 
-    fn lint_cell(
+    pub(super) fn lint_cell(
         &self,
         row: &TranscriptRowView,
         doc: &EditorDoc,
@@ -776,7 +700,7 @@ impl TranscriptView {
     ) -> AnyElement {
         let theme = cx.theme();
         let Some((severity, message)) = doc.row_lint(row) else {
-            return div().w(LINT_W).flex_none().into_any_element();
+            return empty_lint_box(div()).into_any_element();
         };
         let color = lint_color(severity, theme);
         let tooltip: SharedString = message.into();
@@ -790,26 +714,18 @@ impl TranscriptView {
             .bg(color)
             .tooltip(move |window, cx| Tooltip::new(tooltip.clone()).build(window, cx));
 
-        h_flex()
-            .w(LINT_W)
-            .flex_none()
-            .h(metrics.line_height + TEXT_PY * 2.)
-            .justify_center()
+        centered_cell_box(div(), LINT_W, metrics)
             .child(dot)
             .into_any_element()
     }
 
-    fn actions_cell(
+    pub(super) fn actions_cell(
         &self,
         row: &TranscriptRowView,
         metrics: TextMetrics,
         cx: &Context<Self>,
     ) -> AnyElement {
-        let cell = h_flex()
-            .w(ACTIONS_W)
-            .flex_none()
-            .h(metrics.line_height + TEXT_PY * 2.)
-            .justify_center();
+        let cell = centered_cell_box(div(), ACTIONS_W, metrics);
         if row.is_read_only {
             return cell.into_any_element();
         }
@@ -1036,14 +952,7 @@ fn render_diff_only_row(params: RowParams, cx: &Context<TranscriptView>) -> AnyE
 }
 
 fn id_cell(row: &TranscriptRowView, metrics: TextMetrics, theme: &Theme) -> impl IntoElement {
-    div()
-        .w(ID_W)
-        .flex_none()
-        .px(CELL_PX)
-        .text_xs()
-        .line_height(metrics.line_height)
-        .text_color(theme.muted_foreground)
-        .child(row.display_id.clone())
+    id_box(div(), metrics, theme).child(row.display_id.clone())
 }
 
 fn static_time(value: String, metrics: TextMetrics, theme: &Theme) -> impl IntoElement {
@@ -1058,24 +967,68 @@ fn static_time(value: String, metrics: TextMetrics, theme: &Theme) -> impl IntoE
 }
 
 fn reviewer_cell(row: &TranscriptRowView, metrics: TextMetrics, theme: &Theme) -> impl IntoElement {
-    let color = row
-        .reviewer
+    reviewer_box(div(), metrics, reviewer_color(row, theme))
+        .children(row.reviewer.as_ref().map(|reviewer| reviewer.label.clone()))
+}
+
+pub(super) fn reviewer_color(row: &TranscriptRowView, theme: &Theme) -> Hsla {
+    row.reviewer
         .as_ref()
         .map_or(theme.muted_foreground, |reviewer| {
             reviewer.color_hue.map_or(theme.foreground, |hue| {
                 let lightness = if theme.is_dark() { 0.72 } else { 0.30 };
                 hsla(f32::from(hue) / 360., 0.70, lightness, 1.)
             })
-        });
-    div()
-        .w(REVIEWER_W)
-        .flex_none()
-        .px(CELL_PX)
-        .text_xs()
-        .line_height(metrics.line_height)
-        .text_color(color)
-        .truncate()
-        .children(row.reviewer.as_ref().map(|reviewer| reviewer.label.clone()))
+        })
+}
+
+/// Whether `row` is highlighted (selected) and its background colour.
+pub(super) fn row_background(
+    row: &TranscriptRowView,
+    doc: &EditorDoc,
+    is_playing: bool,
+    is_find_match: bool,
+    theme: &Theme,
+) -> (bool, Hsla) {
+    let highlighted = row.is_selected
+        || doc.session().selected_segment_id.as_deref() == Some(row.segment_id.as_str());
+    let background = if highlighted && is_playing {
+        theme.accent.opacity(0.9)
+    } else if highlighted {
+        theme.list_active
+    } else if is_find_match {
+        theme.warning.opacity(0.10)
+    } else {
+        theme.background
+    };
+    (highlighted, background)
+}
+
+/// Colour of the dot of the row's speaker.
+pub(super) fn speaker_dot_color(row: &TranscriptRowView, doc: &EditorDoc, theme: &Theme) -> Hsla {
+    let project = doc.project();
+    project
+        .segment(&row.segment_id)
+        .and_then(|segment| {
+            project
+                .speakers
+                .iter()
+                .position(|speaker| speaker.id == segment.speaker_id)
+        })
+        .map_or(theme.muted_foreground, |index| speaker_color(index, theme))
+}
+
+/// The start or end value a time cell shows: the draft's text, else the row's time.
+pub(super) fn time_value(
+    row: &TranscriptRowView,
+    doc: &EditorDoc,
+    field: TimeField,
+) -> SharedString {
+    match (doc.draft(&row.segment_id), field) {
+        (Some(draft), field) => draft.time_value(field).to_string().into(),
+        (None, TimeField::Start) => row.start_time.clone().into(),
+        (None, TimeField::End) => row.end_time.clone().into(),
+    }
 }
 
 fn diff_cell(

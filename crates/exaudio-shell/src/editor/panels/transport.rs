@@ -4,12 +4,38 @@ use gpui_kit::component::{Disableable, Sizable, h_flex};
 use gpui_kit::*;
 pub struct TransportStrip {
     model: Entity<EditorModel>,
+    /// Doc state the strip shows; the model notifies on every viewport or hover change, and a
+    /// redraw here would invalidate the transcript pane around it.
+    shown: Shown,
     _subscription: Subscription,
+}
+#[derive(Clone, Copy, PartialEq)]
+struct Shown {
+    undo: bool,
+    redo: bool,
+    read_only: bool,
+}
+impl Shown {
+    fn of(model: &EditorModel) -> Self {
+        let doc = model.doc();
+        Self {
+            undo: doc.can_undo(),
+            redo: doc.can_redo(),
+            read_only: doc.is_read_only(),
+        }
+    }
 }
 impl TransportStrip {
     pub fn new(model: Entity<EditorModel>, _: &mut Window, cx: &mut Context<Self>) -> Self {
-        let subscription = cx.observe(&model, |_, _, cx| cx.notify());
+        let subscription = cx.observe(&model, |this: &mut Self, model, cx| {
+            let shown = Shown::of(model.read(cx));
+            if shown != this.shown {
+                this.shown = shown;
+                cx.notify();
+            }
+        });
         Self {
+            shown: Shown::of(model.read(cx)),
             model,
             _subscription: subscription,
         }
@@ -17,10 +43,11 @@ impl TransportStrip {
 }
 impl Render for TransportStrip {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let doc = self.model.read(cx).doc();
-        let undo = doc.can_undo();
-        let redo = doc.can_redo();
-        let read_only = doc.is_read_only();
+        let Shown {
+            undo,
+            redo,
+            read_only,
+        } = self.shown;
         h_flex()
             .gap_2()
             .py_1()
