@@ -195,13 +195,16 @@ async fn transcribe(
     let mut record = seen("transcribe", &headers);
     let files = read_multipart(multipart, &mut record).await;
     assert!(files.iter().all(|(_, bytes)| bytes.starts_with(b"RIFF")));
-    // Hold the request open until the client has polled the queue twice.
+    // Hold the request open until the client has *handled* the second queue poll (queued,
+    // then running with decode progress). The client polls sequentially, so the third poll
+    // starting proves it; the second merely starting does not: answering now could finish the
+    // upload before the client reads that poll's progress, and the client drops the poller.
     if !record.payload.as_ref().unwrap()["taskId"]
         .as_str()
         .unwrap()
         .starts_with("error-task-clip:")
     {
-        wait_for(&fake, |fake| fake.queue_polls >= 2).await;
+        wait_for(&fake, |fake| fake.queue_polls >= 3).await;
     }
     let mut fake = fake.lock().unwrap();
     let payload = record.payload.clone().unwrap();
@@ -304,7 +307,9 @@ async fn enhance(State(fake): State<Shared>, headers: HeaderMap, multipart: Mult
     let mut record = seen("enhance", &headers);
     record.release = header_value(&headers, "x-babel-inference-release");
     let files = read_multipart(multipart, &mut record).await;
-    wait_for(&fake, |fake| fake.enhance_polls >= 1).await;
+    // The second status poll starting proves the client handled the first (sequential
+    // polling), so its enhancing progress has been reported before the result arrives.
+    wait_for(&fake, |fake| fake.enhance_polls >= 2).await;
     let payload = record.payload.clone().unwrap();
     let tamper = {
         let mut fake = fake.lock().unwrap();
