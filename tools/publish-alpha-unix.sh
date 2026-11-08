@@ -43,9 +43,15 @@ secrets_dir="$(mktemp -d)"
 trap 'rm -rf "$secrets_dir"' EXIT
 key_path="$secrets_dir/alpha_deploy_key"
 known_hosts="$secrets_dir/alpha_known_hosts"
-printf '%s\n' "$ALPHA_SSH_PRIVATE_KEY" > "$key_path"
-printf '%s\n' "$ALPHA_SSH_KNOWN_HOSTS" > "$known_hosts"
-chmod 600 "$key_path" "$known_hosts"
+# Like publish-alpha-windows.ps1: secrets saved from Windows carry CRLF line endings, which
+# OpenSSH rejects in a private key ("error in libcrypto"). Write LF, one trailing newline.
+write_private_file() {
+  local text="${2//$'\r'/}"
+  text="${text%"${text##*[![:space:]]}"}"
+  (umask 077 && printf '%s\n' "$text" > "$1")
+}
+write_private_file "$key_path" "$ALPHA_SSH_PRIVATE_KEY"
+write_private_file "$known_hosts" "$ALPHA_SSH_KNOWN_HOSTS"
 
 manifest="$PUBLISH_DIR/publish-manifest.json"
 version="$(python3 - "$manifest" <<'PY'
