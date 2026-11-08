@@ -355,6 +355,15 @@ impl EditorModel {
         result
     }
 
+    /// Updates only the waveform hover while the pointer is idle (see
+    /// [`EditorDoc::pointer_is_idle`]). Only the timeline paints the hover, so observers are
+    /// not notified: the timeline re-renders itself instead of every model observer redrawing
+    /// on each pointer move.
+    pub fn update_hover(&mut self, f: impl FnOnce(&mut EditorDoc)) {
+        debug_assert!(self.doc.pointer_is_idle());
+        f(&mut self.doc);
+    }
+
     /// Runs an editing operation and applies its outcome (status + effects).
     pub fn edit(&mut self, cx: &mut Context<Self>, f: impl FnOnce(&mut EditorDoc) -> EditResult) {
         let result = f(&mut self.doc);

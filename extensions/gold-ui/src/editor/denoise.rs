@@ -800,10 +800,18 @@ async fn run_job(
     let prepare = {
         let cache = cache.clone();
         let task_id = task_id.clone();
-        cx.background_spawn(async move { prepare_lanes(&sources, &cache, &task_id) })
+        cx.background_spawn(async move {
+            // Opening a task looks the cache up; without a stored result for the task there is
+            // nothing to match, so the originals are not read or digested.
+            if mode == RunMode::CacheOnly && !cache.has_task(&task_id, GOLD_ENHANCEMENT_MODEL.id) {
+                return Ok(None);
+            }
+            prepare_lanes(&sources, &cache, &task_id).map(Some)
+        })
     };
     let prepared = match prepare.await {
-        Ok(prepared) => prepared,
+        Ok(Some(prepared)) => prepared,
+        Ok(None) => return Outcome::NothingCached,
         Err(message) => {
             return match mode {
                 RunMode::CacheOnly => Outcome::NothingCached,

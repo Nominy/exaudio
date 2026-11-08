@@ -577,7 +577,7 @@ fn paint_line(
     let origin_x = js_round(f64::from(bounds.left()) * scale);
     let origin_y = js_round(f64::from(bounds.top()) * scale);
     let device_width = f64::from(bounds.size.width) * scale;
-    let mut builder = PathBuilder::fill();
+    let mut band = Band::default();
     let mut canvas_height = 0.0_f64;
     for canvas in &frame.canvases {
         let columns = canvas.columns.columns_between(
@@ -588,26 +588,27 @@ fn paint_line(
             continue;
         }
         canvas_height = canvas_height.max(f64::from(canvas.device_height) * canvas.y_scale);
-        let to_point = |(x, y): (f64, f64)| {
-            point(
+        let to_px = |(x, y): (f64, f64)| {
+            (
                 px(((origin_x + canvas.viewport_x + x * canvas.x_scale) / scale) as f32),
                 px(((origin_y + y * canvas.y_scale) / scale) as f32),
             )
         };
+        let (_, centre) = to_px((0.0, canvas.half()));
+        // Each half is the area between its outline and the centre line (x only grows along
+        // the outline, and it never crosses the centre).
         for direction in [-1.0, 1.0] {
-            let mut outline = canvas
-                .outline(columns.clone(), bar_height, direction)
-                .map(to_point);
-            if let Some(first) = outline.next() {
-                builder.move_to(first);
-                for vertex in outline {
-                    builder.line_to(vertex);
-                }
-                builder.close();
-            }
+            band.extend(
+                canvas
+                    .outline(columns.clone(), bar_height, direction)
+                    .map(|point| {
+                        let (x, y) = to_px(point);
+                        (x, y, centre)
+                    }),
+            );
         }
     }
-    let Ok(path) = builder.build() else {
+    let Some(path) = band.into_path() else {
         return;
     };
 
@@ -661,9 +662,7 @@ fn paint_overview_peaks(
         })
         .collect();
 
-    // One closed outline per contiguous run of columns inside the strip: across the top
-    // through the column centres (squared off at the run's outer edges), back along the bottom.
-    let mut builder = PathBuilder::fill();
+    let mut band = Band::default();
     let mut index = 0;
     while index < columns {
         if amplitudes[index].is_none() {
@@ -682,26 +681,58 @@ fn paint_overview_peaks(
         );
         let first = run[0].unwrap_or(floor);
         let last = run[run.len() - 1].unwrap_or(floor);
-        builder.move_to(point(px(x_start), px(middle - first)));
-        for (offset, amplitude) in run.iter().enumerate() {
-            builder.line_to(point(
-                px(x_center(offset)),
-                px(middle - amplitude.unwrap_or(floor)),
-            ));
-        }
-        builder.line_to(point(px(x_end), px(middle - last)));
-        builder.line_to(point(px(x_end), px(middle + last)));
-        for (offset, amplitude) in run.iter().enumerate().rev() {
-            builder.line_to(point(
-                px(x_center(offset)),
-                px(middle + amplitude.unwrap_or(floor)),
-            ));
-        }
-        builder.line_to(point(px(x_start), px(middle + first)));
-        builder.close();
+        // The run's outline (squared off at its outer edges, mirrored around the middle) is
+        // the band between the top and bottom edges through the column centres.
+        let span = |x: f32, amplitude: f32| (px(x), px(middle - amplitude), px(middle + amplitude));
+        band.extend(
+            std::iter::once(span(x_start, first))
+                .chain(
+                    run.iter().enumerate().map(|(offset, amplitude)| {
+                        span(x_center(offset), amplitude.unwrap_or(floor))
+                    }),
+                )
+                .chain(std::iter::once(span(x_end, last))),
+        );
     }
-    if let Ok(path) = builder.build() {
+    if let Some(path) = band.into_path() {
         window.paint_path(path, color);
+    }
+}
+
+/// Filled area under piecewise-linear edges, triangulated directly: each pair of consecutive
+/// `(x, y0, y1)` samples (x non-decreasing) adds the trapezoid between them, `y0` and `y1`
+/// interpolated linearly. That covers exactly what filling the closed outline would (the
+/// waveform outlines are x-monotone and never cross their other edge), without running a
+/// general tessellator over thousands of vertices every frame.
+#[derive(Default)]
+struct Band {
+    path: Option<Path<Pixels>>,
+}
+
+impl Band {
+    /// Appends one contiguous run of samples; runs are independent.
+    fn extend(&mut self, samples: impl IntoIterator<Item = (Pixels, Pixels, Pixels)>) {
+        let mut samples = samples.into_iter();
+        let Some(mut previous) = samples.next() else {
+            return;
+        };
+        for next in samples {
+            if next.0 > previous.0 {
+                let path = self
+                    .path
+                    .get_or_insert_with(|| Path::new(point(previous.0, previous.1)));
+                let (a0, a1) = (point(previous.0, previous.1), point(previous.0, previous.2));
+                let (b0, b1) = (point(next.0, next.1), point(next.0, next.2));
+                let solid = (point(0., 1.), point(0., 1.), point(0., 1.));
+                path.push_triangle((a0, b0, b1), solid);
+                path.push_triangle((a0, b1, a1), solid);
+            }
+            previous = next;
+        }
+    }
+
+    fn into_path(self) -> Option<Path<Pixels>> {
+        self.path
     }
 }
 
@@ -942,4 +973,57 @@ pub fn paint_scrollbar(
         transparent_black(),
         BorderStyle::Solid,
     ));
+}
+
+#[cfg(test)]
+mod tests {
+    // Not a glob: `gpui_kit::*` exports its own `test` attribute.
+    use super::Band;
+    use gpui_kit::px;
+
+    fn area(points: &[(f32, f32)]) -> f32 {
+        let n = points.len();
+        (0..n)
+            .map(|i| {
+                let (a, b) = (points[i], points[(i + 1) % n]);
+                a.0 * b.1 - b.0 * a.1
+            })
+            .sum::<f32>()
+            .abs()
+            / 2.0
+    }
+
+    /// The direct triangulation covers exactly the closed outline the tessellator used to
+    /// fill: same area, no triangle outside the outline's x range, vertical steps add nothing.
+    #[test]
+    fn band_covers_the_outline_between_its_edges() {
+        let centre = 10.0;
+        // A waveform half: up from the centre, through column vertices, back to the centre.
+        let outline = [(0.0, 10.0), (0.0, 4.0), (2.0, 6.0), (5.0, 2.0), (7.0, 10.0)];
+        let mut band = Band::default();
+        band.extend(outline.iter().map(|&(x, y)| (px(x), px(y), px(centre))));
+        let path = band.into_path().expect("non-empty outline");
+        let triangles: f32 = path
+            .vertices
+            .chunks(3)
+            .map(|t| {
+                let p = |i: usize| (f32::from(t[i].xy_position.x), f32::from(t[i].xy_position.y));
+                area(&[p(0), p(1), p(2)])
+            })
+            .sum();
+        assert!((triangles - area(&outline)).abs() < 1e-4);
+        assert!(
+            path.vertices
+                .iter()
+                .all(|v| (0.0..=7.0).contains(&f32::from(v.xy_position.x)))
+        );
+    }
+
+    #[test]
+    fn band_without_horizontal_extent_paints_nothing() {
+        let mut band = Band::default();
+        band.extend([(px(3.), px(1.), px(5.)), (px(3.), px(2.), px(5.))]);
+        band.extend(std::iter::empty());
+        assert!(band.into_path().is_none());
+    }
 }

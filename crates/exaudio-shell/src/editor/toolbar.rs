@@ -377,7 +377,13 @@ impl Render for Toolbar {
                     .flex_1()
                     .min_w(rems(6.))
                     .h(rems(1.875))
-                    .child(self.overview.clone()),
+                    // Cached: the overview notifies itself when its markers move a device
+                    // pixel or the model changes; other frames reuse its last paint.
+                    .child(
+                        self.overview
+                            .clone()
+                            .cached(StyleRefinement::default().size_full()),
+                    ),
             )
             .child(separator(cx))
             .child(

@@ -232,11 +232,26 @@ impl EditorScreen {
                     v_flex()
                         .size_full()
                         .gap_2()
-                        .child(self.toolbar.clone())
+                        // Cached: the toolbar observes the model; playback frames that only
+                        // redraw the timeline reuse its last paint.
+                        .child(
+                            self.toolbar.clone().cached(
+                                StyleRefinement::default()
+                                    .h(Toolbar::HEIGHT)
+                                    .flex_none()
+                                    .w_full(),
+                            ),
+                        )
                         .child(div().flex_1().min_h_0().child(self.timeline.clone())),
                 ),
             )
-            .child(div().flex_1().min_h_0().child(self.transcript_pane.clone()))
+            .child(
+                div().flex_1().min_h_0().child(
+                    self.transcript_pane
+                        .clone()
+                        .cached(StyleRefinement::default().size_full()),
+                ),
+            )
             .into_any_element()
     }
 }

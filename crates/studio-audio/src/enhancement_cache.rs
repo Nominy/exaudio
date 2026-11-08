@@ -57,6 +57,13 @@ impl EnhancedAudioCache {
         Ok(Some(lanes))
     }
 
+    /// Whether anything is stored for the task and model: a directory check that lets a
+    /// cache-only lookup skip reading and digesting the original audio for [`Self::load`].
+    pub fn has_task(&self, task_id: &str, model_id: &str) -> bool {
+        self.model_dir(task_id, model_id)
+            .is_ok_and(|dir| dir.is_dir())
+    }
+
     /// Stores `(source digest, enhanced WAV)` pairs as the task's only cached audio, then
     /// trims the cache to the most recently stored tasks. Files are written atomically, so a
     /// partial store is a miss, never a corrupt hit.

@@ -5,7 +5,7 @@ use std::{
     fs::File,
     io::Cursor,
     path::{Path, PathBuf},
-    sync::LazyLock,
+    sync::{Arc, LazyLock},
 };
 
 use studio_core::AudioLane;
@@ -87,6 +87,7 @@ fn decode_source(
     source: Box<dyn MediaSource + '_>,
     hint: &Hint,
 ) -> Result<DecodedAudio, AudioError> {
+    let source_bytes = source.byte_len();
     let stream = MediaSourceStream::new(source, Default::default());
     let mut format = symphonia::default::get_probe()
         .probe(hint, stream, Default::default(), Default::default())
@@ -147,7 +148,7 @@ fn decode_source(
         )
         .map_err(media_error)?;
     let mut spec = None;
-    let mut channels = Vec::new();
+    let mut planes = Planes::Growing(Vec::new());
     while let Some(packet) = format.next_packet().map_err(media_error)? {
         if packet.track_id != track_id {
             continue;
@@ -164,17 +165,17 @@ fn decode_source(
                 return Err(invalid("zero sample rate or channel count"));
             }
             spec = Some(audio.spec().clone());
-            channels = (0..audio.num_planes()).map(|_| Vec::new()).collect();
+            planes = Planes::new(audio.num_planes(), expected_frames, source_bytes);
         }
         let skip = remaining_skip.min(audio.frames());
         remaining_skip -= skip;
-        append_audio(audio, &mut channels, skip);
+        append_audio(audio, &mut planes, skip);
     }
     if decoder.finalize().verify_ok == Some(false) {
         return Err(invalid("decoded audio checksum mismatch"));
     }
     let spec = spec.ok_or_else(|| invalid("audio track contains no packets"))?;
-    let frames = channels[0].len();
+    let frames = planes.frames();
     if frames == 0 {
         return Err(invalid("audio track contains no playable samples"));
     }
@@ -184,34 +185,127 @@ fn decode_source(
         ))));
     }
     if opus_gain != 1.0 {
-        for sample in channels.iter_mut().flatten() {
-            *sample *= opus_gain;
+        planes.for_each_sample(|sample| *sample *= opus_gain);
+    }
+    planes.into_decoded(spec.rate()).map_err(invalid)
+}
+
+/// Decoded planar PCM. When the container's frame count is trustworthy the planes are
+/// allocated once at their final size and filled in place: the PCM is never regrown, and
+/// it is already the shared buffer [`DecodedAudio`] keeps (no final copy). Otherwise, or
+/// when a stream decodes past its declared length, the planes grow as decoded.
+enum Planes {
+    Sized {
+        planes: Vec<Arc<[f32]>>,
+        filled: usize,
+    },
+    Growing(Vec<Vec<f32>>),
+}
+
+impl Planes {
+    fn new(count: usize, expected_frames: Option<u64>, source_bytes: Option<u64>) -> Self {
+        // Trust the declared length only when every sample has at least one byte of input
+        // behind it (uncompressed PCM): a bogus header must not allocate beyond 4× the file.
+        let sized = expected_frames
+            .zip(source_bytes)
+            .filter(|&(frames, bytes)| frames > 0 && frames.saturating_mul(count as u64) <= bytes)
+            .and_then(|(frames, _)| usize::try_from(frames).ok());
+        match sized {
+            Some(frames) => Self::Sized {
+                planes: (0..count)
+                    .map(|_| std::iter::repeat_n(0.0_f32, frames).collect())
+                    .collect(),
+                filled: 0,
+            },
+            None => Self::Growing((0..count).map(|_| Vec::new()).collect()),
         }
     }
-    DecodedAudio::from_f32_channels(spec.rate(), channels).map_err(invalid)
-}
 
-fn append_planes<S: Sample>(audio: &impl Audio<S>, channels: &mut [Vec<f32>], skip: usize)
-where
-    f32: FromSample<S>,
-{
-    for (source, target) in audio.iter_planes().zip(channels) {
-        target.extend(source[skip..].iter().copied().map(f32::from_sample));
+    fn frames(&self) -> usize {
+        match self {
+            Self::Sized { filled, .. } => *filled,
+            Self::Growing(planes) => planes.first().map_or(0, Vec::len),
+        }
+    }
+
+    fn append<S: Sample>(&mut self, audio: &impl Audio<S>, skip: usize)
+    where
+        f32: FromSample<S>,
+    {
+        let frames = audio.frames().saturating_sub(skip);
+        if let Self::Sized { planes, filled } = self {
+            let capacity = planes.first().map_or(0, |plane| plane.len());
+            if *filled + frames > capacity {
+                let decoded = planes
+                    .iter()
+                    .map(|plane| plane[..*filled].to_vec())
+                    .collect();
+                *self = Self::Growing(decoded);
+            }
+        }
+        match self {
+            Self::Sized { planes, filled } => {
+                for (source, plane) in audio.iter_planes().zip(planes.iter_mut()) {
+                    let target = Arc::get_mut(plane).expect("decoder planes are not shared yet");
+                    for (sample, value) in target[*filled..*filled + frames]
+                        .iter_mut()
+                        .zip(&source[skip..])
+                    {
+                        *sample = f32::from_sample(*value);
+                    }
+                }
+                *filled += frames;
+            }
+            Self::Growing(planes) => {
+                for (source, target) in audio.iter_planes().zip(planes.iter_mut()) {
+                    target.extend(source[skip..].iter().copied().map(f32::from_sample));
+                }
+            }
+        }
+    }
+
+    fn for_each_sample(&mut self, mut apply: impl FnMut(&mut f32)) {
+        match self {
+            Self::Sized { planes, filled } => {
+                for plane in planes {
+                    let plane = Arc::get_mut(plane).expect("decoder planes are not shared yet");
+                    plane[..*filled].iter_mut().for_each(&mut apply);
+                }
+            }
+            Self::Growing(planes) => planes.iter_mut().flatten().for_each(apply),
+        }
+    }
+
+    fn into_decoded(self, sample_rate: u32) -> Result<DecodedAudio, String> {
+        match self {
+            Self::Sized { planes, filled } => {
+                let planes = if planes.first().is_some_and(|plane| plane.len() == filled) {
+                    planes
+                } else {
+                    planes
+                        .iter()
+                        .map(|plane| Arc::from(&plane[..filled]))
+                        .collect()
+                };
+                DecodedAudio::from_shared_channels(sample_rate, planes)
+            }
+            Self::Growing(planes) => DecodedAudio::from_f32_channels(sample_rate, planes),
+        }
     }
 }
 
-fn append_audio(audio: GenericAudioBufferRef<'_>, channels: &mut [Vec<f32>], skip: usize) {
+fn append_audio(audio: GenericAudioBufferRef<'_>, planes: &mut Planes, skip: usize) {
     match audio {
-        GenericAudioBufferRef::U8(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::U16(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::U24(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::U32(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::S8(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::S16(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::S24(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::S32(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::F32(audio) => append_planes(audio, channels, skip),
-        GenericAudioBufferRef::F64(audio) => append_planes(audio, channels, skip),
+        GenericAudioBufferRef::U8(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::U16(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::U24(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::U32(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::S8(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::S16(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::S24(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::S32(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::F32(audio) => planes.append(audio, skip),
+        GenericAudioBufferRef::F64(audio) => planes.append(audio, skip),
     }
 }
 

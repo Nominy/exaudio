@@ -1633,6 +1633,32 @@ fn timeline_defaults_persist_in_project_metadata_and_hydrate_on_reload() {
     );
 }
 
+/// The generation invalidates row-derived caches (transcript grid, overview rows, lane
+/// views). View-only changes keep it, so zooming or scrolling the timeline never re-renders
+/// the transcript; changes to which lanes show or play still bump it.
+#[test]
+fn only_lane_visibility_defaults_bump_the_generation() {
+    let mut doc = stable_sample_doc();
+    let generation = doc.generation();
+    doc.set_zoom(2.0);
+    let _ = doc.set_speed(1.5);
+    let _ = doc.step_speed(1);
+    let start = doc.session().viewport.start_seconds;
+    doc.scroll_viewport_to(start + 1.0);
+    assert_eq!(
+        doc.generation(),
+        generation,
+        "zoom, speed and scrolling keep the rows"
+    );
+    assert!((doc.session().zoom - 2.0).abs() < f32::EPSILON);
+
+    doc.toggle_lane_collapse("track-speaker-2");
+    let collapsed = doc.generation();
+    assert_ne!(collapsed, generation);
+    doc.set_track_filter(TrackFilter::lane("track-speaker-2", "Speaker 2"));
+    assert_ne!(doc.generation(), collapsed);
+}
+
 // ---- initial viewport -----------------------------------------------------------------
 
 #[test]

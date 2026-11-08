@@ -14,7 +14,7 @@ use super::geometry::{Thumb, fraction_at};
 use super::paint::{
     MarkerEdges, OverviewLane, OverviewMarkers, OverviewScene, PeakStrip, paint_overview,
 };
-use super::{lane_color, palette, scroll_viewport_to};
+use super::{lane_color, palette};
 use crate::editor::model::{EditorEvent, EditorModel};
 
 /// Generation-keyed overview data; viewport and playhead are read live every frame.
@@ -159,7 +159,7 @@ impl OverviewView {
                 model.run(cx, |doc| {
                     let outcome = doc.seek(seconds);
                     let half = doc.session().viewport.duration_seconds() / 2.0;
-                    scroll_viewport_to(doc, seconds - half);
+                    doc.scroll_viewport_to(seconds - half);
                     outcome
                 });
             });
@@ -177,7 +177,7 @@ impl OverviewView {
         self.model.update(cx, |model, cx| {
             model.update_doc(cx, |doc| {
                 let bounds = doc.session().timeline_bounds(doc.project());
-                scroll_viewport_to(doc, Thumb::viewport_start_at(bounds, fraction, grab));
+                doc.scroll_viewport_to(Thumb::viewport_start_at(bounds, fraction, grab));
             });
         });
     }

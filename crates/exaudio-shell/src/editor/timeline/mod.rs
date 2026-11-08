@@ -156,14 +156,6 @@ pub(crate) fn shortcut_hint(cx: &App, text: &str, action: EditorAction) -> Share
     }
 }
 
-/// Moves the viewport so it starts at `start_seconds` (clamped to the timeline bounds).
-fn scroll_viewport_to(doc: &mut EditorDoc, start_seconds: f64) {
-    let bounds = doc.session().timeline_bounds(doc.project());
-    let session = doc.session_mut();
-    let delta = start_seconds - session.viewport.start_seconds;
-    session.pan_viewport_by_time_delta_with_bounds(bounds, delta);
-}
-
 #[derive(Clone, PartialEq)]
 struct LanesKey {
     generation: u64,
@@ -352,13 +344,23 @@ impl TimelineView {
         let Some(hit) = self.lane_hit(lane_id, position, cx) else {
             return;
         };
-        let pointer = self.model.read(cx).doc().pointer();
-        let unchanged = pointer.modifiers == modifiers
+        let doc = self.model.read(cx).doc();
+        let pointer = doc.pointer();
+        let same_modifiers = pointer.modifiers == modifiers;
+        let unchanged = same_modifiers
             && pointer
                 .waveform_hover
                 .as_ref()
                 .is_some_and(|hover| hover.lane_id == lane_id && hover.hit == hit);
         if unchanged {
+            return;
+        }
+        if same_modifiers && doc.pointer_is_idle() {
+            // Only this view paints the hover line and time chip.
+            self.model.update(cx, |model, _| {
+                model.update_hover(|doc| doc.hover_waveform(lane_id, hit))
+            });
+            cx.notify();
             return;
         }
         self.model.update(cx, |model, cx| {
@@ -410,7 +412,8 @@ impl TimelineView {
     }
 
     fn lane_left(&mut self, lane_id: &str, cx: &mut Context<Self>) {
-        let pointer = self.model.read(cx).doc().pointer();
+        let doc = self.model.read(cx).doc();
+        let pointer = doc.pointer();
         if self.capture.is_some() || pointer.autoscroll.is_some() {
             return;
         }
@@ -419,9 +422,16 @@ impl TimelineView {
             .as_ref()
             .is_some_and(|hover| hover.lane_id == lane_id)
         {
-            self.model.update(cx, |model, cx| {
-                model.update_doc(cx, |doc| doc.leave_waveform(lane_id));
-            });
+            if doc.pointer_is_idle() {
+                self.model.update(cx, |model, _| {
+                    model.update_hover(|doc| doc.leave_waveform(lane_id))
+                });
+                cx.notify();
+            } else {
+                self.model.update(cx, |model, cx| {
+                    model.update_doc(cx, |doc| doc.leave_waveform(lane_id));
+                });
+            }
         }
     }
 
@@ -459,7 +469,7 @@ impl TimelineView {
         self.model.update(cx, |model, cx| {
             model.update_doc(cx, |doc| {
                 let bounds = doc.session().timeline_bounds(doc.project());
-                scroll_viewport_to(doc, Thumb::viewport_start_at(bounds, fraction, grab));
+                doc.scroll_viewport_to(Thumb::viewport_start_at(bounds, fraction, grab));
             });
         });
     }

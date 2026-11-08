@@ -131,6 +131,15 @@ impl EditorDoc {
         self.persist_timeline_defaults();
     }
 
+    /// Moves the viewport so it starts at `start_seconds` (clamped to the timeline bounds).
+    /// Like wheel panning, a viewport move changes no rendered row: the generation stays.
+    pub fn scroll_viewport_to(&mut self, start_seconds: f64) {
+        let bounds = self.session.timeline_bounds(self.workflow.project());
+        let delta = start_seconds - self.session.viewport.start_seconds;
+        self.session
+            .pan_viewport_by_time_delta_with_bounds(bounds, delta);
+    }
+
     /// The timeline's lane surface is `width_px` CSS px wide (see
     /// [`crate::editor_model::EditorSession::set_timeline_width`]). Returns whether that
     /// changed the viewport.
@@ -578,6 +587,16 @@ impl EditorDoc {
         self.pointer.autoscroll.take().is_some()
     }
 
+    /// No drag or autoscroll is in progress, so a pointer move over the waveform changes
+    /// nothing but the hover itself (see [`Self::hover_waveform`]).
+    pub fn pointer_is_idle(&self) -> bool {
+        let pointer = &self.pointer;
+        pointer.overlay_drag.is_none()
+            && pointer.waveform_drag.is_none()
+            && pointer.create_drag.is_none()
+            && pointer.autoscroll.is_none()
+    }
+
     fn drag_active_on(&self, lane_id: &str) -> bool {
         let pointer = &self.pointer;
         pointer
@@ -638,7 +657,9 @@ impl EditorDoc {
     // ---- timeline defaults ------------------------------------------------------------
 
     /// Writes zoom, speed, track filter, collapsed/muted lanes and lane heights to project
-    /// metadata (not an undoable edit; saved with the project).
+    /// metadata (not an undoable edit; saved with the project). Does not bump the generation:
+    /// zoom and speed change no rendered row, and callers changing lane visibility, mute or
+    /// height bump it themselves.
     pub(super) fn persist_timeline_defaults(&mut self) {
         let session = &self.session;
         let filter_lane_id = match &session.track_filter {
@@ -681,7 +702,6 @@ impl EditorDoc {
             ),
         ];
         self.workflow.merge_project_metadata(entries);
-        self.touch();
     }
 
     pub(super) fn hydrate_timeline_defaults(&mut self) {
