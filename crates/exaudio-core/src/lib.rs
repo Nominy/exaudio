@@ -4,6 +4,6 @@ pub mod timing;
 
 pub use commands::{
     CommandHistory, EditorCommand, NativeSegmentMutationPolicy, SegmentMutationPolicy,
-    SegmentUpdate, StudioCoreError,
+    SegmentUpdate, CoreError,
 };
 pub use model::{AudioLane, Project, Segment, Speaker};

@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use exaudio_core::SegmentUpdate;
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 use super::model::{DraftRow, RedistributionAllocation, RedistributionMove, RedistributionPreview};
 
@@ -15,7 +15,7 @@ pub struct AppliedRows {
 
 /// Applies every `rewritten` row as one undoable multi-segment edit, keeping segment timings.
 /// Errors when no row is rewritten or none exists in the project.
-pub fn apply_draft_rows(workflow: &mut StudioWorkflow, rows: &[DraftRow]) -> Result<AppliedRows> {
+pub fn apply_draft_rows(workflow: &mut DocumentWorkflow, rows: &[DraftRow]) -> Result<AppliedRows> {
     let rewritten = rows
         .iter()
         .filter(|row| row.status == "rewritten")
@@ -34,7 +34,7 @@ pub fn apply_draft_rows(workflow: &mut StudioWorkflow, rows: &[DraftRow]) -> Res
 /// Applies a redistribution group: accepted drafts use the request allocations as-is, otherwise
 /// the model moves are applied to them. One undo step.
 pub fn apply_redistribution(
-    workflow: &mut StudioWorkflow,
+    workflow: &mut DocumentWorkflow,
     preview: &RedistributionPreview,
 ) -> Result<AppliedRows> {
     if let Some(error) = &preview.error {
@@ -116,7 +116,7 @@ pub fn apply_redistribution_moves(
 }
 
 fn apply_texts<'a>(
-    workflow: &mut StudioWorkflow,
+    workflow: &mut DocumentWorkflow,
     rows: impl IntoIterator<Item = (&'a str, &'a str)>,
 ) -> Result<AppliedRows> {
     let mut outcome = AppliedRows::default();

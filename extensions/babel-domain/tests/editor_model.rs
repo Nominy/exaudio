@@ -30,7 +30,7 @@ use exaudio_editor::transcript_model::{
     TranscriptAnnotationKind, TranscriptDiffCellKind, TranscriptDiffView, TranscriptRowKind,
     TranscriptRowVisibleCells, TranscriptWordDiffStatus,
 };
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 use exaudio_extension::document::Severity;
 use exaudio_waveform::DecodedAudio;
 
@@ -243,7 +243,7 @@ fn editor_session_initializes_review_state_from_babel_action_decision() {
 
 #[test]
 fn editor_session_support_id_uses_babel_review_action_id() {
-    let project = StudioWorkflow::from_babel_json(include_str!(
+    let project = DocumentWorkflow::from_babel_json(include_str!(
         "../../babel-format/tests/fixtures/review-action-final.json"
     ))
     .expect("review action fixture should import")

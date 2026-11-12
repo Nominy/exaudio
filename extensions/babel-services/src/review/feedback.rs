@@ -11,7 +11,7 @@ use exaudio_babel_domain::editor_model::feedback_assessment::{
 use exaudio_babel_domain::i18n::{localized, with_detail};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_core::Project;
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 use super::model::{CategoryGrade, ReviewerFeedback};
 use crate::babel::{BabelClient, FeedbackDraftBootstrap};
@@ -324,7 +324,7 @@ impl FeedbackForm {
     }
 
     /// Mirrors save/readiness into the workflow's submit metadata (drives submit gating).
-    pub fn sync_submit_state(&self, workflow: &mut StudioWorkflow) {
+    pub fn sync_submit_state(&self, workflow: &mut DocumentWorkflow) {
         workflow.set_feedback_submit_state(
             self.is_loading
                 || self.bootstrap_error.is_some()

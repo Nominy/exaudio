@@ -3,7 +3,7 @@
 use super::CompletionKey;
 use super::{EditResult, EditorDoc, Outcome};
 use crate::edit::keymap::EditorAction;
-use crate::workflow::StudioWorkflow;
+use crate::workflow::DocumentWorkflow;
 
 impl EditorDoc {
     /// Performs a keyboard action. `focused_segment` is the row whose text editor has focus
@@ -103,7 +103,7 @@ impl EditorDoc {
     pub fn edit_workflow<T>(
         &mut self,
         action: &'static str,
-        change: impl FnOnce(&mut StudioWorkflow) -> anyhow::Result<T>,
+        change: impl FnOnce(&mut DocumentWorkflow) -> anyhow::Result<T>,
     ) -> Result<T, super::EditError> {
         let clean: Vec<String> = self
             .workflow

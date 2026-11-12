@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use crate::babel_metadata::META_DROP_CLAIM_DROPPED;
 use crate::i18n::{localized, localized_fmt};
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 const META_SELECTED_COMPARE_ACTION_ID: &str = "studio.babel.diff.selectedCompareActionId";
 const META_SHOW_REVIEWERS: &str = "studio.babel.diff.showReviewers";
@@ -51,7 +51,7 @@ pub trait BabelWorkflowExt: Sized {
     ) -> Result<()>;
 }
 
-impl BabelWorkflowExt for StudioWorkflow {
+impl BabelWorkflowExt for DocumentWorkflow {
     fn from_babel_project(project: Project) -> Self {
         Self::from_project_with_mutation_policy(project, Arc::new(BabelMutationPolicy::default()))
     }

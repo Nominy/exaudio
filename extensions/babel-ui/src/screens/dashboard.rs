@@ -11,7 +11,7 @@ use exaudio_babel_services::babel::{
 };
 use exaudio_babel_services::recovery::{self, RecoveryDraft};
 use exaudio_babel_services::subaccounts::SubaccountSession;
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::progress::Progress;
 use gpui_kit::component::scroll::ScrollableElement as _;
@@ -636,7 +636,7 @@ impl DashboardScreen {
 
     fn open_local_workflow(
         &mut self,
-        workflow: StudioWorkflow,
+        workflow: DocumentWorkflow,
         audio_base_dir: Option<std::path::PathBuf>,
         status: String,
         dirty: bool,

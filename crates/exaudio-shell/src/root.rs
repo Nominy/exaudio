@@ -16,10 +16,10 @@ use std::{path::PathBuf, rc::Rc};
 
 pub type LeaveGuard = Rc<dyn Fn(&mut Window, &mut App, Box<dyn FnOnce(&mut Window, &mut App)>)>;
 #[derive(Clone)]
-pub struct ShellHandle(pub WeakEntity<StudioRoot>);
+pub struct ShellHandle(pub WeakEntity<ShellRoot>);
 impl Global for ShellHandle {}
 impl ShellHandle {
-    pub fn from_root(root: WeakEntity<StudioRoot>) -> Self {
+    pub fn from_root(root: WeakEntity<ShellRoot>) -> Self {
         Self(root)
     }
     pub fn editor_model(&self, cx: &App) -> Option<Entity<EditorModel>> {
@@ -161,14 +161,14 @@ enum Screen {
         _events: Subscription,
     },
 }
-pub struct StudioRoot {
+pub struct ShellRoot {
     screen: Screen,
     leave_guard: Option<LeaveGuard>,
     /// Mode whose launch window (or launched document) is current; the editor returns here.
     launched: Option<String>,
     _updater: Subscription,
 }
-impl StudioRoot {
+impl ShellRoot {
     pub fn new(_window: &mut Window, cx: &mut Context<Self>) -> Self {
         let updater = cx.observe(&screens::ShellModels::updater(cx), |_, _, cx| cx.notify());
         Self {
@@ -571,7 +571,7 @@ fn launch(
     }
 }
 
-impl Render for StudioRoot {
+impl Render for ShellRoot {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let body = match &self.screen {
             Screen::Home => screens::home::render(self.handle(cx), window, cx).into_any_element(),

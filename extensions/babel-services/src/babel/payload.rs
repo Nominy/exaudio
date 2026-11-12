@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use anyhow::{Context, Result, anyhow, bail};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_core::{Project, Segment};
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 use serde_json::{Map, Value};
 
 pub use exaudio_babel_lint::project_lint_tag_config::{
@@ -171,7 +171,7 @@ impl SaveAnnotationsRequest {
     /// Exported annotations with `metadata.assertedWarnings` merged from
     /// `asserted_warning_keys` (`"<segment id>::<exact reason>"`).
     pub fn from_workflow(
-        workflow: &StudioWorkflow,
+        workflow: &DocumentWorkflow,
         asserted_warning_keys: &BTreeSet<String>,
     ) -> Result<Self> {
         let review_action_id = review_action_id(workflow.project());
@@ -188,7 +188,7 @@ impl SaveAnnotationsRequest {
 
 impl SubmitReviewActionRequest {
     pub fn from_workflow(
-        workflow: &StudioWorkflow,
+        workflow: &DocumentWorkflow,
         asserted_warning_keys: &BTreeSet<String>,
     ) -> Result<Self> {
         let project = workflow.project();
@@ -206,7 +206,7 @@ impl SubmitReviewActionRequest {
 }
 
 fn exported_annotations(
-    workflow: &StudioWorkflow,
+    workflow: &DocumentWorkflow,
     operation: &str,
     asserted_warning_keys: &BTreeSet<String>,
 ) -> Result<Vec<Value>> {

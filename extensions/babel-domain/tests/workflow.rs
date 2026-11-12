@@ -2,14 +2,14 @@ use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_babel_format::BabelTaskPackage;
 use exaudio_babel_lint::linter::{LintSeverity, ServerLintIssue};
 use exaudio_core::{AudioLane, Project, Segment, Speaker};
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 const SAMPLE_TASK_JSON: &str = include_str!("fixtures/stable-workflow-task.json");
 const REVIEW_ACTION_JSON: &str =
     include_str!("../../babel-format/tests/fixtures/review-action-final.json");
 
-fn workflow_with_segments(segments: Vec<Segment>) -> StudioWorkflow {
-    StudioWorkflow::from_babel_project(Project {
+fn workflow_with_segments(segments: Vec<Segment>) -> DocumentWorkflow {
+    DocumentWorkflow::from_babel_project(Project {
         id: "project".to_string(),
         name: "Project".to_string(),
         speakers: vec![Speaker {
@@ -43,7 +43,7 @@ fn segment(id: &str, start_seconds: f64, end_seconds: f64, text: &str) -> Segmen
 #[test]
 fn workflow_imports_babel_json_and_exports_after_text_edit() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .apply_text_edit("annotation-1", "Исправленный текст.")
@@ -66,7 +66,7 @@ fn workflow_imports_babel_json_and_exports_after_text_edit() {
 #[test]
 fn workflow_imports_babel_review_action_json() {
     let workflow =
-        StudioWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
+        DocumentWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
 
     let project = workflow.project();
     assert_eq!(project.id, "f5b736b9-60ff-5355-ae5a-e909aa644e72");
@@ -82,7 +82,7 @@ fn workflow_imports_babel_review_action_json() {
 #[test]
 fn workflow_exports_review_action_json_in_original_envelope_shape() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
+        DocumentWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
     workflow
         .apply_text_edit(
             "6219876d-eba7-529f-b6c9-d949dbabfd12",
@@ -117,7 +117,7 @@ fn workflow_exports_review_action_json_in_original_envelope_shape() {
 #[test]
 fn workflow_server_lint_metadata_tracks_current_snapshot_and_invalidation() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
+        DocumentWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
     let issue = ServerLintIssue {
         annotation_id: "6219876d-eba7-529f-b6c9-d949dbabfd12".to_string(),
         reason: "Server-authoritative issue.".to_string(),
@@ -156,7 +156,7 @@ fn workflow_server_lint_metadata_tracks_current_snapshot_and_invalidation() {
 #[test]
 fn workflow_text_edit_exports_fresh_babel_updated_at() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
+        DocumentWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
     let original_updated_at = workflow
         .project()
         .segment("6219876d-eba7-529f-b6c9-d949dbabfd12")
@@ -205,7 +205,7 @@ fn workflow_text_edit_exports_fresh_babel_updated_at() {
 #[test]
 fn workflow_marks_review_action_export_as_pass() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
+        DocumentWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
 
     workflow.mark_review_passed();
 
@@ -223,7 +223,7 @@ fn workflow_marks_review_action_export_as_pass() {
 #[test]
 fn workflow_annotation_metadata_edit_exports_babel_timestamp_and_resolution() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
+        DocumentWorkflow::from_babel_json(REVIEW_ACTION_JSON).expect("review action should import");
 
     workflow
         .update_annotation_metadata(
@@ -270,7 +270,7 @@ fn workflow_annotation_metadata_edit_exports_babel_timestamp_and_resolution() {
 #[test]
 fn workflow_applies_text_and_timing_edit_as_one_undo_step() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .apply_segment_edit("annotation-1", 1.5, 3.5, "combined edit")
@@ -292,7 +292,7 @@ fn workflow_applies_text_and_timing_edit_as_one_undo_step() {
 #[test]
 fn workflow_coalesces_immediate_timing_then_text_edit_for_one_undo_step() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .move_segment_boundary("annotation-1", 1.5, 3.5)
@@ -312,7 +312,7 @@ fn workflow_coalesces_immediate_timing_then_text_edit_for_one_undo_step() {
 #[test]
 fn workflow_coalesces_repeated_boundary_moves_for_one_undo_step() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .move_segment_boundary("annotation-1", 1.4, 3.6)
@@ -341,7 +341,7 @@ fn workflow_coalesces_repeated_boundary_moves_for_one_undo_step() {
 #[test]
 fn workflow_reports_undo_redo_availability_for_babel_action_row() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     assert!(!workflow.can_undo());
     assert!(!workflow.can_redo());
@@ -367,7 +367,7 @@ fn workflow_reports_undo_redo_availability_for_babel_action_row() {
 #[test]
 fn workflow_changes_segment_track_and_derives_speaker_from_lane() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .change_segment_track("annotation-1", "track-speaker-2")
@@ -381,7 +381,7 @@ fn workflow_changes_segment_track_and_derives_speaker_from_lane() {
 #[test]
 fn workflow_applies_timing_split_merge_delete_create_and_speaker_edits() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .move_segment_boundary("annotation-1", 1.0, 3.0)
@@ -423,7 +423,7 @@ fn workflow_applies_timing_split_merge_delete_create_and_speaker_edits() {
 #[test]
 fn workflow_split_segment_clones_babel_content_on_both_halves() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     let split_id = workflow
         .split_segment("annotation-1", 2.0)
@@ -440,7 +440,7 @@ fn workflow_split_segment_clones_babel_content_on_both_halves() {
 #[test]
 fn workflow_merges_next_segment_on_same_lane() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .merge_with_next("annotation-1")
@@ -459,7 +459,7 @@ fn workflow_merges_next_segment_on_same_lane() {
 #[test]
 fn workflow_merges_previous_segment_on_same_lane() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
 
     workflow
         .merge_with_previous("annotation-3")
@@ -499,7 +499,7 @@ fn workflow_merges_nearest_later_segment_on_same_lane_when_segments_are_unsorted
 #[test]
 fn workflow_export_preserves_imported_annotation_id_after_merging_created_left_segment() {
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
     let created_id = workflow
         .create_segment_after("annotation-1")
         .expect("create should apply");
@@ -639,7 +639,7 @@ fn workflow_create_blank_segment_starts_at_zero_like_babel_dialog_default() {
 fn workflow_saves_and_reloads_local_project() {
     let temp = tempfile::tempdir().expect("temp dir should be created");
     let mut workflow =
-        StudioWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
+        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
     workflow
         .apply_text_edit("annotation-3", "Сохраненный текст.")
         .expect("text edit should apply");
@@ -659,7 +659,7 @@ fn workflow_saves_and_reloads_local_project() {
     workflow
         .save_local_project(temp.path(), &source)
         .expect("local project should save");
-    let loaded = StudioWorkflow::load_local_project(temp.path()).expect("project should reload");
+    let loaded = DocumentWorkflow::load_local_project(temp.path()).expect("project should reload");
 
     assert_eq!(
         loaded.project().segment("annotation-3").unwrap().text,

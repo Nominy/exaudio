@@ -607,7 +607,7 @@ extern "system" fn window_proc(
 }
 
 fn create_hidden_window() -> Result<HWND, HostError> {
-    let class_name = w!("StudioInferenceHost");
+    let class_name = w!("ExaudioInferenceHost");
     // SAFETY: registers/creates a window owned by this thread; the class is registered once
     // per process (a repeated RegisterClassW after a restart fails harmlessly).
     unsafe {

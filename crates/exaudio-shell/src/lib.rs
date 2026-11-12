@@ -20,7 +20,7 @@ pub use providers::{
     ProviderContribution, ProviderInstance, ProviderRegistry, ProviderSetup, ProviderSetupFactory,
     ProviderSignOutFn, ProviderStatus, ProviderStatusFn,
 };
-pub use root::{ShellHandle, StudioRoot};
+pub use root::{ShellHandle, ShellRoot};
 use std::{collections::BTreeMap, path::PathBuf};
 
 #[derive(Clone, Debug)]

@@ -4,12 +4,12 @@ use anyhow::{Context, Result};
 use exaudio_core::{EditorCommand, Segment, SegmentUpdate};
 use serde_json::Value;
 
-use super::{StudioWorkflow, compare_seconds};
+use super::{DocumentWorkflow, compare_seconds};
 use crate::edit::structure::split_text_by_word_ratio;
 
 const INSERT_DEFAULT_DURATION_SECONDS: f64 = 0.8;
 
-impl StudioWorkflow {
+impl DocumentWorkflow {
     pub fn apply_segment_edit(
         &mut self,
         segment_id: &str,

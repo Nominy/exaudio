@@ -14,7 +14,7 @@ fn row(row_id: &str, text: &str, status: &str) -> DraftRow {
     }
 }
 
-fn text(workflow: &exaudio_editor::workflow::StudioWorkflow, id: &str) -> String {
+fn text(workflow: &exaudio_editor::workflow::DocumentWorkflow, id: &str) -> String {
     workflow.project().segment(id).unwrap().text.clone()
 }
 

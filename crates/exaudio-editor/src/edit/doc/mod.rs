@@ -41,7 +41,7 @@ use super::time::TimeEditError;
 use crate::editor_model::{EditorSession, ProblemCounts};
 use crate::timing::WordTimings;
 use crate::transcript_model::{TranscriptRowView, TranscriptRowVisibleCells, speaker_label};
-use crate::workflow::StudioWorkflow;
+use crate::workflow::DocumentWorkflow;
 use exaudio_extension::document::{DocumentEnvironment, Severity};
 
 /// Side effects the UI performs after an operation.
@@ -233,7 +233,7 @@ impl RowsCacheKey {
 /// Per-task editing document. Not `Sync`; owned by the UI thread.
 #[derive(Debug)]
 pub struct EditorDoc {
-    workflow: StudioWorkflow,
+    workflow: DocumentWorkflow,
     session: EditorSession,
     drafts: Drafts,
     tag_ui: Option<TagSuggestionUi>,
@@ -251,7 +251,7 @@ pub struct EditorDoc {
 impl EditorDoc {
     /// Opens a document, restoring timeline defaults (zoom, speed, filter, collapsed/muted
     /// lanes, lane heights) persisted in project metadata.
-    pub fn new(mut workflow: StudioWorkflow, environment: DocumentEnvironment) -> Self {
+    pub fn new(mut workflow: DocumentWorkflow, environment: DocumentEnvironment) -> Self {
         workflow.set_mutation_policy(
             environment
                 .providers
@@ -281,7 +281,7 @@ impl EditorDoc {
     }
 
     pub fn from_project(project: Project, environment: DocumentEnvironment) -> Self {
-        Self::new(StudioWorkflow::from_project(project), environment)
+        Self::new(DocumentWorkflow::from_project(project), environment)
     }
 
     pub fn environment(&self) -> &DocumentEnvironment {
@@ -292,13 +292,13 @@ impl EditorDoc {
         self.workflow.project()
     }
 
-    pub fn workflow(&self) -> &StudioWorkflow {
+    pub fn workflow(&self) -> &DocumentWorkflow {
         &self.workflow
     }
 
     /// Direct workflow access for non-editing operations (lint snapshot metadata, diff compare,
     /// admin flags, save/export). Drafts are re-synced and the session reconciled afterwards.
-    pub fn with_workflow<T>(&mut self, change: impl FnOnce(&mut StudioWorkflow) -> T) -> T {
+    pub fn with_workflow<T>(&mut self, change: impl FnOnce(&mut DocumentWorkflow) -> T) -> T {
         let value = change(&mut self.workflow);
         self.drafts
             .sync_preserving_existing(self.workflow.project());
@@ -490,7 +490,7 @@ impl EditorDoc {
     fn apply<T>(
         &mut self,
         action: &'static str,
-        change: impl FnOnce(&mut StudioWorkflow) -> anyhow::Result<T>,
+        change: impl FnOnce(&mut DocumentWorkflow) -> anyhow::Result<T>,
     ) -> Result<T, EditError> {
         self.guard(action)?;
         let value =

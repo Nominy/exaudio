@@ -14,10 +14,10 @@ use std::collections::BTreeMap;
 
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_core::{AudioLane, Project, Segment, Speaker};
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 /// Recovered Babel review action (`exaudio-babel-format` fixture) with local audio paths.
-pub fn review_action_workflow() -> StudioWorkflow {
+pub fn review_action_workflow() -> DocumentWorkflow {
     let mut value: serde_json::Value = serde_json::from_str(include_str!(
         "../../../babel-format/tests/fixtures/review-action-final.json"
     ))
@@ -29,7 +29,7 @@ pub fn review_action_workflow() -> StudioWorkflow {
     for (index, source) in uri_map.values_mut().enumerate() {
         *source = serde_json::Value::String(format!("audio/speaker_{}.wav", index + 1));
     }
-    StudioWorkflow::from_babel_json(&value.to_string()).expect("review action should import")
+    DocumentWorkflow::from_babel_json(&value.to_string()).expect("review action should import")
 }
 
 /// Two speakers, three segments: `s1` (spk-1), `s2` (spk-2), `s3` (spk-1).
@@ -73,6 +73,6 @@ pub fn sample_project() -> Project {
     }
 }
 
-pub fn sample_workflow() -> StudioWorkflow {
-    StudioWorkflow::from_project(sample_project())
+pub fn sample_workflow() -> DocumentWorkflow {
+    DocumentWorkflow::from_project(sample_project())
 }

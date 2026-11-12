@@ -1,5 +1,5 @@
 use exaudio_core::{
-    AudioLane, CommandHistory, EditorCommand, Project, Segment, Speaker, StudioCoreError,
+    AudioLane, CommandHistory, EditorCommand, Project, Segment, Speaker, CoreError,
 };
 use serde_json::json;
 
@@ -91,7 +91,7 @@ fn move_segment_boundary_rejects_non_positive_duration() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::InvalidTimeRange));
+    assert_eq!(result, Err(CoreError::InvalidTimeRange));
     assert_eq!(project.segment("segment-1").unwrap().start_seconds, 1.0);
     assert_eq!(project.segment("segment-1").unwrap().end_seconds, 3.0);
 }
@@ -110,7 +110,7 @@ fn move_segment_boundary_rejects_non_finite_times() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::InvalidTimeRange));
+    assert_eq!(result, Err(CoreError::InvalidTimeRange));
     assert_eq!(project.segment("segment-1").unwrap().start_seconds, 1.0);
     assert_eq!(project.segment("segment-1").unwrap().end_seconds, 3.0);
 }
@@ -163,7 +163,7 @@ fn update_segment_rejects_invalid_time_range() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::InvalidTimeRange));
+    assert_eq!(result, Err(CoreError::InvalidTimeRange));
     let segment = project.segment("segment-1").unwrap();
     assert_eq!(segment.start_seconds, 1.0);
     assert_eq!(segment.end_seconds, 3.0);
@@ -185,7 +185,7 @@ fn update_segment_rejects_missing_segment() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SegmentNotFound));
+    assert_eq!(result, Err(CoreError::SegmentNotFound));
     assert_eq!(project.segment("segment-1").unwrap().text, "original one");
 }
 
@@ -354,7 +354,7 @@ fn split_segment_rejects_non_finite_split_point() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::InvalidTimeRange));
+    assert_eq!(result, Err(CoreError::InvalidTimeRange));
     assert!(!project.has_segment("segment-1b"));
     assert_eq!(project.segment("segment-1").unwrap().end_seconds, 3.0);
 }
@@ -408,7 +408,7 @@ fn create_segment_rejects_duplicate_id() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::DuplicateSegmentId));
+    assert_eq!(result, Err(CoreError::DuplicateSegmentId));
     assert_eq!(project.segments.len(), 2);
     assert_eq!(project.segment("segment-1").unwrap().text, "original one");
 }
@@ -434,7 +434,7 @@ fn create_segment_rejects_invalid_time_range() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::InvalidTimeRange));
+    assert_eq!(result, Err(CoreError::InvalidTimeRange));
     assert!(!project.has_segment("segment-3"));
 }
 
@@ -459,7 +459,7 @@ fn create_segment_rejects_unknown_speaker() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SpeakerNotFound));
+    assert_eq!(result, Err(CoreError::SpeakerNotFound));
     assert!(!project.has_segment("segment-3"));
 }
 
@@ -484,7 +484,7 @@ fn create_segment_rejects_unknown_lane() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::LaneNotFound));
+    assert_eq!(result, Err(CoreError::LaneNotFound));
     assert!(!project.has_segment("segment-3"));
 }
 
@@ -546,7 +546,7 @@ fn delete_segment_rejects_missing_segment() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SegmentNotFound));
+    assert_eq!(result, Err(CoreError::SegmentNotFound));
     assert_eq!(project.segments.len(), 2);
 }
 
@@ -654,7 +654,7 @@ fn merge_segments_rejects_missing_segment() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SegmentNotFound));
+    assert_eq!(result, Err(CoreError::SegmentNotFound));
     assert_eq!(project.segments.len(), 2);
 }
 
@@ -671,7 +671,7 @@ fn merge_segments_rejects_different_speaker_or_lane() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SegmentTrackMismatch));
+    assert_eq!(result, Err(CoreError::SegmentTrackMismatch));
     assert_eq!(project.segments.len(), 2);
 }
 
@@ -691,7 +691,7 @@ fn merge_segments_rejects_right_segment_before_left_ends() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SegmentOrderInvalid));
+    assert_eq!(result, Err(CoreError::SegmentOrderInvalid));
     assert_eq!(project.segments.len(), 2);
 }
 
@@ -730,7 +730,7 @@ fn change_segment_speaker_rejects_missing_segment() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SegmentNotFound));
+    assert_eq!(result, Err(CoreError::SegmentNotFound));
 }
 
 #[test]
@@ -747,7 +747,7 @@ fn change_segment_speaker_rejects_unknown_speaker() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::SpeakerNotFound));
+    assert_eq!(result, Err(CoreError::SpeakerNotFound));
     assert_eq!(
         project.segment("segment-1").unwrap().speaker_id,
         "speaker-1"
@@ -769,7 +769,7 @@ fn change_segment_speaker_rejects_unknown_lane() {
         },
     );
 
-    assert_eq!(result, Err(StudioCoreError::LaneNotFound));
+    assert_eq!(result, Err(CoreError::LaneNotFound));
     assert_eq!(
         project.segment("segment-1").unwrap().speaker_id,
         "speaker-1"
@@ -825,7 +825,7 @@ fn add_speaker_appends_and_rejects_duplicate_id() {
             },
         },
     );
-    assert_eq!(result, Err(StudioCoreError::DuplicateSpeakerId));
+    assert_eq!(result, Err(CoreError::DuplicateSpeakerId));
     assert_eq!(project.speakers.len(), 3);
 
     history.undo(&mut project).expect("undo add");
@@ -855,7 +855,7 @@ fn rename_speaker_updates_label_for_every_segment_label_lookup() {
             label: "Nobody".to_string(),
         },
     );
-    assert_eq!(result, Err(StudioCoreError::SpeakerNotFound));
+    assert_eq!(result, Err(CoreError::SpeakerNotFound));
 
     history.undo(&mut project).expect("undo rename");
     assert_eq!(project.speaker("speaker-1").unwrap().label, "Speaker 1");
@@ -915,7 +915,7 @@ fn apply_batch_is_one_undo_step_and_atomic() {
         ],
         &exaudio_core::NativeSegmentMutationPolicy,
     );
-    assert_eq!(result, Err(StudioCoreError::SegmentNotFound));
+    assert_eq!(result, Err(CoreError::SegmentNotFound));
     assert!(project.speaker("speaker-3").is_none());
     assert!(!history.can_undo());
 }
@@ -1042,7 +1042,7 @@ fn command_history_retains_only_the_newest_bounded_snapshots() {
 
     assert_eq!(
         history.undo(&mut project),
-        Err(StudioCoreError::NothingToUndo)
+        Err(CoreError::NothingToUndo)
     );
 
     for redo_count in 1..=CommandHistory::MAX_DEPTH {
@@ -1060,7 +1060,7 @@ fn command_history_retains_only_the_newest_bounded_snapshots() {
 
     assert_eq!(
         history.redo(&mut project),
-        Err(StudioCoreError::NothingToRedo)
+        Err(CoreError::NothingToRedo)
     );
 }
 
@@ -1208,7 +1208,7 @@ fn command_history_undo_redo_survive_byte_budget_evictions() {
     assert!(!history.can_redo());
     assert_eq!(
         history.redo(&mut project),
-        Err(StudioCoreError::NothingToRedo)
+        Err(CoreError::NothingToRedo)
     );
 }
 
@@ -1229,11 +1229,11 @@ fn command_history_clear_empties_both_stacks() {
     assert!(!history.can_redo());
     assert_eq!(
         history.undo(&mut project),
-        Err(StudioCoreError::NothingToUndo)
+        Err(CoreError::NothingToUndo)
     );
     assert_eq!(
         history.redo(&mut project),
-        Err(StudioCoreError::NothingToRedo)
+        Err(CoreError::NothingToRedo)
     );
 
     // The history stays usable after a clear.
@@ -1307,7 +1307,7 @@ fn metadata_transaction_commits_as_one_undo_unit() {
             project.segments[1]
                 .metadata
                 .insert("opaque".into(), json!(17));
-            Ok::<(), StudioCoreError>(())
+            Ok::<(), CoreError>(())
         })
         .unwrap();
     let committed = project.clone();

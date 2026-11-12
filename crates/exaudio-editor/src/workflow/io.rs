@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 use exaudio_core::Project;
 use exaudio_project::{load_project, save_project};
 
-use super::StudioWorkflow;
+use super::DocumentWorkflow;
 
-impl StudioWorkflow {
+impl DocumentWorkflow {
     pub fn load_local_project(root: impl AsRef<Path>) -> Result<Self> {
         let project = load_project(root).context("failed to load local Exaudio project")?;
         Ok(Self::from_project(project))

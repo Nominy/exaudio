@@ -4,7 +4,7 @@
 //! - Payload builders from the project ([`build_reviewer_payload`], drafting payloads).
 //! - [`ReviewSnapshot`]: original (Babel L1) / current pair for Magic Review and the Grader.
 //! - [`ReviewerWorkspace`]: interactive Magic Review session/card/comment/finalize state.
-//! - Apply functions editing the project through `StudioWorkflow` (undoable).
+//! - Apply functions editing the project through `DocumentWorkflow` (undoable).
 //! - [`FeedbackForm`]: feedback drawer state, Babel bootstrap and autosave.
 
 mod client;

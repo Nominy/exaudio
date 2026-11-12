@@ -7,7 +7,7 @@ use std::{collections::BTreeMap, path::PathBuf, rc::Rc};
 use exaudio_babel_domain::route::StartupRoute;
 use exaudio_babel_services::account::{AccountStatus, AccountStore};
 use exaudio_babel_services::babel::{BabelClient, LoadedTask};
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 use exaudio_shell::editor::model::EditorModel;
 use exaudio_shell::screens::ui;
 use exaudio_shell::{
@@ -470,7 +470,7 @@ impl BabelController {
 
     pub fn open_task(
         &mut self,
-        workflow: StudioWorkflow,
+        workflow: DocumentWorkflow,
         audio_base_dir: Option<PathBuf>,
         window: &mut Window,
         cx: &mut Context<Self>,

@@ -9,7 +9,7 @@ use crate::edit::text_placement::AUTO_SEGMENT_MERGE_GAP_SECONDS;
 use crate::editor_model::EditorSession;
 use crate::timeline_model::TimeRange;
 use crate::track_filter::TrackFilter;
-use crate::workflow::StudioWorkflow;
+use crate::workflow::DocumentWorkflow;
 use exaudio_extension::document::DocumentEnvironment;
 
 /// Absolute sample amplitude counted as speech (about -62 dBFS).
@@ -86,7 +86,7 @@ pub struct AutoSegmentSplitPlan {
 }
 
 pub fn merge_auto_insert_adjacent_segments(
-    workflow: &mut StudioWorkflow,
+    workflow: &mut DocumentWorkflow,
     segment_id: &str,
 ) -> anyhow::Result<usize> {
     let mut merge_count = 0;

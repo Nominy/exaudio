@@ -14,7 +14,7 @@ use std::{
 use anyhow::{Context, Result};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_core::Project;
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 use crate::babel::META_REVIEW_ACTION_ID;
 use exaudio_services::paths::app_support_dir;
@@ -88,9 +88,9 @@ pub fn discover_drafts_in(dir: &Path) -> Vec<RecoveryDraft> {
     drafts
 }
 
-pub fn load_draft(draft: &RecoveryDraft) -> Result<StudioWorkflow> {
+pub fn load_draft(draft: &RecoveryDraft) -> Result<DocumentWorkflow> {
     let source = fs::read_to_string(&draft.path).context("failed to read recovery draft")?;
-    StudioWorkflow::from_babel_json(&source)
+    DocumentWorkflow::from_babel_json(&source)
 }
 
 fn draft_from_path(path: PathBuf) -> Option<RecoveryDraft> {

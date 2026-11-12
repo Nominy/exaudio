@@ -8,7 +8,7 @@ use exaudio_babel_domain::editor_model::feedback_assessment::{
 use exaudio_babel_domain::i18n::{localized, with_detail};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_babel_lint::project_lint_tag_config::babel_project_lint_tag_metadata;
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 
 use super::BabelError;
 use super::dashboard::{Dashboard, parse_dashboard};
@@ -125,7 +125,7 @@ impl TaskRequest {
 /// An opened task: imported workflow plus where its audio lives.
 #[derive(Debug)]
 pub struct LoadedTask {
-    pub workflow: StudioWorkflow,
+    pub workflow: DocumentWorkflow,
     /// Base directory for resolving lane audio paths.
     pub audio_base_dir: PathBuf,
     /// Remote audio references downloaded for this task (if > 0 and no lane
@@ -212,7 +212,7 @@ impl BabelClient {
         parse_dashboard(&payload).map_err(BabelError::new)
     }
 
-    /// Raw task payload (Babel review-action JSON accepted by `StudioWorkflow::from_babel_json`).
+    /// Raw task payload (Babel review-action JSON accepted by `DocumentWorkflow::from_babel_json`).
     /// A payload without annotations gets them from `transcriptions.getAnnotationsByReviewActionId`
     /// (with that answer's `lintErrors`), as Babel's editor does.
     pub async fn fetch_task_payload(&self, request: &TaskRequest) -> Result<String, BabelError> {
@@ -251,7 +251,7 @@ impl BabelClient {
                 audio_base_dir: prepared.audio_base_dir,
             })));
         }
-        let mut workflow = StudioWorkflow::from_babel_json(&prepared.source)
+        let mut workflow = DocumentWorkflow::from_babel_json(&prepared.source)
             .map_err(|error| BabelError::new(format!("{error:#}")))?;
         workflow.merge_project_metadata(route_metadata);
         let lint_tag_metadata = babel_project_lint_tag_metadata(workflow.project());

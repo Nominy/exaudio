@@ -7,14 +7,14 @@ use std::{cell::RefCell, cmp::Ordering, sync::Arc};
 use exaudio_core::{CommandHistory, NativeSegmentMutationPolicy, Project, SegmentMutationPolicy};
 
 #[derive(Clone, Debug)]
-pub struct StudioWorkflow {
+pub struct DocumentWorkflow {
     project: Project,
     history: CommandHistory,
     pending_boundary_edit_segment_id: RefCell<Option<String>>,
     mutation_policy: Arc<dyn SegmentMutationPolicy>,
 }
 
-impl StudioWorkflow {
+impl DocumentWorkflow {
     pub fn from_project(project: Project) -> Self {
         Self::from_project_with_mutation_policy(project, Arc::new(NativeSegmentMutationPolicy))
     }

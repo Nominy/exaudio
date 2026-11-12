@@ -10,7 +10,7 @@ use exaudio_babel_domain::edit::create_region::{
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_core::Project;
 use exaudio_editor::edit::{EditorDoc, Effect};
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 use serde_json::json;
 
 fn babel_environment(project: &Project) -> exaudio_extension::document::DocumentEnvironment {
@@ -25,7 +25,7 @@ fn babel_environment(project: &Project) -> exaudio_extension::document::Document
 
 fn babel_doc(project: Project) -> EditorDoc {
     let environment = babel_environment(&project);
-    EditorDoc::new(StudioWorkflow::from_babel_project(project), environment)
+    EditorDoc::new(DocumentWorkflow::from_babel_project(project), environment)
 }
 fn selected(doc: &EditorDoc) -> Option<String> {
     doc.session().selected_segment_id.clone()
@@ -474,7 +474,7 @@ fn babel_document_split_preserves_domain_gap_and_given_time() {
 fn annotation_drag_dispatches_domain_dialog_without_creating_native_row() {
     let project = annotation_mode_project();
     let environment = babel_environment(&project);
-    let mut doc = EditorDoc::new(StudioWorkflow::from_babel_project(project), environment);
+    let mut doc = EditorDoc::new(DocumentWorkflow::from_babel_project(project), environment);
     doc.session_mut().viewport = exaudio_editor::timeline_model::TimeRange {
         start_seconds: 11.0,
         end_seconds: 13.8,

@@ -1,7 +1,7 @@
 //! Native window composition. The executable explicitly supplies bundled contributions.
 use crate::{
     ContributionRegistry, ProviderRegistry, ShellHandle,
-    root::StudioRoot,
+    root::ShellRoot,
     screens::{ShellModels, settings, ui},
     services::AppServices,
     tray::{self, TrayCommand},
@@ -51,7 +51,7 @@ pub fn run(register: impl FnOnce(&mut App) -> anyhow::Result<()> + 'static) {
                 ..Default::default()
             };
             let opened = gpui_kit::open_window(options, cx, |window, cx| {
-                let root = cx.new(|cx| StudioRoot::new(window, cx));
+                let root = cx.new(|cx| ShellRoot::new(window, cx));
                 let close = root.downgrade();
                 window.on_window_should_close(cx, move |window, cx| {
                     close

@@ -1,8 +1,8 @@
 //! Per-task state shared by the action strip, side drawers, dialogs and service flows.
 //!
 //! One [`TaskPanels`] entity exists per open [`EditorModel`]; every panel fetches it with
-//! [`TaskPanels::for_model`]. It owns what the old app kept on `StudioState` beside the
-//! editor session: which drawer is open, the feedback form, the reviewer workspace, pending
+//! [`TaskPanels::for_model`]. It owns the task state beside the editor session: which drawer
+//! is open, the feedback form, the reviewer workspace, pending
 //! service flows and the doc-driven dialogs (add region / edit annotation).
 
 use exaudio_babel_domain::editor_model::BabelDocumentState;

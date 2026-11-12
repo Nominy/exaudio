@@ -11,7 +11,7 @@ use exaudio_babel_services::babel::{
     self, BabelClient, BabelConfig, BabelRequest, Fixture, LoadedTask, OpenedTask, RouteContext,
     SaveAnnotationsRequest, SubmitReviewActionRequest, TaskRequest,
 };
-use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::DocumentWorkflow;
 use serde_json::{Value, json};
 
 fn transcript(opened: OpenedTask) -> LoadedTask {
@@ -42,7 +42,7 @@ fn offline_config() -> BabelConfig {
 
 #[test]
 fn outbound_annotations_carry_exact_asserted_warning_reasons() {
-    let workflow = StudioWorkflow::from_babel_json(REVIEW_ACTION_FIXTURE).expect("fixture");
+    let workflow = DocumentWorkflow::from_babel_json(REVIEW_ACTION_FIXTURE).expect("fixture");
     let segment = &workflow.project().segments[0];
     let annotation_id = segment
         .source_annotation_id
@@ -89,7 +89,7 @@ fn outbound_annotations_carry_exact_asserted_warning_reasons() {
         .metadata
         .insert("assertedWarnings".to_string(), json!([exact_reason]));
     let cleared = SaveAnnotationsRequest::from_workflow(
-        &StudioWorkflow::from_project(persisted),
+        &DocumentWorkflow::from_project(persisted),
         &BTreeSet::new(),
     )
     .expect("cleared");
@@ -101,7 +101,7 @@ fn outbound_annotations_carry_exact_asserted_warning_reasons() {
 
 #[test]
 fn project_metadata_lookups_follow_fallback_order() {
-    let mut project = StudioWorkflow::from_babel_json(REVIEW_ACTION_FIXTURE)
+    let mut project = DocumentWorkflow::from_babel_json(REVIEW_ACTION_FIXTURE)
         .expect("fixture")
         .project()
         .clone();
@@ -138,7 +138,7 @@ fn project_metadata_lookups_follow_fallback_order() {
 
 #[test]
 fn route_context_overlays_current_project_route_metadata() {
-    let mut project = StudioWorkflow::from_babel_json(REVIEW_ACTION_FIXTURE)
+    let mut project = DocumentWorkflow::from_babel_json(REVIEW_ACTION_FIXTURE)
         .expect("fixture")
         .project()
         .clone();

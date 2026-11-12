@@ -111,7 +111,7 @@ pub enum EditorCommand {
 }
 
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
-pub enum StudioCoreError {
+pub enum CoreError {
     #[error("segment was not found")]
     SegmentNotFound,
     #[error("time range must have start before end")]
@@ -178,7 +178,7 @@ impl CommandHistory {
         &mut self,
         project: &mut Project,
         command: EditorCommand,
-    ) -> Result<(), StudioCoreError> {
+    ) -> Result<(), CoreError> {
         self.apply_with_policy(project, command, &NativeSegmentMutationPolicy)
     }
 
@@ -187,7 +187,7 @@ impl CommandHistory {
         project: &mut Project,
         command: EditorCommand,
         policy: &dyn SegmentMutationPolicy,
-    ) -> Result<(), StudioCoreError> {
+    ) -> Result<(), CoreError> {
         self.apply_transaction(project, |project| apply_command(project, command, policy))
     }
 
@@ -198,7 +198,7 @@ impl CommandHistory {
         project: &mut Project,
         commands: Vec<EditorCommand>,
         policy: &dyn SegmentMutationPolicy,
-    ) -> Result<(), StudioCoreError> {
+    ) -> Result<(), CoreError> {
         self.apply_transaction(project, |project| {
             commands
                 .into_iter()
@@ -221,11 +221,11 @@ impl CommandHistory {
         Ok(())
     }
 
-    pub fn undo(&mut self, project: &mut Project) -> Result<(), StudioCoreError> {
+    pub fn undo(&mut self, project: &mut Project) -> Result<(), CoreError> {
         let previous = self
             .undo_stack
             .pop_back()
-            .ok_or(StudioCoreError::NothingToUndo)?;
+            .ok_or(CoreError::NothingToUndo)?;
         self.undo_stack_bytes = self
             .undo_stack_bytes
             .saturating_sub(previous.estimated_bytes);
@@ -234,11 +234,11 @@ impl CommandHistory {
         Ok(())
     }
 
-    pub fn redo(&mut self, project: &mut Project) -> Result<(), StudioCoreError> {
+    pub fn redo(&mut self, project: &mut Project) -> Result<(), CoreError> {
         let next = self
             .redo_stack
             .pop_back()
-            .ok_or(StudioCoreError::NothingToRedo)?;
+            .ok_or(CoreError::NothingToRedo)?;
         self.redo_stack_bytes = self.redo_stack_bytes.saturating_sub(next.estimated_bytes);
         let current = std::mem::replace(project, next.project);
         Self::push_bounded(&mut self.undo_stack, &mut self.undo_stack_bytes, current);
@@ -285,7 +285,7 @@ fn apply_command(
     project: &mut Project,
     command: EditorCommand,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     match command {
         EditorCommand::CreateSegment { segment } => create_segment(project, segment, policy),
         EditorCommand::DeleteSegment { segment_id } => delete_segment(project, &segment_id),
@@ -316,7 +316,7 @@ fn apply_command(
         } => change_segment_speaker(project, &segment_id, speaker_id, lane_id, policy),
         EditorCommand::AddSpeaker { speaker } => {
             if project.speaker(&speaker.id).is_some() {
-                return Err(StudioCoreError::DuplicateSpeakerId);
+                return Err(CoreError::DuplicateSpeakerId);
             }
             project.speakers.push(speaker);
             Ok(())
@@ -324,7 +324,7 @@ fn apply_command(
         EditorCommand::RenameSpeaker { speaker_id, label } => {
             let speaker = project
                 .speaker_mut(&speaker_id)
-                .ok_or(StudioCoreError::SpeakerNotFound)?;
+                .ok_or(CoreError::SpeakerNotFound)?;
             speaker.label = label;
             Ok(())
         }
@@ -335,7 +335,7 @@ fn apply_command(
         } => {
             let segment = project
                 .segment_mut(&segment_id)
-                .ok_or(StudioCoreError::SegmentNotFound)?;
+                .ok_or(CoreError::SegmentNotFound)?;
             if let Some(text) = text {
                 segment.text = text;
             }
@@ -346,7 +346,7 @@ fn apply_command(
         EditorCommand::ApplyTextEdit { segment_id, text } => {
             let segment = project
                 .segment_mut(&segment_id)
-                .ok_or(StudioCoreError::SegmentNotFound)?;
+                .ok_or(CoreError::SegmentNotFound)?;
             segment.text = text;
             policy.updated(segment);
             Ok(())
@@ -373,7 +373,7 @@ fn apply_command(
             validate_time_range(start_seconds, end_seconds)?;
             let segment = project
                 .segment_mut(&segment_id)
-                .ok_or(StudioCoreError::SegmentNotFound)?;
+                .ok_or(CoreError::SegmentNotFound)?;
             segment.start_seconds = start_seconds;
             segment.end_seconds = end_seconds;
             policy.updated(segment);
@@ -423,9 +423,9 @@ fn create_segment(
     project: &mut Project,
     mut segment: Segment,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     if project.has_segment(&segment.id) {
-        return Err(StudioCoreError::DuplicateSegmentId);
+        return Err(CoreError::DuplicateSegmentId);
     }
     validate_time_range(segment.start_seconds, segment.end_seconds)?;
     validate_track(project, &segment.speaker_id, &segment.lane_id)?;
@@ -434,12 +434,12 @@ fn create_segment(
     Ok(())
 }
 
-fn delete_segment(project: &mut Project, segment_id: &str) -> Result<(), StudioCoreError> {
+fn delete_segment(project: &mut Project, segment_id: &str) -> Result<(), CoreError> {
     let index = project
         .segments
         .iter()
         .position(|segment| segment.id == segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     project.segments.remove(index);
     Ok(())
 }
@@ -449,16 +449,16 @@ fn replace_segments(
     remove_segment_ids: &[String],
     segments: Vec<Segment>,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     if remove_segment_ids.iter().any(|id| !project.has_segment(id)) {
-        return Err(StudioCoreError::SegmentNotFound);
+        return Err(CoreError::SegmentNotFound);
     }
     let removed = |id: &str| remove_segment_ids.iter().any(|removed| removed == id);
     for (index, segment) in segments.iter().enumerate() {
         if (project.has_segment(&segment.id) && !removed(&segment.id))
             || segments[..index].iter().any(|other| other.id == segment.id)
         {
-            return Err(StudioCoreError::DuplicateSegmentId);
+            return Err(CoreError::DuplicateSegmentId);
         }
         validate_time_range(segment.start_seconds, segment.end_seconds)?;
         validate_track(project, &segment.speaker_id, &segment.lane_id)?;
@@ -478,11 +478,11 @@ fn update_segment(
     end_seconds: f64,
     text: String,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     validate_time_range(start_seconds, end_seconds)?;
     let segment = project
         .segment_mut(segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     segment.start_seconds = start_seconds;
     segment.end_seconds = end_seconds;
     segment.text = text;
@@ -494,18 +494,18 @@ fn update_segments(
     project: &mut Project,
     updates: Vec<SegmentUpdate>,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     for update in &updates {
         validate_time_range(update.start_seconds, update.end_seconds)?;
         project
             .segment(&update.segment_id)
-            .ok_or(StudioCoreError::SegmentNotFound)?;
+            .ok_or(CoreError::SegmentNotFound)?;
     }
 
     for update in updates {
         let segment = project
             .segment_mut(&update.segment_id)
-            .ok_or(StudioCoreError::SegmentNotFound)?;
+            .ok_or(CoreError::SegmentNotFound)?;
         segment.start_seconds = update.start_seconds;
         segment.end_seconds = update.end_seconds;
         segment.text = update.text;
@@ -527,30 +527,30 @@ fn merge_segments(
     right_segment_id: &str,
     keep: MergeKeep,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     let left_index = project
         .segments
         .iter()
         .position(|segment| segment.id == left_segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     let right_index = project
         .segments
         .iter()
         .position(|segment| segment.id == right_segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
 
     if left_index == right_index {
-        return Err(StudioCoreError::SegmentOrderInvalid);
+        return Err(CoreError::SegmentOrderInvalid);
     }
 
     let left = project.segments[left_index].clone();
     let right = project.segments[right_index].clone();
 
     if left.speaker_id != right.speaker_id || left.lane_id != right.lane_id {
-        return Err(StudioCoreError::SegmentTrackMismatch);
+        return Err(CoreError::SegmentTrackMismatch);
     }
     if left.end_seconds > right.start_seconds {
-        return Err(StudioCoreError::SegmentOrderInvalid);
+        return Err(CoreError::SegmentOrderInvalid);
     }
 
     let merged_text = merge_text(&left.text, &right.text);
@@ -585,15 +585,15 @@ fn change_segment_speaker(
     speaker_id: String,
     lane_id: String,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     project
         .segment(segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     validate_track(project, &speaker_id, &lane_id)?;
 
     let segment = project
         .segment_mut(segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     segment.speaker_id = speaker_id;
     segment.lane_id = lane_id;
     policy.updated(segment);
@@ -606,16 +606,16 @@ fn split_segment(
     at_seconds: f64,
     new_segment_id: String,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     if project.has_segment(&new_segment_id) {
-        return Err(StudioCoreError::DuplicateSegmentId);
+        return Err(CoreError::DuplicateSegmentId);
     }
 
     let index = project
         .segments
         .iter()
         .position(|segment| segment.id == segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     let original_start = project.segments[index].start_seconds;
     let original_end = project.segments[index].end_seconds;
     let left_end_seconds = at_seconds - (policy.split_gap_seconds() / 2.0);
@@ -625,7 +625,7 @@ fn split_segment(
     validate_time_range(right_start_seconds, original_end)?;
 
     if at_seconds <= original_start || at_seconds >= original_end - policy.split_gap_seconds() {
-        return Err(StudioCoreError::SplitOutsideSegment);
+        return Err(CoreError::SplitOutsideSegment);
     }
 
     let mut right = Segment {
@@ -654,7 +654,7 @@ fn split_segment_with_text(
     left_text: String,
     right_text: String,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     split_segment(
         project,
         segment_id,
@@ -664,11 +664,11 @@ fn split_segment_with_text(
     )?;
     let left = project
         .segment_mut(segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     left.text = left_text;
     let right = project
         .segment_mut(&new_segment_id)
-        .ok_or(StudioCoreError::SegmentNotFound)?;
+        .ok_or(CoreError::SegmentNotFound)?;
     right.text = right_text;
     Ok(())
 }
@@ -688,10 +688,10 @@ fn cut_lane_range(
     end_seconds: f64,
     split_texts: Option<(String, String)>,
     policy: &dyn SegmentMutationPolicy,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     validate_time_range(start_seconds, end_seconds)?;
     if !project.lanes.iter().any(|lane| lane.id == lane_id) {
-        return Err(StudioCoreError::LaneNotFound);
+        return Err(CoreError::LaneNotFound);
     }
 
     let overlapping = project
@@ -733,7 +733,7 @@ fn cut_lane_range(
             )?;
             let left = project
                 .segment(&segment.id)
-                .ok_or(StudioCoreError::SegmentNotFound)?
+                .ok_or(CoreError::SegmentNotFound)?
                 .clone();
             update_segment(
                 project,
@@ -745,7 +745,7 @@ fn cut_lane_range(
             )?;
             let right = project
                 .segment(&new_segment_id)
-                .ok_or(StudioCoreError::SegmentNotFound)?
+                .ok_or(CoreError::SegmentNotFound)?
                 .clone();
             update_segment(
                 project,
@@ -801,11 +801,11 @@ fn merge_text(left: &str, right: &str) -> String {
     }
 }
 
-fn validate_time_range(start_seconds: f64, end_seconds: f64) -> Result<(), StudioCoreError> {
+fn validate_time_range(start_seconds: f64, end_seconds: f64) -> Result<(), CoreError> {
     if start_seconds.is_finite() && end_seconds.is_finite() && start_seconds < end_seconds {
         Ok(())
     } else {
-        Err(StudioCoreError::InvalidTimeRange)
+        Err(CoreError::InvalidTimeRange)
     }
 }
 
@@ -814,12 +814,12 @@ fn validate_track(
     project: &Project,
     speaker_id: &str,
     lane_id: &str,
-) -> Result<(), StudioCoreError> {
+) -> Result<(), CoreError> {
     if project.speaker(speaker_id).is_none() {
-        return Err(StudioCoreError::SpeakerNotFound);
+        return Err(CoreError::SpeakerNotFound);
     }
     if !project.lanes.iter().any(|lane| lane.id == lane_id) {
-        return Err(StudioCoreError::LaneNotFound);
+        return Err(CoreError::LaneNotFound);
     }
     Ok(())
 }

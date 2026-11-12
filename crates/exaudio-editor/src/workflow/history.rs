@@ -1,9 +1,9 @@
 use anyhow::{Context, Result, bail};
 use exaudio_core::EditorCommand;
 
-use super::StudioWorkflow;
+use super::DocumentWorkflow;
 
-impl StudioWorkflow {
+impl DocumentWorkflow {
     pub fn can_undo(&self) -> bool {
         self.history.can_undo()
     }
