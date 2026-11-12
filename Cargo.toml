@@ -4,28 +4,28 @@ members = [
   "crates/exaudio-marketplace",
   "crates/exaudio-wasm",
   "crates/exaudio-shell",
-  "extensions/babel-domain",
-  "extensions/babel-ui",
-  "extensions/gold-ui",
-  "extensions/local",
-  "extensions/formats",
-  "extensions/lint-basic",
-  "extensions/babel-services",
-  "extensions/babel-lint",
-  "extensions/babel-tags",
-  "extensions/gold",
-  "extensions/palette",
-  "tools/extension-index",
   "crates/studio-core",
   "crates/studio-project",
-  "crates/studio-babel",
   "crates/studio-waveform",
   "crates/studio-editor",
   "crates/studio-services",
   "crates/studio-audio",
   "crates/studio-app",
-  "crates/studio-inference",
-  "crates/studio-relay"
+  "extensions/palette",
+  "extensions/local",
+  "extensions/formats",
+  "extensions/lint-basic",
+  "extensions/inference",
+  "extensions/gold",
+  "extensions/gold-ui",
+  "extensions/babel-format",
+  "extensions/babel-relay",
+  "extensions/babel-domain",
+  "extensions/babel-lint",
+  "extensions/babel-tags",
+  "extensions/babel-services",
+  "extensions/babel-ui",
+  "tools/extension-index"
 ]
 exclude = ["vendor/gpui-pre-windows", "sdk/rust", "extensions/examples/hello-panel"]
 default-members = ["crates/studio-app"]
@@ -34,7 +34,7 @@ resolver = "2"
 [workspace.package]
 edition = "2024"
 license = "MIT"
-repository = "https://github.com/Nominy/transcription-studio"
+repository = "https://github.com/Nominy/exaudio"
 
 [workspace.dependencies]
 anyhow = "1.0"
@@ -72,12 +72,12 @@ exaudio-babel-tags = { path = "extensions/babel-tags" }
 exaudio-gold = { path = "extensions/gold" }
 studio-core = { path = "crates/studio-core" }
 studio-project = { path = "crates/studio-project" }
-studio-babel = { path = "crates/studio-babel" }
+studio-babel = { path = "extensions/babel-format" }
 studio-waveform = { path = "crates/studio-waveform" }
 studio-editor = { path = "crates/studio-editor" }
 studio-services = { path = "crates/studio-services" }
 studio-audio = { path = "crates/studio-audio" }
-studio-inference = { path = "crates/studio-inference" }
+studio-inference = { path = "extensions/inference" }
 
 [profile.dev]
 debug = 1

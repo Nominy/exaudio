@@ -1,2 +1,6 @@
 [env]
 RUST_TEST_THREADS = "4"
+
+[alias]
+# The editor without Babel or AI: Local mode, formats, basic checks and the command palette.
+editor = "run -p studio-app --no-default-features --features palette,local,formats,basic-checks"

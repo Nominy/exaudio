@@ -72,8 +72,7 @@ fn recovery_paths_are_stable_and_safe_for_review_action_ids() {
 fn recovery_snapshots_are_written_discovered_loaded_and_removed() {
     let temp = tempfile::tempdir().expect("temp dir");
     let dir = temp.path().join("recovery");
-    let source =
-        include_str!("../../../crates/studio-babel/tests/fixtures/review-action-final.json");
+    let source = include_str!("../../babel-format/tests/fixtures/review-action-final.json");
     let older = project("older", None);
     let newer = project("newer", Some("review-1"));
 

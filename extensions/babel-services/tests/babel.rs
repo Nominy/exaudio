@@ -22,7 +22,7 @@ fn transcript(opened: OpenedTask) -> LoadedTask {
 }
 
 const REVIEW_ACTION_FIXTURE: &str =
-    include_str!("../../../crates/studio-babel/tests/fixtures/review-action-final.json");
+    include_str!("../../babel-format/tests/fixtures/review-action-final.json");
 
 fn feedback_save_request() -> FeedbackDraftSaveRequest {
     FeedbackDraftSaveRequest {

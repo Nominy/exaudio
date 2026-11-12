@@ -4,10 +4,9 @@ use studio_babel::BabelTaskPackage;
 use studio_core::{AudioLane, Project, Segment, Speaker};
 use studio_editor::workflow::StudioWorkflow;
 
-const SAMPLE_TASK_JSON: &str =
-    include_str!("../../../crates/studio-editor/tests/fixtures/stable-workflow-task.json");
+const SAMPLE_TASK_JSON: &str = include_str!("fixtures/stable-workflow-task.json");
 const REVIEW_ACTION_JSON: &str =
-    include_str!("../../../crates/studio-babel/tests/fixtures/review-action-final.json");
+    include_str!("../../babel-format/tests/fixtures/review-action-final.json");
 
 fn workflow_with_segments(segments: Vec<Segment>) -> StudioWorkflow {
     StudioWorkflow::from_babel_project(Project {

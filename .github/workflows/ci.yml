@@ -56,6 +56,9 @@ jobs:
       - name: Run strict Clippy
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
+      - name: Lint the editor-only build (no Babel, no AI)
+        run: cargo clippy -p studio-app --no-default-features --features palette,local,formats,basic-checks --locked -- -D warnings
+
       - name: Test all workspace targets
         run: cargo nextest run --workspace --all-targets --locked
 

@@ -23,9 +23,6 @@ use exaudio_babel_lint::linter::{LintSeverity, ServerLintIssue, ServerLintSnapsh
 use exaudio_extension::document::Severity;
 use studio_babel::import_json;
 use studio_core::{AudioLane, Project, Segment, Speaker};
-use studio_editor::editor_model::buffered_playback::{
-    BufferedPlaybackDirection, compute_buffered_playback_range,
-};
 use studio_editor::editor_model::{EditorSession as CoreSession, ProblemCounts, SaveStatus};
 use studio_editor::timeline_model::{LaneColor, LaneWaveform, TimeRange, WaveformPeakSource};
 use studio_editor::track_filter::TrackFilter;
@@ -107,8 +104,7 @@ impl EditorSession {
     }
 }
 
-const STABLE_WORKFLOW_TASK_JSON: &str =
-    include_str!("../../../crates/studio-editor/tests/fixtures/stable-workflow-task.json");
+const STABLE_WORKFLOW_TASK_JSON: &str = include_str!("fixtures/stable-workflow-task.json");
 
 fn sample_project() -> Project {
     import_json(STABLE_WORKFLOW_TASK_JSON).expect("stable workflow fixture should import")
@@ -248,7 +244,7 @@ fn editor_session_initializes_review_state_from_babel_action_decision() {
 #[test]
 fn editor_session_support_id_uses_babel_review_action_id() {
     let project = StudioWorkflow::from_babel_json(include_str!(
-        "../../../crates/studio-babel/tests/fixtures/review-action-final.json"
+        "../../babel-format/tests/fixtures/review-action-final.json"
     ))
     .expect("review action fixture should import")
     .project()
@@ -384,38 +380,6 @@ fn failed_save_without_detail_reports_no_message() {
     session.complete_save(false, "   ");
 
     assert_eq!(session.save_status(), SaveStatus::Failed { message: None });
-}
-
-#[test]
-fn buffered_playback_range_matches_babel_timeout_padding() {
-    let before = compute_buffered_playback_range(10.0, 500.0, BufferedPlaybackDirection::Before)
-        .expect("finite before range should resolve");
-
-    assert_eq!(before.start_seconds, 9.5);
-    assert_eq!(before.end_seconds, 10.0);
-    assert_eq!(before.timeout_ms, 700.0);
-
-    let clamped_before =
-        compute_buffered_playback_range(0.25, 500.0, BufferedPlaybackDirection::Before)
-            .expect("before range should clamp at zero");
-    assert_eq!(clamped_before.start_seconds, 0.0);
-    assert_eq!(clamped_before.end_seconds, 0.25);
-    assert_eq!(clamped_before.timeout_ms, 450.0);
-
-    let after = compute_buffered_playback_range(10.0, -500.0, BufferedPlaybackDirection::After)
-        .expect("after range should use absolute buffer length");
-    assert_eq!(after.start_seconds, 10.0);
-    assert_eq!(after.end_seconds, 10.5);
-    assert_eq!(after.timeout_ms, 700.0);
-
-    assert!(
-        compute_buffered_playback_range(f64::NAN, 500.0, BufferedPlaybackDirection::After)
-            .is_none()
-    );
-    assert!(
-        compute_buffered_playback_range(10.0, f64::INFINITY, BufferedPlaybackDirection::After)
-            .is_none()
-    );
 }
 
 #[test]

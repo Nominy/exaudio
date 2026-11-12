@@ -19,7 +19,7 @@ use studio_editor::workflow::StudioWorkflow;
 /// Recovered Babel review action (`studio-babel` fixture) with local audio paths.
 pub fn review_action_workflow() -> StudioWorkflow {
     let mut value: serde_json::Value = serde_json::from_str(include_str!(
-        "../../../../crates/studio-babel/tests/fixtures/review-action-final.json"
+        "../../../babel-format/tests/fixtures/review-action-final.json"
     ))
     .expect("review action fixture should parse");
     let uri_map = value
