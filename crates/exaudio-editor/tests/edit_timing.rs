@@ -47,7 +47,7 @@ fn smart_split_puts_completed_words_left_using_timings() {
     ok(doc.smart_split_segment_at("a", 3.0));
 
     assert_eq!(text_of(&doc, "a"), "Раз, два три.");
-    assert_eq!(text_of(&doc, "a__studio_1"), "Четыре");
+    assert_eq!(text_of(&doc, "a__exaudio_1"), "Четыре");
 }
 
 #[test]
@@ -71,7 +71,7 @@ fn ctrl_shift_click_smart_splits_and_ctrl_click_keeps_ratio_split() {
     doc.hover_waveform("lane-1", hit(WaveformHitTarget::RegionBody, Some("a"), 3.0));
     ok(doc.press_waveform("lane-1"));
     assert_eq!(text_of(&doc, "a"), "one two three");
-    assert_eq!(text_of(&doc, "a__studio_1"), "four");
+    assert_eq!(text_of(&doc, "a__exaudio_1"), "four");
 
     let mut plain = edit_support::doc(vec![seg("a", "lane-1", 0.0, 6.0, "one two three four")]);
     plain.set_modifiers(PointerModifiers {
@@ -89,7 +89,7 @@ fn smart_split_falls_back_to_word_ratio_without_timings() {
     let mut doc = doc(vec![seg("a", "lane-1", 0.0, 4.0, "one {two three} four")]);
     ok(doc.smart_split_segment_at("a", 2.0));
     assert_eq!(text_of(&doc, "a"), "one {two three}");
-    assert_eq!(text_of(&doc, "a__studio_1"), "four");
+    assert_eq!(text_of(&doc, "a__exaudio_1"), "four");
 }
 
 #[test]
@@ -111,7 +111,7 @@ fn cut_preview_smart_split_uses_timings_at_the_cut_midpoint() {
     ok(doc.commit_cut_preview(true));
 
     assert_eq!(text_of(&doc, "a"), "раз два три");
-    assert_eq!(text_of(&doc, "a__studio_1"), "четыре");
+    assert_eq!(text_of(&doc, "a__exaudio_1"), "четыре");
 }
 
 #[test]

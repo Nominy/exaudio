@@ -1,6 +1,7 @@
 //! Transcript time-cell editing: begin/validate/commit rules for start and end cells.
 
 use super::format::{format_time, parse_time};
+use crate::i18n::localized;
 
 /// Which boundary a time cell edits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -17,10 +18,12 @@ impl TimeField {
         }
     }
 
+    /// The boundary's name inside a status line ("… start time …"); the Russian form is the
+    /// genitive that follows «время».
     pub fn label(self) -> &'static str {
         match self {
-            Self::Start => "start",
-            Self::End => "end",
+            Self::Start => localized("start", "начала"),
+            Self::End => localized("end", "конца"),
         }
     }
 }
@@ -40,17 +43,35 @@ pub struct TimeRangeEdit {
 }
 
 /// Why a typed timestamp was rejected.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeEditError {
-    #[error("Invalid format")]
     InvalidFormat,
-    #[error("Timestamp must be >= 00:00.00")]
     Negative,
-    #[error("Start must be earlier than end")]
     StartNotBeforeEnd,
-    #[error("End must be later than start")]
     EndNotAfterStart,
 }
+
+impl std::fmt::Display for TimeEditError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::InvalidFormat => localized("Invalid format", "Неверный формат"),
+            Self::Negative => localized(
+                "Timestamp must be >= 00:00.00",
+                "Время должно быть не меньше 00:00.00",
+            ),
+            Self::StartNotBeforeEnd => localized(
+                "Start must be earlier than end",
+                "Начало должно быть раньше конца",
+            ),
+            Self::EndNotAfterStart => localized(
+                "End must be later than start",
+                "Конец должен быть позже начала",
+            ),
+        })
+    }
+}
+
+impl std::error::Error for TimeEditError {}
 
 /// Inputs for committing a time cell (Enter or blur).
 #[derive(Debug, Clone, PartialEq)]

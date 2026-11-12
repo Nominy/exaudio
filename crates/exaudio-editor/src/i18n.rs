@@ -11,13 +11,29 @@ pub fn set_russian(russian: bool) {
     RUSSIAN.store(russian, Ordering::Relaxed);
 }
 
+/// Whether Russian is the active language.
+pub fn is_russian() -> bool {
+    RUSSIAN.load(Ordering::Relaxed)
+}
+
 /// The variant for the active language.
 pub fn localized(en: &'static str, ru: &'static str) -> &'static str {
-    if RUSSIAN.load(Ordering::Relaxed) {
-        ru
-    } else {
-        en
-    }
+    if is_russian() { ru } else { en }
+}
+
+/// Formats the template for the active language: `format!` with an English and a Russian
+/// template sharing one argument list, as in
+/// `localized_format!("Deleted {label}.", "Удалён {label}.")`. Both templates must use every
+/// positional argument; inline captures work in both.
+#[macro_export]
+macro_rules! localized_format {
+    ($en:literal, $ru:literal $(, $($arguments:tt)*)?) => {
+        if $crate::i18n::is_russian() {
+            ::std::format!($ru $(, $($arguments)*)?)
+        } else {
+            ::std::format!($en $(, $($arguments)*)?)
+        }
+    };
 }
 
 /// A static string in both languages; resolved with [`Text::get`].

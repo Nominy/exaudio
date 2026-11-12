@@ -387,7 +387,7 @@ fn workflow_applies_timing_split_merge_delete_create_and_speaker_edits() {
         .move_segment_boundary("annotation-1", 1.0, 3.0)
         .expect("timing edit should apply");
     let split_id = workflow
-        .split_segment("annotation-1", 2.0)
+        .split_segment_with_text("annotation-1", 2.0, "Здравствуйте.", "Здравствуйте.")
         .expect("split should apply");
     workflow
         .apply_text_edit(&split_id, "правая часть")
@@ -418,23 +418,6 @@ fn workflow_applies_timing_split_merge_delete_create_and_speaker_edits() {
         .expect("new segment should exist");
     assert_eq!(created.speaker_id, "speaker-2");
     assert_eq!(created.lane_id, "track-speaker-2");
-}
-
-#[test]
-fn workflow_split_segment_clones_babel_content_on_both_halves() {
-    let mut workflow =
-        DocumentWorkflow::from_babel_json(SAMPLE_TASK_JSON).expect("sample task should import");
-
-    let split_id = workflow
-        .split_segment("annotation-1", 2.0)
-        .expect("split should apply");
-
-    let left = workflow.project().segment("annotation-1").unwrap();
-    let right = workflow.project().segment(&split_id).unwrap();
-    assert_eq!(left.text, "Здравствуйте.");
-    assert_eq!(right.text, "Здравствуйте.");
-    assert!((left.end_seconds - 1.95).abs() < f64::EPSILON * 8.0);
-    assert!((right.start_seconds - 2.05).abs() < f64::EPSILON * 8.0);
 }
 
 #[test]
@@ -618,20 +601,6 @@ fn workflow_create_segment_at_time_uses_babel_blank_region_duration() {
     assert_eq!(created.speaker_id, "speaker-1");
     assert_eq!(created.start_seconds, 12.25);
     assert_eq!(created.end_seconds, 13.05);
-    assert!(created.text.is_empty());
-}
-
-#[test]
-fn workflow_create_blank_segment_starts_at_zero_like_babel_dialog_default() {
-    let mut workflow = workflow_with_segments(vec![segment("anchor", 1.0, 2.0, "anchor")]);
-
-    let created_id = workflow
-        .create_blank_segment_in_lane("track-1")
-        .expect("blank create should apply");
-
-    let created = workflow.project().segment(&created_id).unwrap();
-    assert_eq!(created.start_seconds, 0.0);
-    assert_eq!(created.end_seconds, 0.8);
     assert!(created.text.is_empty());
 }
 

@@ -1,20 +1,21 @@
+use exaudio_editor::edit::create_region::CreateRegionTimeField;
 use exaudio_editor::edit::{EditError, EditResult, EditorDoc, Effect, Outcome};
 
 use super::annotation::EditAnnotationDialog;
-use super::create_region::{CreateRegionDialog, CreateRegionMode, CreateRegionTimeField};
+use super::create_region::BabelCreateRegionDialog;
 use crate::i18n::localized;
 use crate::workflow::BabelWorkflowExt;
 
 /// Domain-owned annotation dialogs; the native document retains only plain-text region UI.
 #[derive(Debug, Default)]
 pub struct BabelAnnotationDialogs {
-    pub create_region: Option<CreateRegionDialog>,
+    pub create_region: Option<BabelCreateRegionDialog>,
     pub edit_annotation: Option<EditAnnotationDialog>,
 }
 
 impl BabelAnnotationDialogs {
     pub fn open_create_region(&mut self, doc: &EditorDoc, lane_id: &str, start: f64, end: f64) {
-        self.create_region = Some(CreateRegionDialog::new_for_project(
+        self.create_region = Some(BabelCreateRegionDialog::new_for_project(
             doc.project(),
             lane_id.to_string(),
             start,
@@ -71,10 +72,10 @@ impl BabelAnnotationDialogs {
         Ok(Outcome::none())
     }
 
-    pub fn create_region(&self) -> Option<&CreateRegionDialog> {
+    pub fn create_region(&self) -> Option<&BabelCreateRegionDialog> {
         self.create_region.as_ref()
     }
-    pub fn create_region_mut(&mut self) -> Option<&mut CreateRegionDialog> {
+    pub fn create_region_mut(&mut self) -> Option<&mut BabelCreateRegionDialog> {
         self.create_region.as_mut()
     }
     pub fn edit_annotation(&self) -> Option<&EditAnnotationDialog> {
@@ -90,38 +91,13 @@ impl BabelAnnotationDialogs {
         self.edit_annotation = None;
     }
 
-    pub fn set_create_region_text(&mut self, doc: &mut EditorDoc, value: String) -> EditResult {
-        let Some(dialog) = self.create_region.as_mut() else {
-            return Ok(Outcome::none());
-        };
-        dialog.set_text(value.clone());
-        if let Some(segment_id) = &dialog.created_segment_id {
-            let selection = doc
-                .draft(segment_id)
-                .map(|draft| draft.selection())
-                .unwrap_or_default();
-            let changed = doc
-                .draft(segment_id)
-                .is_some_and(|draft| draft.text() != value);
-            let outcome = doc.edit_text(segment_id, value, selection)?;
-            return Ok(if changed {
-                outcome.with(Effect::DraftChanged {
-                    segment_id: segment_id.clone(),
-                })
-            } else {
-                outcome
-            });
-        }
-        Ok(Outcome::none())
-    }
-
     pub fn commit_create_region_time(&mut self, field: CreateRegionTimeField) -> EditResult {
         let dialog = self.create_region.as_mut().ok_or_else(|| {
             EditError::Unavailable(
                 localized("No segment is being added.", "Нет добавляемого сегмента.").into(),
             )
         })?;
-        if dialog.commit_time_field(field) {
+        if dialog.region.commit_time_field(field) {
             return Ok(Outcome::status(localized(
                 "Time updated",
                 "Время обновлено",
@@ -129,9 +105,10 @@ impl BabelAnnotationDialogs {
         }
         Err(EditError::Time(
             dialog
+                .region
                 .start_error
                 .clone()
-                .or_else(|| dialog.end_error.clone())
+                .or_else(|| dialog.region.end_error.clone())
                 .unwrap_or(exaudio_editor::edit::time::TimeEditError::InvalidFormat),
         ))
     }
@@ -139,7 +116,7 @@ impl BabelAnnotationDialogs {
     pub fn reset_create_region_time(&mut self) -> bool {
         self.create_region
             .as_mut()
-            .is_some_and(CreateRegionDialog::reset_active_time_field_draft)
+            .is_some_and(|dialog| dialog.region.reset_active_time_field_draft())
     }
 
     /// Domain dialogs have precedence over the native document's Escape handling.
@@ -165,35 +142,16 @@ impl BabelAnnotationDialogs {
             )
         })?;
         let result = (|| {
-            if dialog.mode == CreateRegionMode::Transcription
-                && let Some(segment_id) = dialog.created_segment_id.as_deref()
-            {
-                let segment = doc
-                    .project()
-                    .segment(segment_id)
-                    .ok_or_else(|| EditError::SegmentNotFound(segment_id.to_string()))?;
-                if segment.text != dialog.text {
-                    doc.edit_workflow(localized("Create", "Создание"), |workflow| {
-                        workflow.apply_text_edit(segment_id, dialog.text.clone())
-                    })?;
-                }
-                return Ok(doc
-                    .select_segment_without_seek(segment_id)
-                    .with_status(localized("Text saved", "Текст сохранён"))
-                    .with(Effect::DraftChanged {
-                        segment_id: segment_id.to_string(),
-                    }));
-            }
             let payload = dialog
                 .validate_for_submit(doc.project())
                 .map_err(|error| EditError::Unavailable(error.to_string()))?;
             let created =
                 doc.edit_workflow(localized("Create", "Создание"), |workflow| {
                     workflow.create_segment_in_lane_with_text_and_metadata(
-                        &payload.lane_id,
-                        payload.start_seconds,
-                        payload.end_seconds,
-                        payload.text,
+                        &payload.region.lane_id,
+                        payload.region.start_seconds,
+                        payload.region.end_seconds,
+                        payload.region.text,
                         payload.metadata,
                     )
                 })?;

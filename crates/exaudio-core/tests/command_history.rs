@@ -1,5 +1,5 @@
 use exaudio_core::{
-    AudioLane, CommandHistory, EditorCommand, Project, Segment, Speaker, CoreError,
+    AudioLane, CommandHistory, CoreError, EditorCommand, Project, Segment, Speaker,
 };
 use serde_json::json;
 
@@ -315,7 +315,7 @@ fn cut_lane_range_middle_split_applies_allocated_texts_and_redoes_as_one_command
         .expect("middle smart cut should apply");
 
     let left = project.segment("segment-1").unwrap();
-    let right = project.segment("segment-1__studio_1").unwrap();
+    let right = project.segment("segment-1__exaudio_1").unwrap();
     assert_eq!(left.start_seconds, 1.0);
     assert_eq!(left.end_seconds, 2.5);
     assert_eq!(left.text, "one two three");
@@ -324,7 +324,7 @@ fn cut_lane_range_middle_split_applies_allocated_texts_and_redoes_as_one_command
     assert_eq!(right.text, "four five six");
 
     history.undo(&mut project).expect("undo should restore cut");
-    assert!(!project.has_segment("segment-1__studio_1"));
+    assert!(!project.has_segment("segment-1__exaudio_1"));
     assert_eq!(project.segment("segment-1").unwrap().start_seconds, 1.0);
     assert_eq!(project.segment("segment-1").unwrap().end_seconds, 6.0);
     assert_eq!(
@@ -335,7 +335,7 @@ fn cut_lane_range_middle_split_applies_allocated_texts_and_redoes_as_one_command
     history.redo(&mut project).expect("redo should restore cut");
     assert_eq!(project.segment("segment-1").unwrap().text, "one two three");
     assert_eq!(
-        project.segment("segment-1__studio_1").unwrap().text,
+        project.segment("segment-1__exaudio_1").unwrap().text,
         "four five six"
     );
 }
@@ -347,10 +347,12 @@ fn split_segment_rejects_non_finite_split_point() {
 
     let result = history.apply(
         &mut project,
-        EditorCommand::SplitSegment {
+        EditorCommand::SplitSegmentWithText {
             segment_id: "segment-1".to_string(),
             at_seconds: f64::NAN,
             new_segment_id: "segment-1b".to_string(),
+            left_text: "original".to_string(),
+            right_text: "one".to_string(),
         },
     );
 
@@ -1040,10 +1042,7 @@ fn command_history_retains_only_the_newest_bounded_snapshots() {
         );
     }
 
-    assert_eq!(
-        history.undo(&mut project),
-        Err(CoreError::NothingToUndo)
-    );
+    assert_eq!(history.undo(&mut project), Err(CoreError::NothingToUndo));
 
     for redo_count in 1..=CommandHistory::MAX_DEPTH {
         history
@@ -1058,10 +1057,7 @@ fn command_history_retains_only_the_newest_bounded_snapshots() {
         );
     }
 
-    assert_eq!(
-        history.redo(&mut project),
-        Err(CoreError::NothingToRedo)
-    );
+    assert_eq!(history.redo(&mut project), Err(CoreError::NothingToRedo));
 }
 
 fn sample_project_with_segment_text(text: String) -> Project {
@@ -1206,10 +1202,7 @@ fn command_history_undo_redo_survive_byte_budget_evictions() {
     // Applying a fresh edit still clears the redo stack.
     apply_segment_text(&mut history, &mut project, "z".repeat(TEXT_BYTES));
     assert!(!history.can_redo());
-    assert_eq!(
-        history.redo(&mut project),
-        Err(CoreError::NothingToRedo)
-    );
+    assert_eq!(history.redo(&mut project), Err(CoreError::NothingToRedo));
 }
 
 #[test]
@@ -1227,14 +1220,8 @@ fn command_history_clear_empties_both_stacks() {
 
     assert!(!history.can_undo());
     assert!(!history.can_redo());
-    assert_eq!(
-        history.undo(&mut project),
-        Err(CoreError::NothingToUndo)
-    );
-    assert_eq!(
-        history.redo(&mut project),
-        Err(CoreError::NothingToRedo)
-    );
+    assert_eq!(history.undo(&mut project), Err(CoreError::NothingToUndo));
+    assert_eq!(history.redo(&mut project), Err(CoreError::NothingToRedo));
 
     // The history stays usable after a clear.
     apply_segment_text(&mut history, &mut project, "third".to_string());
@@ -1255,10 +1242,12 @@ fn native_split_preserves_metadata_without_domain_gap_or_stamps() {
     CommandHistory::default()
         .apply(
             &mut project,
-            EditorCommand::SplitSegment {
+            EditorCommand::SplitSegmentWithText {
                 segment_id: "segment-1".into(),
                 at_seconds: 2.0,
                 new_segment_id: "split".into(),
+                left_text: "original".into(),
+                right_text: "one".into(),
             },
         )
         .unwrap();

@@ -9,6 +9,7 @@ use exaudio_core::{Project, Segment, SegmentUpdate};
 use super::format::{format_time, parse_time};
 use super::text::CrossRowTextEdit;
 use super::time::{TimeEditState, TimeField, start_time_cell_edit};
+use crate::i18n::localized;
 use exaudio_extension::document::Severity;
 
 /// Each segment retains at most this many text snapshots in either direction.
@@ -259,19 +260,37 @@ impl SegmentDraft {
 }
 
 /// Why pending drafts cannot be committed.
-#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DraftError {
-    #[error("start time is invalid")]
     InvalidStart,
-    #[error("end time is invalid")]
     InvalidEnd,
-    #[error("Start must be before end.")]
     StartNotBeforeEnd,
-    #[error("that segment no longer exists")]
     SegmentNotFound(String),
-    #[error("that segment has no editable draft")]
     NoDraft(String),
 }
+
+impl std::fmt::Display for DraftError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::InvalidStart => localized("start time is invalid", "неверное время начала"),
+            Self::InvalidEnd => localized("end time is invalid", "неверное время конца"),
+            Self::StartNotBeforeEnd => localized(
+                "Start must be before end.",
+                "Начало должно быть раньше конца.",
+            ),
+            Self::SegmentNotFound(_) => localized(
+                "that segment no longer exists",
+                "этот сегмент больше не существует",
+            ),
+            Self::NoDraft(_) => localized(
+                "that segment has no editable draft",
+                "у этого сегмента нет редактируемого черновика",
+            ),
+        })
+    }
+}
+
+impl std::error::Error for DraftError {}
 
 /// Parses the draft time cells; untouched cells keep the exact stored seconds.
 pub fn parse_draft_times(

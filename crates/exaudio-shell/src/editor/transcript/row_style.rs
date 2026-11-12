@@ -9,8 +9,7 @@ use gpui_kit::component::Theme;
 use gpui_kit::*;
 
 use super::layout::{
-    CELL_PX, ID_W, LINT_W, REVIEWER_W, ROW_PY, TEXT_PX, TEXT_PY, TIME_W, TRACK_W, TextMetrics,
-    WRAP_MARGIN,
+    CELL_PX, ID_W, LINT_W, ROW_PY, TEXT_PX, TEXT_PY, TIME_W, TRACK_W, TextMetrics, WRAP_MARGIN,
 };
 
 /// The row box (`h_flex`, top-aligned cells). Its hover style is [`row_hover`].
@@ -136,8 +135,9 @@ pub(super) fn time_value_hover(theme: &Theme) -> impl FnOnce(StyleRefinement) ->
     move |style| style.bg(color)
 }
 
-pub(super) fn reviewer_box<S: Styled>(s: S, metrics: TextMetrics, color: Hsla) -> S {
-    s.w(REVIEWER_W)
+/// A cell of the extra column, `width` wide.
+pub(super) fn extra_box<S: Styled>(s: S, width: Rems, metrics: TextMetrics, color: Hsla) -> S {
+    s.w(width)
         .flex_none()
         .px(CELL_PX)
         .text_xs()

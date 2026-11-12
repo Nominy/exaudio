@@ -1,3 +1,5 @@
+use crate::i18n::localized;
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum TrackFilter {
     All,
@@ -14,7 +16,7 @@ impl TrackFilter {
 
     pub fn label(&self) -> String {
         match self {
-            TrackFilter::All => "All Tracks".to_string(),
+            TrackFilter::All => localized("All Tracks", "Все дорожки").to_string(),
             TrackFilter::Lane { label, .. } => label.clone(),
         }
     }

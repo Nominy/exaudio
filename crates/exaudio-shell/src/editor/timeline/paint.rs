@@ -131,11 +131,11 @@ pub struct Palette {
     pub muted: Hsla,
 }
 
-/// Per-region decorations derived from transcript rows (lint state, diff change).
+/// Per-region decorations derived from transcript rows (lint state, row flag).
 #[derive(Clone, Copy, Default)]
 pub struct RegionMark {
     pub lint: Option<Severity>,
-    pub changed: bool,
+    pub flagged: bool,
 }
 
 pub type RegionMarks = Rc<HashMap<String, RegionMark>>;
@@ -298,7 +298,7 @@ fn paint_region_fills(
 }
 
 /// What sits over the waveform, for `viewport` drawn across `bounds`: region edges (dashed
-/// outline for annotations), the selection frame, lint/diff bars and the hovered/selected
+/// outline for annotations), the selection frame, lint and flag bars and the hovered/selected
 /// region's time chips when there is room, and the cut selection (accent edges, its length
 /// chip and a "Loop" chip before it while playback loops over it).
 fn paint_region_decorations(
@@ -354,7 +354,7 @@ fn paint_region_decorations(
         if let Some(color) = lint_color {
             window.paint_quad(fill(column(bounds, x0, x1, 0.0, 3.0 * s), color));
         }
-        if mark.changed {
+        if mark.flagged {
             window.paint_quad(fill(
                 column(bounds, x0, x1, height - 3.0 * s, 3.0 * s),
                 palette.info,

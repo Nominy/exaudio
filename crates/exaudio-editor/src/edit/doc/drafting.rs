@@ -3,6 +3,12 @@
 use exaudio_core::SegmentUpdate;
 
 use super::{EditError, EditResult, EditorDoc, Effect, Outcome};
+use crate::i18n::{Text, localized};
+use crate::localized_format;
+
+const WRITE_DRAFT: Text = Text::new("Write draft", "Запись черновика");
+const RESTORE_ORIGINAL: Text = Text::new("Restore original", "Восстановление исходного текста");
+const TRANSCRIBE_SEGMENT: Text = Text::new("Transcribe segment", "Расшифровка сегмента");
 
 /// Row bounds compared within this tolerance when a transcription returns.
 pub const SEGMENT_BOUNDARY_TOLERANCE_SECONDS: f64 = 0.001;
@@ -39,30 +45,66 @@ pub struct TranscriptionTarget {
 }
 
 /// Why a segment transcription cannot start or cannot be written.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TranscriptionRefusal {
-    #[error("Transcribe segment: select a transcript segment first.")]
     NoSegment,
-    #[error("Transcribe segment unavailable: project is read-only.")]
     ReadOnly,
-    #[error("Transcribe segment works on speech segments only.")]
     NotTranscription,
-    #[error("Transcribe segment only fills an empty segment; this one already has text.")]
     NotEmpty,
-    #[error("Transcribe segment: the segment has an invalid time range.")]
     InvalidRange,
-    #[error("Transcription discarded: the segment is no longer current.")]
     NoLongerCurrent,
-    #[error("Transcription discarded: the segment's boundaries changed.")]
     BoundariesChanged,
-    #[error("Transcription discarded: the segment is no longer empty.")]
     NoLongerEmpty,
-    #[error("Transcription returned no text.")]
     EmptyResult,
     /// The write itself failed.
-    #[error("{0}")]
     Edit(String),
 }
+
+impl std::fmt::Display for TranscriptionRefusal {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NoSegment => localized(
+                "Transcribe segment: select a transcript segment first.",
+                "Расшифровка сегмента: сначала выберите сегмент.",
+            ),
+            Self::ReadOnly => localized(
+                "Transcribe segment unavailable: project is read-only.",
+                "Расшифровка сегмента недоступна: проект только для чтения.",
+            ),
+            Self::NotTranscription => localized(
+                "Transcribe segment works on speech segments only.",
+                "Расшифровка сегмента работает только для сегментов с речью.",
+            ),
+            Self::NotEmpty => localized(
+                "Transcribe segment only fills an empty segment; this one already has text.",
+                "Расшифровка сегмента заполняет только пустой сегмент, а в этом уже есть текст.",
+            ),
+            Self::InvalidRange => localized(
+                "Transcribe segment: the segment has an invalid time range.",
+                "Расшифровка сегмента: у сегмента неверный диапазон времени.",
+            ),
+            Self::NoLongerCurrent => localized(
+                "Transcription discarded: the segment is no longer current.",
+                "Расшифровка отброшена: сегмент уже не текущий.",
+            ),
+            Self::BoundariesChanged => localized(
+                "Transcription discarded: the segment's boundaries changed.",
+                "Расшифровка отброшена: границы сегмента изменились.",
+            ),
+            Self::NoLongerEmpty => localized(
+                "Transcription discarded: the segment is no longer empty.",
+                "Расшифровка отброшена: сегмент уже не пуст.",
+            ),
+            Self::EmptyResult => localized(
+                "Transcription returned no text.",
+                "Расшифровка не вернула текста.",
+            ),
+            Self::Edit(message) => message.as_str(),
+        })
+    }
+}
+
+impl std::error::Error for TranscriptionRefusal {}
 
 impl EditorDoc {
     /// Snapshot of every transcription row (sorted by start), for Restore original.
@@ -97,10 +139,11 @@ impl EditorDoc {
         lane_ids: &[String],
         rows: Vec<DraftedRow>,
     ) -> Result<Vec<String>, EditError> {
-        self.guard("Write draft")?;
+        self.guard(WRITE_DRAFT.get())?;
         if let Some(row) = rows.iter().find(|row| !lane_ids.contains(&row.lane_id)) {
-            return Err(EditError::Unavailable(format!(
+            return Err(EditError::Unavailable(localized_format!(
                 "Write draft refused: a drafted row targets {}, which was not drafted.",
+                "Запись черновика отклонена: в черновике есть сегмент для дорожки, которой в нём не было ({}).",
                 self.lane_label(&row.lane_id)
             )));
         }
@@ -118,7 +161,7 @@ impl EditorDoc {
             .into_iter()
             .map(|row| (row.lane_id, row.start_seconds, row.end_seconds, row.text))
             .collect();
-        let created = self.apply("Write draft", |workflow| {
+        let created = self.apply(WRITE_DRAFT.get(), |workflow| {
             workflow.replace_segments_with_rows(removed, rows)
         })?;
         self.mark_dirty();
@@ -130,7 +173,7 @@ impl EditorDoc {
     /// has exactly the captured rows (same ids, tracks and bounds); any structural change is
     /// refused. One undo step.
     pub fn restore_row_texts(&mut self, snapshot: &[RowSnapshot]) -> EditResult {
-        self.guard("Restore original")?;
+        self.guard(RESTORE_ORIGINAL.get())?;
         let current = self.transcription_row_snapshot();
         let same_structure = current.len() == snapshot.len()
             && current.iter().zip(snapshot).all(|(now, then)| {
@@ -141,7 +184,11 @@ impl EditorDoc {
             });
         if !same_structure {
             return Err(EditError::Unavailable(
-                "Restore original refused: segments were added, removed, moved or resized since the draft was written.".into(),
+                localized(
+                    "Restore original refused: segments were added, removed, moved or resized since the draft was written.",
+                    "Восстановление отклонено: после записи черновика сегменты добавлялись, удалялись, сдвигались или меняли длину.",
+                )
+                .into(),
             ));
         }
         let updates: Vec<SegmentUpdate> = current
@@ -156,13 +203,20 @@ impl EditorDoc {
             })
             .collect();
         if updates.is_empty() {
-            return Ok(Outcome::status("Restore original: nothing to restore."));
+            return Ok(Outcome::status(localized(
+                "Restore original: nothing to restore.",
+                "Восстановление исходного текста: нечего восстанавливать.",
+            )));
         }
         let ids: Vec<String> = updates.iter().map(|u| u.segment_id.clone()).collect();
-        self.apply("Restore original", |workflow| {
+        self.apply(RESTORE_ORIGINAL.get(), |workflow| {
             workflow.apply_segment_edits(updates)
         })?;
-        let mut outcome = Outcome::status(format!("Restored {} segments.", ids.len()));
+        let mut outcome = Outcome::status(localized_format!(
+            "Restored {} segments.",
+            "Восстановлено сегментов: {}.",
+            ids.len()
+        ));
         for id in ids {
             self.drafts.refresh(self.workflow.project(), &id);
             outcome = outcome.with(Effect::DraftChanged { segment_id: id });
@@ -248,15 +302,16 @@ impl EditorDoc {
         let (start, end) = (segment.start_seconds, segment.end_seconds);
         let id = target.segment_id.clone();
         let length = text.chars().count();
-        self.apply("Transcribe segment", |workflow| {
+        self.apply(TRANSCRIBE_SEGMENT.get(), |workflow| {
             workflow.apply_segment_edit(&id, start, end, text)
         })
         .map_err(|error| TranscriptionRefusal::Edit(error.to_string()))?;
         self.drafts.refresh(self.workflow.project(), &id);
         self.mark_dirty();
         self.reconcile(true);
-        Ok(Outcome::status(format!(
+        Ok(Outcome::status(localized_format!(
             "Transcribed {} ({length} characters).",
+            "Расшифрован {} (символов: {length}).",
             self.segment_label(&id)
         ))
         .with(Effect::DraftChanged { segment_id: id }))

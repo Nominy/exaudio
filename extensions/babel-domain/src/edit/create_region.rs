@@ -1,5 +1,6 @@
-//! "Add region" dialog state: transcription regions (text) and annotation regions (intensity +
-//! optional hierarchical categories), time-field drafts, validation and the create payload.
+//! Babel "add region" dialog state: the editor's add-region dialog (lane, start/end, text) plus
+//! the annotation mode (intensity + optional hierarchical categories), its validation and the
+//! create payload with the segment metadata.
 
 use std::collections::BTreeMap;
 
@@ -7,8 +8,9 @@ use exaudio_core::Project;
 use serde_json::{Value, json};
 
 use crate::i18n::{is_russian, localized};
-use exaudio_editor::edit::format::{format_time, parse_time};
-use exaudio_editor::edit::time::TimeEditError;
+use exaudio_editor::edit::create_region::{
+    CreateRegionDialog, CreateRegionError, CreateRegionPayload,
+};
 
 const BABEL_TRANSCRIPTION_TYPE: &str = "transcription";
 
@@ -20,63 +22,52 @@ pub const BACKGROUND_NOISE_ANNOTATION_FTE_PROJECT_ID: &str = "7cb04a85-c9f3-4d73
 pub const OTHER_CATEGORY: &str = "other";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum CreateRegionTimeField {
-    Start,
-    End,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CreateRegionMode {
     Transcription,
     Annotation,
 }
 
-/// The open "add region" dialog.
+/// The open Babel "add region" dialog: the editor's dialog plus the annotation fields.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CreateRegionDialog {
+pub struct BabelCreateRegionDialog {
     pub mode: CreateRegionMode,
-    /// Set when the waveform drag already created the (transcription) segment; the dialog then
-    /// only edits that segment's text.
-    pub created_segment_id: Option<String>,
-    pub selected_lane_id: String,
-    pub start_seconds: f64,
-    pub end_seconds: f64,
-    pub text: String,
+    /// Lane, start/end with their drafts and errors, and the transcription text.
+    pub region: CreateRegionDialog,
     pub intensity: Option<u8>,
     pub uses_hierarchical_labels: bool,
     pub primary_selection: String,
     pub secondary_selection: String,
     pub custom_description: String,
-    pub active_time_field: Option<CreateRegionTimeField>,
-    pub start_draft: String,
-    pub end_draft: String,
-    pub start_error: Option<TimeEditError>,
-    pub end_error: Option<TimeEditError>,
 }
 
 /// Validated "create" request.
 #[derive(Debug, Clone, PartialEq)]
-pub struct CreateRegionPayload {
-    pub lane_id: String,
-    pub start_seconds: f64,
-    pub end_seconds: f64,
-    pub text: String,
+pub struct BabelCreateRegionPayload {
+    /// Lane, range and row text; an annotation region carries its category label as text.
+    pub region: CreateRegionPayload,
     pub metadata: BTreeMap<String, Value>,
 }
 
 /// Why the dialog cannot be submitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum CreateRegionError {
-    Time(TimeEditError),
-    UnknownLane,
+pub enum BabelCreateRegionError {
+    Region(CreateRegionError),
     IncompleteAnnotation,
 }
 
-impl std::fmt::Display for CreateRegionError {
+impl From<CreateRegionError> for BabelCreateRegionError {
+    fn from(error: CreateRegionError) -> Self {
+        Self::Region(error)
+    }
+}
+
+impl std::fmt::Display for BabelCreateRegionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Time(error) => error.fmt(f),
-            Self::UnknownLane => f.write_str(localized("Choose a speaker.", "Выберите спикера.")),
+            Self::Region(CreateRegionError::Time(error)) => std::fmt::Display::fmt(error, f),
+            Self::Region(CreateRegionError::UnknownLane) => {
+                f.write_str(localized("Choose a speaker.", "Выберите спикера."))
+            }
             Self::IncompleteAnnotation => f.write_str(localized(
                 "Choose an intensity and both categories.",
                 "Выберите интенсивность и обе категории.",
@@ -85,9 +76,9 @@ impl std::fmt::Display for CreateRegionError {
     }
 }
 
-impl std::error::Error for CreateRegionError {}
+impl std::error::Error for BabelCreateRegionError {}
 
-impl CreateRegionDialog {
+impl BabelCreateRegionDialog {
     /// Transcription-mode dialog.
     pub fn new(selected_lane_id: String, start_seconds: f64, end_seconds: f64) -> Self {
         Self::with_mode(
@@ -139,49 +130,18 @@ impl CreateRegionDialog {
     ) -> Self {
         Self {
             mode,
-            created_segment_id: None,
-            selected_lane_id,
-            start_seconds,
-            end_seconds,
-            text: String::new(),
+            region: CreateRegionDialog::new(selected_lane_id, start_seconds, end_seconds),
             intensity: None,
             uses_hierarchical_labels,
             primary_selection: String::new(),
             secondary_selection: String::new(),
             custom_description: String::new(),
-            active_time_field: None,
-            start_draft: format_time(start_seconds),
-            end_draft: format_time(end_seconds),
-            start_error: None,
-            end_error: None,
         }
-    }
-
-    pub fn with_created_segment_id(mut self, segment_id: String) -> Self {
-        self.created_segment_id = Some(segment_id);
-        self
-    }
-
-    pub fn set_start_draft(&mut self, value: String) {
-        self.start_draft = value;
-        self.active_time_field = Some(CreateRegionTimeField::Start);
-        self.start_error = None;
-    }
-
-    pub fn set_end_draft(&mut self, value: String) {
-        self.end_draft = value;
-        self.active_time_field = Some(CreateRegionTimeField::End);
-        self.end_error = None;
-    }
-
-    pub fn set_text(&mut self, value: String) {
-        self.active_time_field = None;
-        self.text = value;
     }
 
     /// Changing the primary category clears the secondary choice and description.
     pub fn set_primary_category(&mut self, value: String) {
-        self.active_time_field = None;
+        self.region.active_time_field = None;
         self.primary_selection = value;
         self.secondary_selection.clear();
         self.custom_description.clear();
@@ -189,7 +149,7 @@ impl CreateRegionDialog {
 
     /// Choosing "other" clears the description; other choices keep it.
     pub fn set_secondary_category(&mut self, value: String) {
-        self.active_time_field = None;
+        self.region.active_time_field = None;
         if value == OTHER_CATEGORY {
             self.custom_description.clear();
         }
@@ -197,150 +157,44 @@ impl CreateRegionDialog {
     }
 
     pub fn set_custom_description(&mut self, value: String) {
-        self.active_time_field = None;
+        self.region.active_time_field = None;
         self.custom_description = value;
     }
 
     /// Accepts an intensity option label (`"2 - Noticeable..."`) or a bare number.
     pub fn set_intensity_label(&mut self, value: &str) {
-        self.active_time_field = None;
+        self.region.active_time_field = None;
         self.intensity = intensity_value_from_label(value);
-    }
-
-    /// Commits the typed start/end (Enter). Returns `false` and records the error when invalid.
-    pub fn commit_time_field(&mut self, field: CreateRegionTimeField) -> bool {
-        match field {
-            CreateRegionTimeField::Start => {
-                let parsed = parse_time(&self.start_draft).ok_or(TimeEditError::InvalidFormat);
-                match parsed {
-                    Ok(start) if start < self.end_seconds => {
-                        self.start_seconds = start;
-                    }
-                    Ok(_) => {
-                        self.start_error = Some(TimeEditError::StartNotBeforeEnd);
-                        return false;
-                    }
-                    Err(error) => {
-                        self.start_error = Some(error);
-                        return false;
-                    }
-                }
-            }
-            CreateRegionTimeField::End => {
-                let parsed = parse_time(&self.end_draft).ok_or(TimeEditError::InvalidFormat);
-                match parsed {
-                    Ok(end) if self.start_seconds < end => {
-                        self.end_seconds = end;
-                    }
-                    Ok(_) => {
-                        self.end_error = Some(TimeEditError::EndNotAfterStart);
-                        return false;
-                    }
-                    Err(error) => {
-                        self.end_error = Some(error);
-                        return false;
-                    }
-                }
-            }
-        }
-        self.start_draft = format_time(self.start_seconds);
-        self.end_draft = format_time(self.end_seconds);
-        self.start_error = None;
-        self.end_error = None;
-        true
-    }
-
-    /// Blur: commit, and on failure restore the stored value (keeping the error).
-    pub fn blur_time_field(&mut self, field: CreateRegionTimeField) -> bool {
-        let ok = self.commit_time_field(field);
-        if !ok {
-            self.reset_time_field_draft(field, false);
-        }
-        self.active_time_field = None;
-        ok
-    }
-
-    /// Escape inside a time field: restore the stored value. Returns whether a field was active.
-    pub fn reset_active_time_field_draft(&mut self) -> bool {
-        let Some(field) = self.active_time_field.take() else {
-            return false;
-        };
-        self.reset_time_field_draft(field, true);
-        true
     }
 
     /// Whether the Create button is enabled.
     pub fn is_create_enabled(&self) -> bool {
-        !self.selected_lane_id.is_empty()
-            && self.end_seconds > self.start_seconds
-            && self.start_error.is_none()
-            && self.end_error.is_none()
+        self.region.is_create_enabled()
             && match self.mode {
                 CreateRegionMode::Transcription => true,
                 CreateRegionMode::Annotation => self.annotation_fields_are_complete(),
             }
     }
 
-    /// Validates the dialog against the project and builds the create payload.
-    /// Hidden/uncommitted time drafts are parsed here too.
+    /// Validates the region against the project, then the annotation fields, and builds the
+    /// create payload.
     pub fn validate_for_submit(
         &mut self,
         project: &Project,
-    ) -> Result<CreateRegionPayload, CreateRegionError> {
-        let start_seconds = parse_time(&self.start_draft).ok_or_else(|| {
-            self.start_error = Some(TimeEditError::InvalidFormat);
-            CreateRegionError::Time(TimeEditError::InvalidFormat)
-        })?;
-        let end_seconds = parse_time(&self.end_draft).ok_or_else(|| {
-            self.end_error = Some(TimeEditError::InvalidFormat);
-            CreateRegionError::Time(TimeEditError::InvalidFormat)
-        })?;
-        self.start_error = None;
-        self.end_error = None;
-        if start_seconds >= end_seconds {
-            self.start_error = Some(TimeEditError::StartNotBeforeEnd);
-            return Err(CreateRegionError::Time(TimeEditError::StartNotBeforeEnd));
+    ) -> Result<BabelCreateRegionPayload, BabelCreateRegionError> {
+        let mut region = self.region.validate_for_submit(project)?;
+        if self.mode == CreateRegionMode::Transcription {
+            return Ok(BabelCreateRegionPayload {
+                region,
+                metadata: BTreeMap::new(),
+            });
         }
-        if !project
-            .lanes
-            .iter()
-            .any(|lane| lane.id == self.selected_lane_id)
-        {
-            return Err(CreateRegionError::UnknownLane);
+        if !self.annotation_fields_are_complete() {
+            return Err(BabelCreateRegionError::IncompleteAnnotation);
         }
-
-        self.start_seconds = start_seconds;
-        self.end_seconds = end_seconds;
-        self.start_draft = format_time(start_seconds);
-        self.end_draft = format_time(end_seconds);
-        if self.mode == CreateRegionMode::Annotation && !self.annotation_fields_are_complete() {
-            return Err(CreateRegionError::IncompleteAnnotation);
-        }
-        let (text, metadata) = self.payload_text_and_metadata();
-        Ok(CreateRegionPayload {
-            lane_id: self.selected_lane_id.clone(),
-            start_seconds,
-            end_seconds,
-            text,
-            metadata,
-        })
-    }
-
-    fn reset_time_field_draft(&mut self, field: CreateRegionTimeField, clear_error: bool) {
-        match field {
-            CreateRegionTimeField::Start => {
-                self.start_draft = format_time(self.start_seconds);
-                if clear_error {
-                    self.start_error = None;
-                }
-            }
-            CreateRegionTimeField::End => {
-                self.end_draft = format_time(self.end_seconds);
-                if clear_error {
-                    self.end_error = None;
-                }
-            }
-        }
+        let (text, metadata) = self.annotation_text_and_metadata();
+        region.text = text;
+        Ok(BabelCreateRegionPayload { region, metadata })
     }
 
     fn annotation_fields_are_complete(&self) -> bool {
@@ -359,10 +213,8 @@ impl CreateRegionDialog {
         !self.secondary_selection.is_empty()
     }
 
-    fn payload_text_and_metadata(&self) -> (String, BTreeMap<String, Value>) {
-        if self.mode == CreateRegionMode::Transcription {
-            return (self.text.clone(), BTreeMap::new());
-        }
+    /// Row text and segment metadata of an annotation region.
+    fn annotation_text_and_metadata(&self) -> (String, BTreeMap<String, Value>) {
         let mut metadata = BTreeMap::new();
         metadata.insert("type".to_string(), json!(BACKGROUND_NOISE_TYPE));
         metadata.insert("intensity".to_string(), json!(self.intensity));
@@ -377,25 +229,6 @@ impl CreateRegionDialog {
         metadata.insert("content".to_string(), content.clone());
         (annotation_display_text(&content), metadata)
     }
-}
-
-/// Speaker-lane option for the dialog's track picker.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TrackOption {
-    pub lane_id: String,
-    pub label: String,
-}
-
-/// One option per project lane, labelled with the lane label.
-pub fn track_options(project: &Project) -> Vec<TrackOption> {
-    project
-        .lanes
-        .iter()
-        .map(|lane| TrackOption {
-            lane_id: lane.id.clone(),
-            label: lane.label.clone(),
-        })
-        .collect()
 }
 
 /// Primary annotation categories.

@@ -211,7 +211,8 @@ fn save_to(
     done: Option<Saved>,
 ) {
     let snapshot = model.update(cx, |model, cx| {
-        let result = model.update_doc(cx, |doc| doc.commit_pending_drafts("Save"));
+        let action = ui::localized(cx, "Save", "Сохранение");
+        let result = model.update_doc(cx, |doc| doc.commit_pending_drafts(action));
         let ok = result.is_ok();
         model.apply_result(result, cx);
         if !ok {

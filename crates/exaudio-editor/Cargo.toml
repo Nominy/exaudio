@@ -13,4 +13,3 @@ exaudio-extension.workspace = true
 exaudio-core.workspace = true
 exaudio-project.workspace = true
 exaudio-waveform.workspace = true
-thiserror.workspace = true

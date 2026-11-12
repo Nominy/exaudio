@@ -169,7 +169,7 @@ fn native_split_at_time_has_no_domain_gap() {
     let _ = ok(doc.split_segment_at("annotation-1", 2.0));
 
     let left = doc.project().segment("annotation-1").unwrap();
-    let right = doc.project().segment("annotation-1__studio_1").unwrap();
+    let right = doc.project().segment("annotation-1__exaudio_1").unwrap();
     assert_eq!(left.end_seconds, 2.0);
     assert_eq!(right.start_seconds, 2.0);
 }
@@ -183,7 +183,7 @@ fn split_uses_given_time_even_when_playhead_is_inside_the_segment() {
     let _ = ok(doc.split_segment_at("annotation-1", 2.0));
 
     let left = doc.project().segment("annotation-1").unwrap();
-    let right = doc.project().segment("annotation-1__studio_1").unwrap();
+    let right = doc.project().segment("annotation-1__exaudio_1").unwrap();
     assert_eq!(left.end_seconds, 2.0);
     assert_eq!(right.start_seconds, 2.0);
 }
@@ -206,10 +206,10 @@ fn split_allocates_text_by_word_ratio_and_selects_right_row() {
     let outcome = ok(doc.split_segment_at("annotation-1", 2.0));
 
     assert_eq!(text_of(&doc, "annotation-1"), "one two three");
-    assert_eq!(text_of(&doc, "annotation-1__studio_1"), "four five");
+    assert_eq!(text_of(&doc, "annotation-1__exaudio_1"), "four five");
     assert_eq!(draft_text(&doc, "annotation-1"), "one two three");
-    assert_eq!(draft_text(&doc, "annotation-1__studio_1"), "four five");
-    assert_eq!(selected(&doc).as_deref(), Some("annotation-1__studio_1"));
+    assert_eq!(draft_text(&doc, "annotation-1__exaudio_1"), "four five");
+    assert_eq!(selected(&doc).as_deref(), Some("annotation-1__exaudio_1"));
     assert!(outcome.has_effect(&Effect::DraftChanged {
         segment_id: "annotation-1".to_string(),
     }));
@@ -225,7 +225,7 @@ fn split_rejects_tail_guard_before_workflow_mutation() {
 
     assert!(matches!(err, EditError::Split(SplitError::TooCloseToEnd)));
     assert_eq!(doc.project().segment("annotation-1").unwrap(), &before);
-    assert!(doc.project().segment("annotation-1__studio_1").is_none());
+    assert!(doc.project().segment("annotation-1__exaudio_1").is_none());
     assert!(!doc.session().is_dirty);
 }
 
@@ -251,9 +251,9 @@ fn split_at_playhead_action_splits_the_selected_row_with_status_and_undo() {
         .expect("doc action"));
 
     assert_eq!(text_of(&doc, "a"), "one two");
-    assert_eq!(text_of(&doc, "a__studio_1"), "three four");
+    assert_eq!(text_of(&doc, "a__exaudio_1"), "three four");
     assert_eq!(doc.project().segment("a").unwrap().end_seconds, 2.0);
-    assert_eq!(selected(&doc).as_deref(), Some("a__studio_1"));
+    assert_eq!(selected(&doc).as_deref(), Some("a__exaudio_1"));
     assert!(outcome.status.is_some(), "split reports what it did");
     assert!(doc.session().is_dirty);
 
@@ -300,10 +300,10 @@ fn waveform_secondary_press_splits_at_hit_time_without_a_platform_gap() {
     let _ = ok(doc.press_waveform(&lane_id));
 
     let left = doc.project().segment("annotation-1").unwrap();
-    let right = doc.project().segment("annotation-1__studio_1").unwrap();
+    let right = doc.project().segment("annotation-1__exaudio_1").unwrap();
     assert_eq!(left.end_seconds, 2.85);
     assert_eq!(right.start_seconds, left.end_seconds);
-    assert_eq!(selected(&doc).as_deref(), Some("annotation-1__studio_1"));
+    assert_eq!(selected(&doc).as_deref(), Some("annotation-1__exaudio_1"));
     assert!(doc.pointer().waveform_drag.is_none());
 }
 
@@ -329,12 +329,12 @@ fn create_segment_before_fills_previous_lane_gap_and_selects_new_segment() {
 
     let _ = ok(doc.create_segment_before("annotation-3"));
 
-    let created = doc.project().segment("annotation-3__studio_1").unwrap();
+    let created = doc.project().segment("annotation-3__exaudio_1").unwrap();
     assert_eq!(created.lane_id, anchor.lane_id);
     assert_eq!(created.speaker_id, anchor.speaker_id);
     assert!((created.start_seconds - 3.4).abs() < f64::EPSILON * 8.0);
     assert_eq!(created.end_seconds, 5.4);
-    assert_eq!(selected(&doc).as_deref(), Some("annotation-3__studio_1"));
+    assert_eq!(selected(&doc).as_deref(), Some("annotation-3__exaudio_1"));
 }
 
 // ---- row clicks -----------------------------------------------------------------------

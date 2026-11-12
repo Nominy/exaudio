@@ -2,7 +2,7 @@
 //!
 //! An element row ([`super::row`]) is a tree of a few dozen divs and texts that gpui lays out,
 //! prepaints and paints again on every frame the grid draws, scrolling included. A plain row
-//! (no editor, menu, review chips, diff, decorations or secondary lines) is drawn by
+//! (no editor, menu, chips, word marks, styled text, decorations or secondary lines) is drawn by
 //! [`FastRow`] instead: one layout node, cell boxes placed from a [`Template`] measured once per
 //! row shape, texts shaped once per content.
 //!
@@ -31,12 +31,12 @@ use gpui_kit::*;
 
 use super::TranscriptView;
 use super::layout::{
-    CELL_PX, ID_W, REVIEWER_W, TIME_W, TRACK_W, TextMetrics, display_text, has_review_chips,
+    CELL_PX, ID_W, TIME_W, TRACK_W, TextMetrics, display_text, has_chips, has_word_marks,
 };
-use super::row::{reviewer_color, row_background, speaker_dot_color, time_value};
+use super::row::{extra_cell_color, row_background, speaker_dot_color, time_value};
 use super::row_style::{
-    centered_cell_box, empty_lint_box, id_box, reviewer_box, row_bar, row_box, row_hover,
-    speaker_box, speaker_dot, speaker_label_box, speaker_label_hover, speaker_label_interactive,
+    centered_cell_box, empty_lint_box, extra_box, id_box, row_bar, row_box, row_hover, speaker_box,
+    speaker_dot, speaker_label_box, speaker_label_hover, speaker_label_interactive,
     speaker_name_box, static_text_body, static_text_box, static_text_interactive, text_cell_box,
     time_box, time_value_box, time_value_hover, time_value_interactive,
 };
@@ -67,7 +67,7 @@ enum TextSlot {
     Speaker,
     Start,
     End,
-    Reviewer,
+    Extra,
     Body,
 }
 
@@ -251,7 +251,8 @@ struct RowStyles {
     time: Style,
     time_value: Style,
     time_value_hover: Option<StyleRefinement>,
-    reviewer: Style,
+    /// The extra column's cell, when the table has the column.
+    extra: Option<Style>,
     text_cell: Style,
     static_text: Style,
     body: Style,
@@ -269,7 +270,7 @@ fn row_styles(
     lint_present: bool,
     dot_color: Hsla,
     lane_color: Hsla,
-    reviewer_color: Hsla,
+    extra: Option<(Rems, Hsla)>,
     metrics: TextMetrics,
     theme: &Theme,
 ) -> RowStyles {
@@ -297,7 +298,7 @@ fn row_styles(
         time: style_of(time_box(none())),
         time_value: style_of(time_value),
         time_value_hover: (!read_only).then(|| time_value_hover(theme)(none())),
-        reviewer: style_of(reviewer_box(none(), metrics, reviewer_color)),
+        extra: extra.map(|(width, color)| style_of(extra_box(none(), width, metrics, color))),
         text_cell: style_of(text_cell_box(none())),
         static_text: style_of(static_text),
         body: style_of(static_text_body(none())),
@@ -319,9 +320,11 @@ struct TemplateKey {
     scale: u32,
     line_height: u32,
     body_lines: usize,
-    cells: [bool; 8],
+    cells: [bool; 7],
+    /// Width of the extra column in rems (bits), when the table has the column.
+    extra_width: Option<u32>,
     highlighted: bool,
-    has_reviewer: bool,
+    has_extra_text: bool,
     lint_present: bool,
 }
 
@@ -339,8 +342,8 @@ struct Template {
     start_text: Bounds<Pixels>,
     end_value: Bounds<Pixels>,
     end_text: Bounds<Pixels>,
-    reviewer: Bounds<Pixels>,
-    reviewer_text: Bounds<Pixels>,
+    extra: Bounds<Pixels>,
+    extra_text: Bounds<Pixels>,
     static_text: Bounds<Pixels>,
     body: Bounds<Pixels>,
     lint: Bounds<Pixels>,
@@ -358,7 +361,7 @@ struct TemplateInput<'a> {
     cells: TranscriptRowVisibleCells,
     text_line_height: Pixels,
     body_lines: usize,
-    has_reviewer: bool,
+    has_extra_text: bool,
 }
 
 /// Lays the cell boxes of a row shape out with the element row's styles in gpui's layout
@@ -375,7 +378,7 @@ fn measure_template(
         cells,
         text_line_height,
         body_lines,
-        has_reviewer,
+        has_extra_text,
     } = input;
     let line = move |width: Pixels, height: Pixels| {
         move |_: Size<Option<Pixels>>, _: Size<AvailableSpace>, _: &mut Window, _: &mut App| {
@@ -417,9 +420,9 @@ fn measure_template(
     };
     let start = cells.start.then(|| time_cell(window, cx, &mut children));
     let end = cells.end.then(|| time_cell(window, cx, &mut children));
-    let reviewer = cells.reviewer.then(|| {
-        let text = has_reviewer.then(|| leaf(window, Pixels::ZERO, text_line_height));
-        let cell = node(window, cx, &styles.reviewer, text.as_slice());
+    let extra = styles.extra.as_ref().map(|style| {
+        let text = has_extra_text.then(|| leaf(window, Pixels::ZERO, text_line_height));
+        let cell = node(window, cx, style, text.as_slice());
         children.push(cell);
         (cell, text)
     });
@@ -467,10 +470,10 @@ fn measure_template(
             template.end_value = bounds(value);
             template.end_text = bounds(text);
         }
-        if let Some((cell, text)) = reviewer {
-            template.reviewer = bounds(cell);
+        if let Some((cell, text)) = extra {
+            template.extra = bounds(cell);
             if let Some(text) = text {
-                template.reviewer_text = bounds(text);
+                template.extra_text = bounds(text);
             }
         }
         if let Some((static_text, body)) = text {
@@ -493,7 +496,7 @@ struct RowTexts {
     speaker: Option<Rc<ShapedText>>,
     start: Option<Rc<ShapedText>>,
     end: Option<Rc<ShapedText>>,
-    reviewer: Option<Rc<ShapedText>>,
+    extra: Option<Rc<ShapedText>>,
     body: Option<Rc<ShapedText>>,
 }
 
@@ -510,7 +513,9 @@ pub(super) struct FastRow {
     /// Ghost caret: display index into the row text, colour and height.
     ghost: Option<(usize, Hsla, Pixels)>,
     highlighted: bool,
-    has_reviewer: bool,
+    /// Width of the extra column in rems, when the table has the column.
+    extra_width: Option<f32>,
+    has_extra_text: bool,
     lint_present: bool,
     read_only: bool,
     editable: bool,
@@ -558,14 +563,13 @@ pub(super) fn fast_row(
     let has_time_error = draft.is_some_and(|draft| {
         draft.time_error(TimeField::Start).is_some() || draft.time_error(TimeField::End).is_some()
     });
-    let reviewing = !row.is_read_only && !row.word_views.is_empty();
     let text = display_text(row, doc);
-    if row.row_kind != TranscriptRowKind::Annotation
+    if row.row_kind != TranscriptRowKind::Segment
         || has_open_editor
-        || reviewing
-        || has_review_chips(row)
-        || row.diff.is_some()
-        || row.annotation_diff.is_some()
+        || has_word_marks(row)
+        || has_chips(row)
+        || row.styled_text.is_some()
+        || row.speaker_note.is_some()
         || !row.annotation_kind.is_transcription()
         || has_time_error
         || (cells.text && text.is_empty())
@@ -578,6 +582,7 @@ pub(super) fn fast_row(
     let read_only = row.is_read_only;
     let editable = !row.is_read_only && !doc.is_read_only();
     let lint_present = cells.linter && doc.row_lint(row).is_some();
+    let extra_width = row.extra_column.as_deref().map(|column| column.width_rems);
     let styles = row_styles(
         height,
         background,
@@ -587,7 +592,7 @@ pub(super) fn fast_row(
         lint_present,
         speaker_dot_color(row, doc, theme),
         lane_color,
-        reviewer_color(row, theme),
+        extra_width.map(|width| (rems(width), extra_cell_color(row, theme))),
         metrics,
         theme,
     );
@@ -655,15 +660,11 @@ pub(super) fn fast_row(
         true => Some(time(TextSlot::End, TimeField::End)?),
         false => None,
     };
-    let has_reviewer = row.reviewer.is_some();
-    let reviewer = match (cells.reviewer, row.reviewer.as_ref()) {
-        (true, Some(reviewer)) => {
-            let shaped = shape_in(
-                TextSlot::Reviewer,
-                reviewer.label.clone().into(),
-                &[&styles.reviewer],
-            )?;
-            Some(fits(&shaped, content(REVIEWER_W, cell_px)).then_some(shaped)?)
+    let has_extra_text = row.extra_cell.is_some();
+    let extra = match (styles.extra.as_ref(), extra_width, row.extra_cell.as_ref()) {
+        (Some(style), Some(width), Some(cell)) => {
+            let shaped = shape_in(TextSlot::Extra, cell.text.clone().into(), &[style])?;
+            Some(fits(&shaped, content(rems(width), cell_px)).then_some(shaped)?)
         }
         _ => None,
     };
@@ -699,13 +700,14 @@ pub(super) fn fast_row(
             speaker,
             start,
             end,
-            reviewer,
+            extra,
             body,
         },
         text_wrap,
         ghost,
         highlighted,
-        has_reviewer,
+        extra_width,
+        has_extra_text,
         lint_present,
         read_only,
         editable,
@@ -780,8 +782,9 @@ impl Element for FastRow {
             line_height: f32::from(text_line_height).to_bits(),
             body_lines,
             cells: cells_key(self.cells),
+            extra_width: self.extra_width.map(f32::to_bits),
             highlighted: self.highlighted,
-            has_reviewer: self.has_reviewer,
+            has_extra_text: self.has_extra_text,
             lint_present: self.lint_present,
         };
         let cached = self.cache.borrow().templates.get(&key).cloned();
@@ -795,7 +798,7 @@ impl Element for FastRow {
                         cells: self.cells,
                         text_line_height,
                         body_lines,
-                        has_reviewer: self.has_reviewer,
+                        has_extra_text: self.has_extra_text,
                     },
                     window,
                     cx,
@@ -928,13 +931,12 @@ impl Element for FastRow {
                         cx,
                     );
                 }
-                if self.cells.reviewer {
-                    let cell = at(template.reviewer);
-                    let reviewer = &self.styles.reviewer;
-                    reviewer.paint(cell, window, cx, |window, cx| {
-                        window.with_content_mask(reviewer.overflow_mask(cell, rem), |window| {
-                            if let Some(text) = &self.texts.reviewer {
-                                text.paint(at(template.reviewer_text), window, cx);
+                if let Some(extra) = &self.styles.extra {
+                    let cell = at(template.extra);
+                    extra.paint(cell, window, cx, |window, cx| {
+                        window.with_content_mask(extra.overflow_mask(cell, rem), |window| {
+                            if let Some(text) = &self.texts.extra {
+                                text.paint(at(template.extra_text), window, cx);
                             }
                         });
                     });
@@ -953,13 +955,12 @@ impl Element for FastRow {
     }
 }
 
-fn cells_key(cells: TranscriptRowVisibleCells) -> [bool; 8] {
+fn cells_key(cells: TranscriptRowVisibleCells) -> [bool; 7] {
     [
         cells.id,
         cells.track,
         cells.start,
         cells.end,
-        cells.reviewer,
         cells.text,
         cells.linter,
         cells.actions,

@@ -81,11 +81,6 @@ pub enum EditorCommand {
         start_seconds: f64,
         end_seconds: f64,
     },
-    SplitSegment {
-        segment_id: String,
-        at_seconds: f64,
-        new_segment_id: String,
-    },
     SplitSegmentWithText {
         segment_id: String,
         at_seconds: f64,
@@ -222,10 +217,7 @@ impl CommandHistory {
     }
 
     pub fn undo(&mut self, project: &mut Project) -> Result<(), CoreError> {
-        let previous = self
-            .undo_stack
-            .pop_back()
-            .ok_or(CoreError::NothingToUndo)?;
+        let previous = self.undo_stack.pop_back().ok_or(CoreError::NothingToUndo)?;
         self.undo_stack_bytes = self
             .undo_stack_bytes
             .saturating_sub(previous.estimated_bytes);
@@ -235,10 +227,7 @@ impl CommandHistory {
     }
 
     pub fn redo(&mut self, project: &mut Project) -> Result<(), CoreError> {
-        let next = self
-            .redo_stack
-            .pop_back()
-            .ok_or(CoreError::NothingToRedo)?;
+        let next = self.redo_stack.pop_back().ok_or(CoreError::NothingToRedo)?;
         self.redo_stack_bytes = self.redo_stack_bytes.saturating_sub(next.estimated_bytes);
         let current = std::mem::replace(project, next.project);
         Self::push_bounded(&mut self.undo_stack, &mut self.undo_stack_bytes, current);
@@ -379,11 +368,6 @@ fn apply_command(
             policy.updated(segment);
             Ok(())
         }
-        EditorCommand::SplitSegment {
-            segment_id,
-            at_seconds,
-            new_segment_id,
-        } => split_segment(project, &segment_id, at_seconds, new_segment_id, policy),
         EditorCommand::SplitSegmentWithText {
             segment_id,
             at_seconds,
@@ -717,7 +701,7 @@ fn cut_lane_range(
             segment.start_seconds >= start_seconds && segment.end_seconds <= end_seconds;
 
         if covers_left && covers_right {
-            let new_segment_id = next_derived_segment_id(project, &segment.id);
+            let new_segment_id = project.next_derived_segment_id(&segment.id);
             let (left_text, right_text) = split_texts
                 .clone()
                 .unwrap_or_else(|| (segment.text.clone(), segment.text.clone()));
@@ -781,17 +765,6 @@ fn cut_lane_range(
     Ok(())
 }
 
-fn next_derived_segment_id(project: &Project, base_segment_id: &str) -> String {
-    for index in 1.. {
-        let candidate = format!("{base_segment_id}__studio_{index}");
-        if !project.has_segment(&candidate) {
-            return candidate;
-        }
-    }
-
-    unreachable!("failed to allocate derived segment id")
-}
-
 fn merge_text(left: &str, right: &str) -> String {
     match (left.is_empty(), right.is_empty()) {
         (true, true) => String::new(),
@@ -810,11 +783,7 @@ fn validate_time_range(start_seconds: f64, end_seconds: f64) -> Result<(), CoreE
 }
 
 /// The speaker and lane both exist; a lane's `speaker_id` is only its default speaker.
-fn validate_track(
-    project: &Project,
-    speaker_id: &str,
-    lane_id: &str,
-) -> Result<(), CoreError> {
+fn validate_track(project: &Project, speaker_id: &str, lane_id: &str) -> Result<(), CoreError> {
     if project.speaker(speaker_id).is_none() {
         return Err(CoreError::SpeakerNotFound);
     }

@@ -1,13 +1,16 @@
+//! The reviewer column: who last reviewed the audio a row starts in.
+
 use exaudio_core::Project;
+use exaudio_editor::transcript_model::{LocalizedText, TranscriptExtraCell, TranscriptExtraColumn};
 
 const META_SHOW_REVIEWERS: &str = "studio.babel.diff.showReviewers";
 const META_REVIEWER_INTERVALS: &str = "studio.babel.diff.reviewerIntervals";
-
-use exaudio_editor::transcript_model::TranscriptReviewerView;
+/// Width of the reviewer column in rems.
+const REVIEWER_COLUMN_REMS: f32 = 8.75;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ReviewerLookup {
-    pub show_reviewer: bool,
+    show_reviewer: bool,
     intervals: Vec<ReviewerInterval>,
 }
 
@@ -23,7 +26,16 @@ impl ReviewerLookup {
         }
     }
 
-    pub fn reviewer_at(&self, time_seconds: f64) -> Option<TranscriptReviewerView> {
+    /// The reviewer column while reviewers are shown.
+    pub fn column(&self) -> Option<TranscriptExtraColumn> {
+        self.show_reviewer.then(|| TranscriptExtraColumn {
+            header: LocalizedText::new("Reviewer", "Ревьюер"),
+            width_rems: REVIEWER_COLUMN_REMS,
+        })
+    }
+
+    /// The reviewer cell of a row starting at `time_seconds`.
+    pub fn reviewer_at(&self, time_seconds: f64) -> Option<TranscriptExtraCell> {
         if !self.show_reviewer {
             return None;
         }
@@ -33,7 +45,7 @@ impl ReviewerLookup {
             .find(|interval| {
                 time_seconds >= interval.start_seconds && time_seconds < interval.end_seconds
             })
-            .map(|interval| interval.reviewer.view())
+            .map(|interval| interval.reviewer.cell())
     }
 }
 
@@ -52,9 +64,9 @@ struct ReviewerIdentity {
 }
 
 impl ReviewerIdentity {
-    fn view(&self) -> TranscriptReviewerView {
-        TranscriptReviewerView {
-            label: format!(
+    fn cell(&self) -> TranscriptExtraCell {
+        TranscriptExtraCell {
+            text: format!(
                 "L{}: {}",
                 self.level,
                 self.username.as_deref().unwrap_or("\u{2014}")

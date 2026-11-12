@@ -1,19 +1,27 @@
 mod actions;
+mod contribution;
 mod row_availability;
 mod time;
+use crate::i18n::localized;
 use crate::track_filter::TrackFilter;
 pub(crate) use actions::build_transcript_action_menu;
 pub use actions::{
     TranscriptActionCommand, TranscriptActionMenuEntry, TranscriptTrackOptionView,
     build_transcript_track_options, selected_track_option,
 };
+pub use contribution::{
+    LocalizedText, TRANSCRIPT_ROW_DECORATION, TRANSCRIPT_STATIC_ROW_DECORATION,
+    TRANSCRIPT_TABLE_DECORATION, TranscriptChip, TranscriptExtraCell, TranscriptExtraColumn,
+    TranscriptNote, TranscriptRowPatch, TranscriptStaticRow, TranscriptStyledBody,
+    TranscriptStyledText, TranscriptStyledWord, TranscriptTablePatch, TranscriptTone,
+    TranscriptWordMark, TranscriptWordStyle,
+};
 use exaudio_core::Project;
 use exaudio_extension::document::{Decoration, Diagnostic, DiagnosticCollection, Severity};
 pub use row_availability::compute_row_availability;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
 pub use time::format_mm_ss;
-/// Neutral, versioned display payload. Metadata interpretation belongs to its provider.
-pub const TRANSCRIPT_ROW_DECORATION: &str = "exaudio.transcript.row.v1";
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum TranscriptAnnotationKind {
@@ -26,15 +34,10 @@ impl TranscriptAnnotationKind {
     }
     pub fn label(&self) -> String {
         match self {
-            Self::Transcription => "transcription".into(),
+            Self::Transcription => localized("transcription", "расшифровка").into(),
             Self::NonTranscription(label) => label.clone(),
         }
     }
-}
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct TranscriptReviewerView {
-    pub label: String,
-    pub color_hue: Option<u16>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct TranscriptRowVisibleCells {
@@ -42,7 +45,6 @@ pub struct TranscriptRowVisibleCells {
     pub track: bool,
     pub start: bool,
     pub end: bool,
-    pub reviewer: bool,
     pub text: bool,
     pub linter: bool,
     pub actions: bool,
@@ -54,17 +56,17 @@ impl Default for TranscriptRowVisibleCells {
             track: true,
             start: true,
             end: true,
-            reviewer: false,
             text: true,
             linter: true,
             actions: true,
         }
     }
 }
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct TranscriptRowView {
     pub row_kind: TranscriptRowKind,
     pub sort_start_seconds: f64,
+    /// The segment's id; the row's own id for a static row.
     pub segment_id: String,
     pub display_id: String,
     pub speaker_label: String,
@@ -73,23 +75,23 @@ pub struct TranscriptRowView {
     pub selected_track_option: Option<TranscriptTrackOptionView>,
     pub track_options: Vec<TranscriptTrackOptionView>,
     pub annotation_kind: TranscriptAnnotationKind,
-    pub annotation_type_label: String,
     pub start_time: String,
     pub end_time: String,
     pub visible_cells: TranscriptRowVisibleCells,
-    pub show_reviewer: bool,
-    pub reviewer: Option<TranscriptReviewerView>,
+    /// The column between the end time and the text, the same for every row.
+    pub extra_column: Option<Arc<TranscriptExtraColumn>>,
+    pub extra_cell: Option<TranscriptExtraCell>,
     pub text: String,
     pub is_selected: bool,
     pub lint: Option<Diagnostic>,
     pub lint_issues: Vec<Diagnostic>,
-    pub diff_marker: Option<String>,
-    pub diff_source_text: Option<String>,
-    pub diff: Option<TranscriptDiffView>,
-    pub annotation_diff: Option<TranscriptAnnotationDiffView>,
-    pub word_views: Vec<TranscriptWordView>,
+    pub speaker_note: Option<TranscriptNote>,
+    pub styled_text: Option<TranscriptStyledText>,
+    pub word_marks: Vec<TranscriptWordMark>,
+    pub chips: Vec<TranscriptChip>,
+    pub is_flagged: bool,
+    /// A warning of the row is hidden because the user asserted the text is right.
     pub has_asserted_warning: bool,
-    pub has_unresolved_low_confidence: bool,
     pub is_read_only: bool,
     pub can_insert_above: bool,
     pub can_insert_below: bool,
@@ -97,79 +99,12 @@ pub struct TranscriptRowView {
     pub can_merge_below: bool,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TranscriptRowKind {
-    Annotation,
-    ModifiedAdded,
-    ModifiedDeleted,
-    AnnotationRemovedGhost,
-}
-
-/// Annotation (non-transcription) diff against the compare snapshot.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
-pub struct TranscriptAnnotationDiffView {
-    pub status: AnnotationDiffStatus,
-    pub other_label: Option<String>,
-    pub other_secondary_label: Option<String>,
-    pub other_intensity: Option<u8>,
-    pub counterpart_start_seconds: Option<f64>,
-    pub counterpart_end_seconds: Option<f64>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum AnnotationDiffStatus {
-    Matched,
-    LabelMismatch,
-    SubcategoryMismatch,
-    IntensityMismatch,
-    /// Present in the compare version only (removed-annotation ghost rows).
-    UnmatchedReference,
-}
-
-/// Text-cell diff for diff mode.
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct TranscriptDiffView {
-    pub kind: TranscriptDiffCellKind,
-    /// Number of word-level changes (a removed+added pair counts once).
-    pub change_count: usize,
-    /// Original text when it differs from the current text.
-    pub source_text: Option<String>,
-    /// Word tokens; empty means "no content" (or, for `New`, show the segment text as-is).
-    pub words: Vec<TranscriptWordDiff>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TranscriptDiffCellKind {
-    Diff,
-    New,
-    ModifiedAdded,
-    ModifiedDeleted,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum TranscriptWordDiffStatus {
-    Unchanged,
-    Added,
-    Removed,
-    Unknown,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct TranscriptWordDiff {
-    pub status: TranscriptWordDiffStatus,
-    pub value: String,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
-pub struct TranscriptWordView {
-    pub index: usize,
-    pub text: String,
-    pub start_seconds: Option<f64>,
-    pub end_seconds: Option<f64>,
-    pub is_low_confidence: bool,
-    pub is_acknowledged: bool,
-    pub command: Option<String>,
-    pub command_arguments: serde_json::Value,
+    /// The row of a project segment.
+    Segment,
+    /// A [`TranscriptStaticRow`] in its tone.
+    Static(TranscriptTone),
 }
 
 /// Extension-produced presentation data for one document revision.
@@ -178,11 +113,12 @@ pub(crate) struct RowContributions<'a> {
     pub decorations: Vec<Decoration>,
 }
 
+/// One row per segment, patched by the row decorations, plus the decorated static rows;
+/// filtered by track, ordered by start time and numbered in that order.
 pub(crate) fn build_transcript_rows(
     project: &Project,
     track_filter: &TrackFilter,
     selected_segment_id: Option<&str>,
-    diff_view: bool,
     asserted_warning_keys: &BTreeSet<String>,
     contributions: RowContributions<'_>,
     read_only: bool,
@@ -193,13 +129,13 @@ pub(crate) fn build_transcript_rows(
     } = contributions;
     let availability = compute_row_availability(project);
     let track_options = build_transcript_track_options(project);
-    let mut rows = std::collections::BTreeMap::new();
+    let mut rows = BTreeMap::new();
     for segment in &project.segments {
         let available = availability.get(&segment.id).copied().unwrap_or_default();
         rows.insert(
             segment.id.clone(),
             TranscriptRowView {
-                row_kind: TranscriptRowKind::Annotation,
+                row_kind: TranscriptRowKind::Segment,
                 sort_start_seconds: segment.start_seconds,
                 segment_id: segment.id.clone(),
                 display_id: String::new(),
@@ -209,23 +145,21 @@ pub(crate) fn build_transcript_rows(
                 selected_track_option: selected_track_option(&track_options, &segment.lane_id),
                 track_options: track_options.clone(),
                 annotation_kind: TranscriptAnnotationKind::Transcription,
-                annotation_type_label: "transcription".into(),
                 start_time: format_mm_ss(segment.start_seconds),
                 end_time: format_mm_ss(segment.end_seconds),
                 visible_cells: TranscriptRowVisibleCells::default(),
-                show_reviewer: false,
-                reviewer: None,
+                extra_column: None,
+                extra_cell: None,
                 text: segment.text.clone(),
                 is_selected: false,
                 lint: None,
                 lint_issues: Vec::new(),
-                diff_marker: None,
-                diff_source_text: None,
-                diff: None,
-                annotation_diff: None,
-                word_views: Vec::new(),
+                speaker_note: None,
+                styled_text: None,
+                word_marks: Vec::new(),
+                chips: Vec::new(),
+                is_flagged: false,
                 has_asserted_warning: false,
-                has_unresolved_low_confidence: false,
                 is_read_only: read_only,
                 can_insert_above: available.can_insert_above,
                 can_insert_below: available.can_insert_below,
@@ -234,27 +168,50 @@ pub(crate) fn build_transcript_rows(
             },
         );
     }
+    let mut table: Option<TranscriptTablePatch> = None;
     for decoration in decorations {
-        if decoration.kind != TRANSCRIPT_ROW_DECORATION {
-            continue;
+        match decoration.kind.as_str() {
+            TRANSCRIPT_TABLE_DECORATION => {
+                if let Some(patch) = payload(decoration.data) {
+                    table = Some(patch);
+                }
+            }
+            TRANSCRIPT_ROW_DECORATION => {
+                let Some(row) = rows
+                    .get_mut(&decoration.segment_id)
+                    .filter(|row| row.row_kind == TranscriptRowKind::Segment)
+                else {
+                    continue;
+                };
+                if let Some(patch) = payload(decoration.data) {
+                    apply_row_patch(row, patch);
+                }
+            }
+            TRANSCRIPT_STATIC_ROW_DECORATION => {
+                // A static row never takes the place of a segment's row.
+                let is_segment = rows
+                    .get(&decoration.segment_id)
+                    .is_some_and(|row| row.row_kind == TranscriptRowKind::Segment);
+                if is_segment {
+                    continue;
+                }
+                let Some(row) = payload(decoration.data) else {
+                    continue;
+                };
+                rows.insert(
+                    decoration.segment_id.clone(),
+                    static_row(decoration.segment_id, row, &track_options),
+                );
+            }
+            _ => {}
         }
-        let Ok(mut row) = serde_json::from_value::<TranscriptRowView>(decoration.data) else {
-            continue;
-        };
-        if row.segment_id != decoration.segment_id {
-            continue;
+    }
+    if let Some(table) = table {
+        let extra_column = table.extra_column.map(Arc::new);
+        for row in rows.values_mut() {
+            row.visible_cells = table.visible_cells;
+            row.extra_column.clone_from(&extra_column);
         }
-        if row.row_kind != TranscriptRowKind::Annotation && !diff_view {
-            continue;
-        }
-        row.is_read_only |= read_only;
-        if !diff_view {
-            row.diff_marker = None;
-            row.diff_source_text = None;
-            row.diff = None;
-            row.annotation_diff = None;
-        }
-        rows.insert(row.segment_id.clone(), row);
     }
     let mut rows: Vec<_> = rows
         .into_values()
@@ -264,7 +221,6 @@ pub(crate) fn build_transcript_rows(
     for (index, row) in rows.iter_mut().enumerate() {
         row.display_id = (index + 1).to_string();
         row.is_selected = selected_segment_id == Some(row.segment_id.as_str());
-        row.has_asserted_warning = false;
         row.lint_issues = diagnostics
             .iter()
             .flat_map(|collection| &collection.diagnostics)
@@ -286,6 +242,69 @@ pub(crate) fn build_transcript_rows(
         }
     }
     rows
+}
+
+/// The payload of a decoration; `None` when it is not a `T`.
+fn payload<T: serde::de::DeserializeOwned>(data: serde_json::Value) -> Option<T> {
+    serde_json::from_value(data).ok()
+}
+
+fn apply_row_patch(row: &mut TranscriptRowView, patch: TranscriptRowPatch) {
+    if let Some(annotation_kind) = patch.annotation_kind {
+        row.annotation_kind = annotation_kind;
+    }
+    row.is_read_only |= patch.read_only;
+    if patch.extra_cell.is_some() {
+        row.extra_cell = patch.extra_cell;
+    }
+    if patch.speaker_note.is_some() {
+        row.speaker_note = patch.speaker_note;
+    }
+    if patch.styled_text.is_some() {
+        row.styled_text = patch.styled_text;
+    }
+    row.word_marks.extend(patch.word_marks);
+    row.chips.extend(patch.chips);
+    row.is_flagged |= patch.is_flagged;
+}
+
+fn static_row(
+    row_id: String,
+    row: TranscriptStaticRow,
+    track_options: &[TranscriptTrackOptionView],
+) -> TranscriptRowView {
+    TranscriptRowView {
+        row_kind: TranscriptRowKind::Static(row.tone),
+        sort_start_seconds: row.sort_seconds,
+        segment_id: row_id,
+        display_id: String::new(),
+        speaker_label: row.label,
+        selected_lane_id: row.lane_id.clone(),
+        selected_track_option: selected_track_option(track_options, &row.lane_id),
+        lane_id: row.lane_id,
+        track_options: track_options.to_vec(),
+        annotation_kind: row.annotation_kind,
+        start_time: row.start_time,
+        end_time: row.end_time,
+        visible_cells: TranscriptRowVisibleCells::default(),
+        extra_column: None,
+        extra_cell: row.extra_cell,
+        text: row.text,
+        is_selected: false,
+        lint: None,
+        lint_issues: Vec::new(),
+        speaker_note: row.speaker_note,
+        styled_text: row.styled_text,
+        word_marks: Vec::new(),
+        chips: Vec::new(),
+        is_flagged: false,
+        has_asserted_warning: false,
+        is_read_only: true,
+        can_insert_above: false,
+        can_insert_below: false,
+        can_merge_above: false,
+        can_merge_below: false,
+    }
 }
 
 pub fn diagnostic_key(issue: &Diagnostic) -> String {

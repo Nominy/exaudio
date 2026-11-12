@@ -3,6 +3,7 @@
 use exaudio_core::{Project, Segment};
 
 use super::draft::{Drafts, TextSelection, push_bounded_history};
+use crate::i18n::localized;
 
 /// Cross-row moves duplicate snapshots from two segments, so each direction keeps at most this
 /// many moves (and [`CROSS_ROW_HISTORY_MAX_RETAINED_BYTES`]); one newest oversized move is kept.
@@ -58,19 +59,43 @@ pub fn push_cross_row_history(history: &mut Vec<CrossRowTextEdit>, entry: CrossR
 }
 
 /// Why a cross-row text move was refused.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TextMoveError {
-    #[error("No adjacent same-speaker segment found for text move.")]
     NoAdjacentSegment,
-    #[error("That segment has no editable draft.")]
     NoDraft(String),
-    #[error("No text before the caret to move.")]
     NothingBeforeCaret,
-    #[error("No text after the caret to move.")]
     NothingAfterCaret,
-    #[error("Text move cancelled: the current segment cannot be left empty.")]
     WouldEmptySource,
 }
+
+impl std::fmt::Display for TextMoveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::NoAdjacentSegment => localized(
+                "No adjacent same-speaker segment found for text move.",
+                "Нет соседнего сегмента того же спикера для переноса текста.",
+            ),
+            Self::NoDraft(_) => localized(
+                "That segment has no editable draft.",
+                "У этого сегмента нет редактируемого черновика.",
+            ),
+            Self::NothingBeforeCaret => localized(
+                "No text before the caret to move.",
+                "Перед курсором нет текста для переноса.",
+            ),
+            Self::NothingAfterCaret => localized(
+                "No text after the caret to move.",
+                "После курсора нет текста для переноса.",
+            ),
+            Self::WouldEmptySource => localized(
+                "Text move cancelled: the current segment cannot be left empty.",
+                "Перенос текста отменён: текущий сегмент нельзя оставить пустым.",
+            ),
+        })
+    }
+}
+
+impl std::error::Error for TextMoveError {}
 
 /// A completed cross-row move.
 #[derive(Debug, Clone, PartialEq, Eq)]

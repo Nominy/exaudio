@@ -44,7 +44,6 @@ pub struct EditorSession {
     timeline_width_px: f64,
     pub is_playing: bool,
     pub playhead_seconds: f64,
-    pub diff_view: bool,
     pub overlay: Option<CutOverlay>,
     pub viewport: TimeRange,
     pub track_filter: TrackFilter,
@@ -106,7 +105,6 @@ impl EditorSession {
             timeline_width_px: DEFAULT_TIMELINE_WIDTH_PX,
             is_playing: false,
             playhead_seconds: bounds.start_seconds,
-            diff_view: false,
             overlay: None,
             viewport,
             track_filter: TrackFilter::All,
@@ -383,7 +381,6 @@ impl EditorSession {
             project,
             track_filter,
             self.selected_segment_id.as_deref(),
-            self.diff_view,
             &self.asserted_warning_keys,
             crate::transcript_model::RowContributions {
                 diagnostics: self.diagnostics(),

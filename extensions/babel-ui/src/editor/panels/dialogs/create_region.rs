@@ -1,13 +1,11 @@
-//! Add-region dialog backed by Babel's document-scoped annotation dialog state:
-//! - the full dialog (speaker, start/end, text or annotation categories + intensity);
-//! - the attached "Add Region" card for a row the waveform drag already created in a
-//!   transcription project (text only; Cancel keeps the created row).
+//! Add-region dialog backed by Babel's document-scoped annotation dialog state: speaker,
+//! start/end, then the text (transcription) or the annotation categories + intensity.
 
 use exaudio_babel_domain::edit::create_region::{
-    CreateRegionDialog, CreateRegionMode, CreateRegionTimeField, OTHER_CATEGORY, category_label,
-    intensity_label, intensity_options, primary_category_options, secondary_category_options,
-    track_options,
+    BabelCreateRegionDialog, CreateRegionMode, OTHER_CATEGORY, category_label, intensity_label,
+    intensity_options, primary_category_options, secondary_category_options,
 };
+use exaudio_editor::edit::create_region::{CreateRegionTimeField, track_options};
 use gpui_kit::component::button::Button;
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{Sizable, WindowExt, h_flex, v_flex};
@@ -24,7 +22,6 @@ use exaudio_shell::editor::panels::ui::{
 
 struct CreateRegionView {
     model: Entity<EditorModel>,
-    attached: bool,
     start: Entity<InputState>,
     end: Entity<InputState>,
     text: Entity<InputState>,
@@ -39,9 +36,6 @@ impl CreateRegionView {
             .create_region()
             .cloned();
         let dialog = dialog.as_ref();
-        let attached = dialog.is_some_and(|dialog| {
-            dialog.mode == CreateRegionMode::Transcription && dialog.created_segment_id.is_some()
-        });
         let input = |value: Option<&str>,
                      placeholder: &'static str,
                      window: &mut Window,
@@ -55,19 +49,19 @@ impl CreateRegionView {
         };
         let time_placeholder = localized(cx, "mm:ss.cc", "мм:сс.сс");
         let start = input(
-            dialog.map(|d| d.start_draft.as_str()),
+            dialog.map(|d| d.region.start_draft.as_str()),
             time_placeholder,
             window,
             cx,
         );
         let end = input(
-            dialog.map(|d| d.end_draft.as_str()),
+            dialog.map(|d| d.region.end_draft.as_str()),
             time_placeholder,
             window,
             cx,
         );
         let text = input(
-            dialog.map(|d| d.text.as_str()),
+            dialog.map(|d| d.region.text.as_str()),
             localized(cx, "What was said…", "Что было сказано…"),
             window,
             cx,
@@ -93,16 +87,11 @@ impl CreateRegionView {
                 |this, input, event, window, cx| match event {
                     InputEvent::Change => {
                         let value = input.read(cx).value().to_string();
-                        let dialogs = document_dialogs(&this.model, cx);
-                        this.model.update(cx, |model, cx| {
-                            model.edit(cx, |doc| {
-                                dialogs.borrow_mut().set_create_region_text(doc, value)
-                            });
-                        });
+                        this.update_dialog(cx, |dialog| dialog.region.set_text(value));
                     }
-                    InputEvent::PressEnter { secondary, .. } if *secondary || this.attached => {
-                        this.submit(window, cx);
-                    }
+                    InputEvent::PressEnter {
+                        secondary: true, ..
+                    } => this.submit(window, cx),
                     _ => {}
                 },
             ),
@@ -123,7 +112,6 @@ impl CreateRegionView {
         ];
         Self {
             model,
-            attached,
             start,
             end,
             text,
@@ -132,7 +120,7 @@ impl CreateRegionView {
         }
     }
 
-    fn update_dialog(&self, cx: &mut App, change: impl FnOnce(&mut CreateRegionDialog)) {
+    fn update_dialog(&self, cx: &mut App, change: impl FnOnce(&mut BabelCreateRegionDialog)) {
         update_dialog_state(&self.model, cx, |dialogs| {
             if let Some(dialog) = dialogs.create_region_mut() {
                 change(dialog);
@@ -152,8 +140,8 @@ impl CreateRegionView {
             InputEvent::Change => {
                 let value = input.read(cx).value().to_string();
                 self.update_dialog(cx, |dialog| match field {
-                    CreateRegionTimeField::Start => dialog.set_start_draft(value),
-                    CreateRegionTimeField::End => dialog.set_end_draft(value),
+                    CreateRegionTimeField::Start => dialog.region.set_start_draft(value),
+                    CreateRegionTimeField::End => dialog.region.set_end_draft(value),
                 });
             }
             InputEvent::PressEnter {
@@ -170,7 +158,7 @@ impl CreateRegionView {
             }
             InputEvent::Blur => {
                 self.update_dialog(cx, |dialog| {
-                    dialog.blur_time_field(field);
+                    dialog.region.blur_time_field(field);
                 });
                 self.sync_time_inputs(window, cx);
             }
@@ -212,7 +200,12 @@ impl CreateRegionView {
         let Some((start, end)) = document_dialogs(&self.model, cx)
             .borrow()
             .create_region()
-            .map(|dialog| (dialog.start_draft.clone(), dialog.end_draft.clone()))
+            .map(|dialog| {
+                (
+                    dialog.region.start_draft.clone(),
+                    dialog.region.end_draft.clone(),
+                )
+            })
         else {
             return;
         };
@@ -236,7 +229,7 @@ impl CreateRegionView {
         }
     }
 
-    fn render_full(&self, dialog: &CreateRegionDialog, cx: &mut Context<Self>) -> Div {
+    fn render_form(&self, dialog: &BabelCreateRegionDialog, cx: &mut Context<Self>) -> Div {
         let project = self.model.read(cx).doc().project();
         let tracks = track_options(project)
             .into_iter()
@@ -245,13 +238,13 @@ impl CreateRegionView {
         let model = self.model.clone();
         let speaker = choice(
             "create-region-speaker",
-            Some(&dialog.selected_lane_id),
+            Some(&dialog.region.selected_lane_id),
             tracks,
             localized(cx, "Speaker", "Спикер"),
             move |lane_id, _, cx| {
                 update_dialog_state(&model, cx, |dialogs| {
                     if let Some(dialog) = dialogs.create_region_mut() {
-                        dialog.selected_lane_id = lane_id;
+                        dialog.region.selected_lane_id = lane_id;
                     }
                 });
             },
@@ -287,25 +280,21 @@ impl CreateRegionView {
                     .child(time(
                         localized(cx, "Start (mm:ss.cc)", "Начало (мм:сс.сс)"),
                         &self.start,
-                        dialog.start_error.as_ref().map(ToString::to_string),
+                        dialog.region.start_error.as_ref().map(ToString::to_string),
                         cx,
                     ))
                     .child(time(
                         localized(cx, "End (mm:ss.cc)", "Конец (мм:сс.сс)"),
                         &self.end,
-                        dialog.end_error.as_ref().map(ToString::to_string),
+                        dialog.region.end_error.as_ref().map(ToString::to_string),
                         cx,
                     )),
             )
             .child(body)
-            .child(self.footer(
-                localized(cx, "Add", "Добавить"),
-                !dialog.is_create_enabled(),
-                cx,
-            ))
+            .child(self.footer(!dialog.is_create_enabled(), cx))
     }
 
-    fn render_annotation_fields(&self, dialog: &CreateRegionDialog, cx: &App) -> Div {
+    fn render_annotation_fields(&self, dialog: &BabelCreateRegionDialog, cx: &App) -> Div {
         let intensity = intensity_picker(
             "create-region-intensity",
             intensity_label(dialog.intensity),
@@ -393,19 +382,7 @@ impl CreateRegionView {
             })
     }
 
-    fn render_attached(&self, cx: &mut Context<Self>) -> Div {
-        v_flex()
-            .gap_3()
-            .child(dialog_header(
-                localized(cx, "New segment", "Новый сегмент"),
-                None,
-                cx,
-            ))
-            .child(Input::new(&self.text))
-            .child(self.footer(localized(cx, "Save", "Сохранить"), false, cx))
-    }
-
-    fn footer(&self, confirm: &'static str, disabled: bool, cx: &mut Context<Self>) -> Div {
+    fn footer(&self, disabled: bool, cx: &mut Context<Self>) -> Div {
         let model = self.model.clone();
         dialog_footer()
             .child(
@@ -417,8 +394,13 @@ impl CreateRegionView {
                     }),
             )
             .child(
-                primary_button("create-region-submit", confirm, false, disabled)
-                    .on_click(cx.listener(|this, _, window, cx| this.submit(window, cx))),
+                primary_button(
+                    "create-region-submit",
+                    localized(cx, "Add", "Добавить"),
+                    false,
+                    disabled,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.submit(window, cx))),
             )
     }
 }
@@ -432,13 +414,8 @@ impl Render for CreateRegionView {
         else {
             return div().into_any_element();
         };
-        let content = if self.attached {
-            self.render_attached(cx)
-        } else {
-            self.render_full(&dialog, cx)
-        };
         // Escape inside a time field is handled before the dialog sees it.
-        content
+        self.render_form(&dialog, cx)
             .capture_key_down(cx.listener(Self::on_key_down_capture))
             .into_any_element()
     }
@@ -504,12 +481,7 @@ pub(crate) fn intensity_picker(
 /// Opens the dialog for the document's current Babel add-region state.
 pub fn open(model: &Entity<EditorModel>, window: &mut Window, cx: &mut App) {
     let view = cx.new(|cx| CreateRegionView::new(model.clone(), window, cx));
-    let attached = view.read(cx).attached;
-    let focus_target = if attached {
-        view.read(cx).text.clone()
-    } else {
-        view.read(cx).start.clone()
-    };
+    let focus_target = view.read(cx).start.clone();
     let focus = std::cell::Cell::new(true);
     let model = model.clone();
     window.open_dialog(cx, move |dialog, window, cx| {
@@ -519,7 +491,7 @@ pub fn open(model: &Entity<EditorModel>, window: &mut Window, cx: &mut App) {
         let model = model.clone();
         let submit = view.clone();
         dialog
-            .w(rems(if attached { 26.25 } else { 32.5 }).to_pixels(window.rem_size()))
+            .w(rems(32.5).to_pixels(window.rem_size()))
             .close_button(false)
             .on_cancel(move |_, _, cx| {
                 cancel(&model, cx);

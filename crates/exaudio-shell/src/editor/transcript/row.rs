@@ -1,5 +1,5 @@
-//! Rendering of one transcript row: id, track, times, reviewer, text, lint and actions cells,
-//! plus read-only diff rows.
+//! Rendering of one transcript row: id, track, times, extra, text, lint and actions cells,
+//! plus static rows.
 
 use std::ops::Range;
 use std::rc::Rc;
@@ -8,12 +8,11 @@ use exaudio_editor::edit::EditorDoc;
 use exaudio_editor::edit::draft::byte_offset;
 use exaudio_editor::edit::time::TimeField;
 use exaudio_editor::editor_model::EditorSession;
-use exaudio_editor::i18n::localized;
 use exaudio_editor::timeline_model::LaneColor;
 use exaudio_editor::transcript_model::{
-    AnnotationDiffStatus, TranscriptActionCommand, TranscriptActionMenuEntry,
-    TranscriptDiffCellKind, TranscriptDiffView, TranscriptRowKind, TranscriptRowView,
-    TranscriptWordDiffStatus,
+    TranscriptActionCommand, TranscriptActionMenuEntry, TranscriptExtraColumn, TranscriptRowKind,
+    TranscriptRowView, TranscriptStyledBody, TranscriptStyledText, TranscriptTone,
+    TranscriptWordStyle,
 };
 use exaudio_extension::document::Severity;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
@@ -26,17 +25,18 @@ use gpui_kit::*;
 
 use super::TranscriptView;
 use super::layout::{
-    ACTIONS_W, CELL_PX, DIFF_BADGE_W, LINT_W, ROW_PY, SMALL_LINE_H, TEXT_PX, TEXT_PY, TIME_W,
-    TRACK_W, TextMetrics, WRAP_MARGIN, diff_display_text, display_text, has_review_chips,
+    ACTIONS_W, BADGE_W, CELL_PX, LINT_W, ROW_PY, SMALL_LINE_H, TEXT_PX, TEXT_PY, TIME_W, TRACK_W,
+    TextMetrics, WRAP_MARGIN, display_text, has_chips, has_word_marks,
 };
 use super::row_style::{
-    centered_cell_box, empty_lint_box, id_box, reviewer_box, row_bar, row_box, row_hover,
-    speaker_box, speaker_dot, speaker_label_box, speaker_label_hover, speaker_label_interactive,
+    centered_cell_box, empty_lint_box, extra_box, id_box, row_bar, row_box, row_hover, speaker_box,
+    speaker_dot, speaker_label_box, speaker_label_hover, speaker_label_interactive,
     speaker_name_box, static_text_body, static_text_box, static_text_interactive, text_cell_box,
     time_box, time_value_box, time_value_hover, time_value_interactive,
 };
 use super::wrap::WrappedText;
 use crate::actions;
+use crate::screens::ui::localized;
 
 /// Per-row inputs gathered by the view before rendering.
 pub(super) struct RowParams<'a> {
@@ -57,18 +57,17 @@ pub(super) struct RowParams<'a> {
 
 impl TranscriptView {
     /// The element row. Plain rows are drawn by [`super::fast_row::FastRow`] instead, which
-    /// mirrors this tree for them: a change to an annotation row's boxes goes through
+    /// mirrors this tree for them: a change to a segment row's boxes goes through
     /// [`super::row_style`] (shared), and a new cell, state or interaction must be added to
     /// `FastRow` or to the conditions that leave a row to this element tree.
     pub(super) fn render_row(&self, params: RowParams, cx: &Context<Self>) -> AnyElement {
-        if params.row.row_kind == TranscriptRowKind::Annotation {
-            self.render_annotation_row(params, cx)
-        } else {
-            render_diff_only_row(params, cx)
+        match params.row.row_kind {
+            TranscriptRowKind::Segment => self.render_segment_row(params, cx),
+            TranscriptRowKind::Static(tone) => render_static_row(params, tone, cx),
         }
     }
 
-    fn render_annotation_row(&self, params: RowParams, cx: &Context<Self>) -> AnyElement {
+    fn render_segment_row(&self, params: RowParams, cx: &Context<Self>) -> AnyElement {
         let RowParams {
             row,
             doc,
@@ -113,8 +112,8 @@ impl TranscriptView {
         .when(cells.end, |el| {
             el.child(self.time_cell(row, doc, TimeField::End, time_editing, metrics, cx))
         })
-        .when(cells.reviewer, |el| {
-            el.child(reviewer_cell(row, metrics, theme))
+        .when_some(row.extra_column.as_deref(), |el, column| {
+            el.child(extra_cell(row, column, metrics, theme))
         })
         .when(cells.text, |el| {
             el.child(self.text_cell(row, doc, &text_wrap, metrics, text_editing, cx))
@@ -195,18 +194,17 @@ impl TranscriptView {
                         .line_height(SMALL_LINE_H)
                         .text_color(theme.muted_foreground)
                         .truncate()
-                        .child(row.annotation_type_label.clone()),
+                        .child(row.annotation_kind.label()),
                 )
             })
-            .when_some(row.annotation_diff.as_ref(), |cell, diff| {
-                let (label, color) = annotation_diff_status(diff.status, theme);
+            .when_some(row.speaker_note.as_ref(), |cell, note| {
                 cell.child(
                     div()
                         .px_1()
                         .text_xs()
                         .line_height(SMALL_LINE_H)
-                        .text_color(color)
-                        .child(label),
+                        .text_color(tone_color(note.tone, theme))
+                        .child(note.label.get().to_string()),
                 )
             })
             .when(menu_open && !row.is_read_only, |cell| {
@@ -285,7 +283,7 @@ impl TranscriptView {
                 "transcript-speaker-rename:{}",
                 row.segment_id
             )))
-            .child(localized("Rename…", "Переименовать…"))
+            .child(localized(cx, "Rename…", "Переименовать…"))
             .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                 this.begin_speaker_rename(&segment_id, &speaker_id, window, cx);
             }))
@@ -296,7 +294,7 @@ impl TranscriptView {
                 "transcript-speaker-add:{}",
                 row.segment_id
             )))
-            .child(localized("New speaker", "Новый спикер"))
+            .child(localized(cx, "New speaker", "Новый спикер"))
             .on_click(cx.listener(move |this, _: &ClickEvent, window, cx| {
                 this.add_speaker(&segment_id, window, cx);
             }))
@@ -404,8 +402,8 @@ impl TranscriptView {
         text_editing: bool,
         cx: &Context<Self>,
     ) -> AnyElement {
-        let review_chips = has_review_chips(row);
-        let reviewing = !row.is_read_only && !row.word_views.is_empty();
+        let chips = has_chips(row);
+        let marked = has_word_marks(row);
         let extension_decorations =
             crate::wasm_ui::transcript_decorations(doc, &row.segment_id, cx);
         let decoration_label: SharedString = extension_decorations
@@ -430,8 +428,8 @@ impl TranscriptView {
                         .border_color(cx.theme().ring.opacity(0.6)),
                 )
                 .into_any_element()
-        } else if reviewing {
-            self.low_confidence_text(row, doc, text_wrap, metrics, cx)
+        } else if marked {
+            self.marked_text(row, doc, text_wrap, metrics, cx)
         } else {
             self.static_text(row, doc, text_wrap, metrics, cx)
         };
@@ -458,14 +456,14 @@ impl TranscriptView {
                         }),
                 )
             })
-            .when(review_chips, |cell| cell.child(self.review_chips(row, cx)))
-            .when_some(row.diff.as_ref(), |cell, diff| {
+            .when(chips, |cell| cell.child(self.chips(row, cx)))
+            .when_some(row.styled_text.as_ref(), |cell, styled| {
                 cell.child(
                     div()
                         .mt_1()
                         .pl(TEXT_PX)
                         .pr(TEXT_PX + WRAP_MARGIN)
-                        .child(diff_cell(row, diff, metrics, cx.theme())),
+                        .child(styled_text(styled, metrics, cx.theme())),
                 )
             })
             .into_any_element()
@@ -490,9 +488,9 @@ impl TranscriptView {
             div()
                 .text_color(theme.muted_foreground)
                 .child(if row.annotation_kind.is_transcription() {
-                    localized("What was said…", "Что было сказано…")
+                    localized(cx, "What was said…", "Что было сказано…")
                 } else {
-                    localized("Annotation…", "Аннотация…")
+                    localized(cx, "Annotation…", "Аннотация…")
                 })
                 .into_any_element()
         } else {
@@ -580,10 +578,10 @@ impl TranscriptView {
         .into_any_element()
     }
 
-    /// Text of a row with unreviewed low-confidence words: words are underlined and seek on
-    /// click; editing resumes once every word is reviewed. Broken into the editor's rows like
+    /// Text of a row with word marks: marked words are underlined and seek on click; the text
+    /// opens for editing once the row has no marks. Broken into the editor's rows like
     /// [`Self::static_text`].
-    fn low_confidence_text(
+    fn marked_text(
         &self,
         row: &TranscriptRowView,
         doc: &EditorDoc,
@@ -597,15 +595,14 @@ impl TranscriptView {
         let mut ranges = Vec::new();
         let mut seeks = Vec::new();
         let mut highlights = Vec::new();
-        for word in row.word_views.iter().filter(|word| word.is_low_confidence) {
+        for mark in &row.word_marks {
             let Some(range) = tokens
-                .get(word.index)
+                .get(mark.word_index)
                 .map(|range| text_wrap.to_display_range(range.clone()))
             else {
                 continue;
             };
-            let acknowledged = word.is_acknowledged;
-            if !acknowledged {
+            if mark.underlined {
                 highlights.push((
                     range.clone(),
                     HighlightStyle {
@@ -618,7 +615,7 @@ impl TranscriptView {
                     },
                 ));
             }
-            if let Some(start) = word.start_seconds {
+            if let Some(start) = mark.seek_seconds {
                 ranges.push(range);
                 seeks.push(start);
             }
@@ -644,7 +641,7 @@ impl TranscriptView {
             .whitespace_nowrap()
             .child(
                 InteractiveText::new(
-                    SharedString::from(format!("transcript-lowconf:{}", row.segment_id)),
+                    SharedString::from(format!("transcript-marked:{}", row.segment_id)),
                     styled,
                 )
                 .on_click(ranges, move |index, _, cx| {
@@ -657,31 +654,25 @@ impl TranscriptView {
             .into_any_element()
     }
 
-    fn review_chips(&self, row: &TranscriptRowView, cx: &Context<Self>) -> impl IntoElement {
-        let chips = row
-            .word_views
-            .iter()
-            .filter(|word| {
-                word.is_low_confidence && !word.is_acknowledged && word.command.is_some()
-            })
-            .map(|word| {
-                let command = word.command.clone().expect("filtered command");
-                let arguments = word.command_arguments.clone();
-                Button::new(SharedString::from(format!(
-                    "transcript-ack:{}:{}",
-                    row.segment_id, word.index
-                )))
-                .label(word.text.clone())
-                .icon(IconName::Check)
-                .xsmall()
-                .outline()
-                .tooltip(localized("Mark as reviewed", "Отметить как проверенное"))
-                .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                    this.model.update(cx, |model, cx| {
-                        model.edit(cx, |doc| doc.execute_command(&command, &arguments))
-                    });
-                }))
-            });
+    fn chips(&self, row: &TranscriptRowView, cx: &Context<Self>) -> impl IntoElement {
+        let chips = row.chips.iter().map(|chip| {
+            let command = chip.command.clone();
+            let arguments = chip.arguments.clone();
+            Button::new(SharedString::from(format!(
+                "transcript-chip:{}:{}:{}",
+                row.segment_id, chip.command, chip.arguments
+            )))
+            .label(chip.label.clone())
+            .icon(IconName::Check)
+            .xsmall()
+            .outline()
+            .tooltip(chip.tooltip.get().to_string())
+            .on_click(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                this.model.update(cx, |model, cx| {
+                    model.edit(cx, |doc| doc.execute_command(&command, &arguments))
+                });
+            }))
+        });
 
         h_flex()
             .pl(TEXT_PX)
@@ -771,6 +762,7 @@ impl TranscriptView {
                             let segment_id = segment_id.clone();
                             menu = menu.item(
                                 PopupMenuItem::new(localized(
+                                    cx,
                                     "Split at playhead",
                                     "Разделить по курсору",
                                 ))
@@ -790,7 +782,7 @@ impl TranscriptView {
                                 let view = view.clone();
                                 let segment_id = segment_id.clone();
                                 menu.item(
-                                    PopupMenuItem::new(command_label(command))
+                                    PopupMenuItem::new(command_label(command, cx))
                                         .icon(command_icon(command))
                                         .disabled(!enabled)
                                         .on_click(move |_, window, cx| {
@@ -813,7 +805,7 @@ impl TranscriptView {
                         let model = model.clone();
                         menu = menu.item(
                             PopupMenuItem::new(
-                                localized("Fix: {title}", "Исправить: {title}")
+                                localized(cx, "Fix: {title}", "Исправить: {title}")
                                     .replace("{title}", &fix.title),
                             )
                             .on_click(move |_, _, cx| {
@@ -858,8 +850,12 @@ impl TranscriptView {
     }
 }
 
-/// Diff rows of the compare version (added/deleted/removed annotations): read-only.
-fn render_diff_only_row(params: RowParams, cx: &Context<TranscriptView>) -> AnyElement {
+/// A static row: tinted in its tone, without interactions.
+fn render_static_row(
+    params: RowParams,
+    tone: TranscriptTone,
+    cx: &Context<TranscriptView>,
+) -> AnyElement {
     let RowParams {
         row,
         height,
@@ -868,8 +864,7 @@ fn render_diff_only_row(params: RowParams, cx: &Context<TranscriptView>) -> AnyE
     } = params;
     let theme = cx.theme();
     let cells = row.visible_cells;
-    let added = row.row_kind == TranscriptRowKind::ModifiedAdded;
-    let tone = if added { theme.success } else { theme.danger };
+    let tone = tone_color(tone, theme);
     let dash = || {
         div()
             .text_xs()
@@ -907,12 +902,12 @@ fn render_diff_only_row(params: RowParams, cx: &Context<TranscriptView>) -> AnyE
         .when(cells.end, |el| {
             el.child(static_time(row.end_time.clone(), metrics, theme))
         })
-        .when(cells.reviewer, |el| {
-            el.child(reviewer_cell(row, metrics, theme))
+        .when_some(row.extra_column.as_deref(), |el, column| {
+            el.child(extra_cell(row, column, metrics, theme))
         })
         .when(cells.text, |el| {
-            let content = match &row.diff {
-                Some(diff) => diff_cell(row, diff, metrics, theme).into_any_element(),
+            let content = match &row.styled_text {
+                Some(styled) => styled_text(styled, metrics, theme).into_any_element(),
                 None => div()
                     .text_sm()
                     .line_height(metrics.line_height)
@@ -966,20 +961,37 @@ fn static_time(value: String, metrics: TextMetrics, theme: &Theme) -> impl IntoE
         .child(value)
 }
 
-fn reviewer_cell(row: &TranscriptRowView, metrics: TextMetrics, theme: &Theme) -> impl IntoElement {
-    reviewer_box(div(), metrics, reviewer_color(row, theme))
-        .children(row.reviewer.as_ref().map(|reviewer| reviewer.label.clone()))
+fn extra_cell(
+    row: &TranscriptRowView,
+    column: &TranscriptExtraColumn,
+    metrics: TextMetrics,
+    theme: &Theme,
+) -> impl IntoElement {
+    let color = extra_cell_color(row, theme);
+    extra_box(div(), rems(column.width_rems), metrics, color)
+        .children(row.extra_cell.as_ref().map(|cell| cell.text.clone()))
 }
 
-pub(super) fn reviewer_color(row: &TranscriptRowView, theme: &Theme) -> Hsla {
-    row.reviewer
+/// Text colour of `row`'s cell in the extra column.
+pub(super) fn extra_cell_color(row: &TranscriptRowView, theme: &Theme) -> Hsla {
+    row.extra_cell
         .as_ref()
-        .map_or(theme.muted_foreground, |reviewer| {
-            reviewer.color_hue.map_or(theme.foreground, |hue| {
+        .map_or(theme.muted_foreground, |cell| {
+            cell.color_hue.map_or(theme.foreground, |hue| {
                 let lightness = if theme.is_dark() { 0.72 } else { 0.30 };
                 hsla(f32::from(hue) / 360., 0.70, lightness, 1.)
             })
         })
+}
+
+fn tone_color(tone: TranscriptTone, theme: &Theme) -> Hsla {
+    match tone {
+        TranscriptTone::Muted => theme.muted_foreground,
+        TranscriptTone::Info => theme.info,
+        TranscriptTone::Success => theme.success,
+        TranscriptTone::Warning => theme.warning,
+        TranscriptTone::Danger => theme.danger,
+    }
 }
 
 /// Whether `row` is highlighted (selected) and its background colour.
@@ -1031,55 +1043,56 @@ pub(super) fn time_value(
     }
 }
 
-fn diff_cell(
-    row: &TranscriptRowView,
-    diff: &TranscriptDiffView,
+/// A styled text: the badge in a fixed-width column and the wrapping body beside it.
+fn styled_text(
+    styled: &TranscriptStyledText,
     metrics: TextMetrics,
     theme: &Theme,
 ) -> impl IntoElement {
-    let (label, tone) = diff_badge(diff, theme);
-    let text = diff_display_text(row);
-    let words: AnyElement = if diff.words.is_empty() {
-        div()
+    let tone = tone_color(styled.badge.tone, theme);
+    let text = styled.plain_text();
+    let body: AnyElement = match &styled.body {
+        TranscriptStyledBody::Note(_) => div()
             .italic()
             .text_color(theme.muted_foreground)
             .child(text)
-            .into_any_element()
-    } else {
-        let mut highlights = Vec::with_capacity(diff.words.len());
-        let mut offset = 0;
-        for (index, word) in diff.words.iter().enumerate() {
-            if index > 0 {
-                offset += 1;
-            }
-            let range = offset..offset + word.value.len();
-            offset = range.end;
-            let style = match word.status {
-                TranscriptWordDiffStatus::Unchanged => continue,
-                TranscriptWordDiffStatus::Added => HighlightStyle {
-                    color: Some(theme.success),
-                    background_color: Some(theme.success.opacity(0.16)),
-                    ..Default::default()
-                },
-                TranscriptWordDiffStatus::Removed => HighlightStyle {
-                    color: Some(theme.danger),
-                    background_color: Some(theme.danger.opacity(0.16)),
-                    strikethrough: Some(StrikethroughStyle {
-                        thickness: px(1.),
+            .into_any_element(),
+        TranscriptStyledBody::Words(words) => {
+            let mut highlights = Vec::with_capacity(words.len());
+            let mut offset = 0;
+            for (index, word) in words.iter().enumerate() {
+                if index > 0 {
+                    offset += 1;
+                }
+                let range = offset..offset + word.text.len();
+                offset = range.end;
+                let style = match word.style {
+                    TranscriptWordStyle::Plain => continue,
+                    TranscriptWordStyle::Inserted => HighlightStyle {
+                        color: Some(theme.success),
+                        background_color: Some(theme.success.opacity(0.16)),
+                        ..Default::default()
+                    },
+                    TranscriptWordStyle::Deleted => HighlightStyle {
                         color: Some(theme.danger),
-                    }),
-                    ..Default::default()
-                },
-                TranscriptWordDiffStatus::Unknown => HighlightStyle {
-                    color: Some(theme.muted_foreground),
-                    ..Default::default()
-                },
-            };
-            highlights.push((range, style));
+                        background_color: Some(theme.danger.opacity(0.16)),
+                        strikethrough: Some(StrikethroughStyle {
+                            thickness: px(1.),
+                            color: Some(theme.danger),
+                        }),
+                        ..Default::default()
+                    },
+                    TranscriptWordStyle::Muted => HighlightStyle {
+                        color: Some(theme.muted_foreground),
+                        ..Default::default()
+                    },
+                };
+                highlights.push((range, style));
+            }
+            StyledText::new(SharedString::from(text))
+                .with_highlights(highlights)
+                .into_any_element()
         }
-        StyledText::new(SharedString::from(text))
-            .with_highlights(highlights)
-            .into_any_element()
     };
 
     h_flex()
@@ -1087,65 +1100,19 @@ fn diff_cell(
         .text_sm()
         .line_height(metrics.line_height)
         .child(
-            div().w(DIFF_BADGE_W).flex_none().child(
+            div().w(BADGE_W).flex_none().child(
                 div()
                     .px_1p5()
-                    .w(rems(DIFF_BADGE_W.0 - 0.5))
+                    .w(rems(BADGE_W.0 - 0.5))
                     .rounded(theme.radius)
                     .bg(tone.opacity(0.16))
                     .text_color(tone)
                     .text_xs()
                     .text_center()
-                    .child(label),
+                    .child(styled.badge.label.get().to_string()),
             ),
         )
-        .child(div().flex_1().min_w_0().child(words))
-}
-
-fn diff_badge(diff: &TranscriptDiffView, theme: &Theme) -> (SharedString, Hsla) {
-    match diff.kind {
-        TranscriptDiffCellKind::New => (localized("New", "Новый").into(), theme.info),
-        TranscriptDiffCellKind::ModifiedAdded => {
-            (localized("Added", "Добавлен").into(), theme.success)
-        }
-        TranscriptDiffCellKind::ModifiedDeleted => {
-            (localized("Deleted", "Удалён").into(), theme.danger)
-        }
-        TranscriptDiffCellKind::Diff => match diff.change_count {
-            0 => (
-                localized("No changes", "Без изменений").into(),
-                theme.muted_foreground,
-            ),
-            1 => (localized("1 change", "1 изменение").into(), theme.warning),
-            count => (
-                localized("{n} changes", "{n} изменений")
-                    .replace("{n}", &count.to_string())
-                    .into(),
-                theme.warning,
-            ),
-        },
-    }
-}
-
-fn annotation_diff_status(status: AnnotationDiffStatus, theme: &Theme) -> (&'static str, Hsla) {
-    match status {
-        AnnotationDiffStatus::Matched => (
-            localized("Unchanged", "Без изменений"),
-            theme.muted_foreground,
-        ),
-        AnnotationDiffStatus::LabelMismatch => {
-            (localized("Label changed", "Изменена метка"), theme.warning)
-        }
-        AnnotationDiffStatus::SubcategoryMismatch => (
-            localized("Subcategory changed", "Изменена подкатегория"),
-            theme.warning,
-        ),
-        AnnotationDiffStatus::IntensityMismatch => (
-            localized("Intensity changed", "Изменена интенсивность"),
-            theme.warning,
-        ),
-        AnnotationDiffStatus::UnmatchedReference => (localized("Removed", "Удалено"), theme.danger),
-    }
+        .child(div().flex_1().min_w_0().child(body))
 }
 
 /// Colour of the speaker at `index` in the project's speaker list: the first two match the
@@ -1171,22 +1138,22 @@ pub(super) fn lint_color(severity: Severity, theme: &Theme) -> Hsla {
     }
 }
 
-fn command_label(command: TranscriptActionCommand) -> &'static str {
+fn command_label(command: TranscriptActionCommand, cx: &App) -> &'static str {
     match command {
-        TranscriptActionCommand::Edit => localized("Edit", "Изменить"),
+        TranscriptActionCommand::Edit => localized(cx, "Edit", "Изменить"),
         TranscriptActionCommand::CreateBefore => {
-            localized("Add segment above", "Добавить сегмент выше")
+            localized(cx, "Add segment above", "Добавить сегмент выше")
         }
         TranscriptActionCommand::CreateAfter => {
-            localized("Add segment below", "Добавить сегмент ниже")
+            localized(cx, "Add segment below", "Добавить сегмент ниже")
         }
         TranscriptActionCommand::MergeAbove => {
-            localized("Merge with previous", "Объединить с предыдущим")
+            localized(cx, "Merge with previous", "Объединить с предыдущим")
         }
         TranscriptActionCommand::MergeBelow => {
-            localized("Merge with next", "Объединить со следующим")
+            localized(cx, "Merge with next", "Объединить со следующим")
         }
-        TranscriptActionCommand::Delete => localized("Delete", "Удалить"),
+        TranscriptActionCommand::Delete => localized(cx, "Delete", "Удалить"),
     }
 }
 
@@ -1210,7 +1177,7 @@ fn field_key(field: TimeField) -> &'static str {
 }
 
 /// Byte ranges of whitespace-separated words, in order (the indexing of
-/// `TranscriptWordView::index`).
+/// `TranscriptWordMark::word_index`).
 fn word_ranges(text: &str) -> Vec<Range<usize>> {
     text.split_whitespace()
         .map(|word| {

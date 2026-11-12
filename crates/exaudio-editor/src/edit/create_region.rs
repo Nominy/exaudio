@@ -4,6 +4,9 @@ use exaudio_core::Project;
 
 use super::format::{format_time, parse_time};
 use super::time::TimeEditError;
+use crate::i18n::localized;
+
+/// A time input of the "add region" dialog.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CreateRegionTimeField {
     Start,
@@ -34,16 +37,28 @@ pub struct CreateRegionPayload {
 }
 
 /// Why the dialog cannot be submitted.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CreateRegionError {
-    #[error("{0}")]
     Time(TimeEditError),
-    #[error("Select a valid speaker.")]
     UnknownLane,
 }
 
+impl std::fmt::Display for CreateRegionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Time(error) => std::fmt::Display::fmt(error, f),
+            Self::UnknownLane => f.write_str(localized(
+                "Select a valid speaker.",
+                "Выберите существующего спикера.",
+            )),
+        }
+    }
+}
+
+impl std::error::Error for CreateRegionError {}
+
 impl CreateRegionDialog {
-    /// Transcription-mode dialog.
+    /// Dialog for a new region on `selected_lane_id` spanning `start_seconds..end_seconds`.
     pub fn new(selected_lane_id: String, start_seconds: f64, end_seconds: f64) -> Self {
         Self {
             selected_lane_id,

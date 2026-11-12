@@ -7,6 +7,7 @@ use exaudio_waveform::DecodedAudio;
 
 use crate::edit::text_placement::AUTO_SEGMENT_MERGE_GAP_SECONDS;
 use crate::editor_model::EditorSession;
+use crate::i18n::localized;
 use crate::timeline_model::TimeRange;
 use crate::track_filter::TrackFilter;
 use crate::workflow::DocumentWorkflow;
@@ -388,22 +389,54 @@ fn track_filter_matches_lane(track_filter: &TrackFilter, lane_id: &str) -> bool 
     }
 }
 
+/// Why a row cannot be trimmed to its lane's decoded audio.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AudioTrimError {
+    AudioNotLoaded,
+    PeaksOnly,
+    NoAudioAboveThreshold,
+    WouldCollapse,
+    /// The inward pass after growing the row would collapse it.
+    FinalTrimWouldCollapse,
+}
+
+impl std::fmt::Display for AudioTrimError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::AudioNotLoaded => localized(
+                "decoded lane audio is not loaded",
+                "аудио дорожки не загружено",
+            ),
+            Self::PeaksOnly => localized(
+                "lane waveform has precomputed peaks only",
+                "для дорожки есть только готовые пики волны",
+            ),
+            Self::NoAudioAboveThreshold => localized(
+                "no audio above trim threshold",
+                "нет звука выше порога обрезки",
+            ),
+            Self::WouldCollapse => localized(
+                "trim would collapse the segment",
+                "после обрезки сегмент стал бы пустым",
+            ),
+            Self::FinalTrimWouldCollapse => localized(
+                "final trim failed: trim would collapse the segment",
+                "итоговая обрезка не удалась: после обрезки сегмент стал бы пустым",
+            ),
+        })
+    }
+}
+
 pub fn audio_trim_plan_for_segment(
     project: &Project,
     editor: &EditorSession,
     segment: &Segment,
-) -> Option<Result<AudioTrimPlan, String>> {
-    let waveform = editor
-        .lane_waveforms
-        .get(&segment.lane_id)
-        .ok_or_else(|| "decoded lane audio is not loaded".to_string());
-    let waveform = match waveform {
-        Ok(waveform) => waveform,
-        Err(error) => return Some(Err(error)),
+) -> Option<Result<AudioTrimPlan, AudioTrimError>> {
+    let Some(waveform) = editor.lane_waveforms.get(&segment.lane_id) else {
+        return Some(Err(AudioTrimError::AudioNotLoaded));
     };
-    let audio = match waveform.decoded_audio() {
-        Some(audio) => audio,
-        None => return Some(Err("lane waveform has precomputed peaks only".to_string())),
+    let Some(audio) = waveform.decoded_audio() else {
+        return Some(Err(AudioTrimError::PeaksOnly));
     };
     let (neighbor_min_start, neighbor_max_end) = same_lane_neighbor_limits(project, segment);
 
@@ -448,14 +481,17 @@ pub fn audio_trim_plan_for_segment(
                     end_seconds = final_pass.end_seconds;
                     changed |= final_pass.changed();
                 }
-                Err(error) if error == "no audio above trim threshold" => {}
-                Err(error) => return Some(Err(format!("final trim failed: {error}"))),
+                Err(AudioTrimError::NoAudioAboveThreshold) => {}
+                Err(AudioTrimError::WouldCollapse) => {
+                    return Some(Err(AudioTrimError::FinalTrimWouldCollapse));
+                }
+                Err(error) => return Some(Err(error)),
             }
         }
     }
 
     if end_seconds <= start_seconds + AUDIO_TRIM_EPSILON_SECONDS {
-        return Some(Err("trim would collapse the segment".to_string()));
+        return Some(Err(AudioTrimError::WouldCollapse));
     }
     if !changed {
         return None;
@@ -475,11 +511,11 @@ fn inward_audio_trim_pass(
     current_end_seconds: f64,
     min_start_seconds: f64,
     max_end_seconds: f64,
-) -> Result<InwardAudioTrimPass, String> {
+) -> Result<InwardAudioTrimPass, AudioTrimError> {
     let Some((speech_start, speech_end)) =
         decoded_audio_speech_bounds(audio, current_start_seconds, current_end_seconds)
     else {
-        return Err("no audio above trim threshold".to_string());
+        return Err(AudioTrimError::NoAudioAboveThreshold);
     };
 
     let target_start_seconds = (speech_start - AUDIO_TRIM_PADDING_SECONDS)
@@ -490,7 +526,7 @@ fn inward_audio_trim_pass(
         .min(max_end_seconds);
 
     if target_end_seconds <= target_start_seconds + AUDIO_TRIM_EPSILON_SECONDS {
-        return Err("trim would collapse the segment".to_string());
+        return Err(AudioTrimError::WouldCollapse);
     }
 
     let mut start_seconds = current_start_seconds;

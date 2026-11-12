@@ -31,7 +31,7 @@ pub enum SaveStatus {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ProblemCounts {
     pub errors: usize,
-    /// Unacknowledged warnings plus unresolved low-confidence words.
+    /// Warnings the user has not asserted.
     pub warnings: usize,
 }
 
@@ -62,7 +62,7 @@ impl EditorSession {
     pub fn problem_counts(&self, project: &Project) -> ProblemCounts {
         ProblemCounts {
             errors: self.blocking_lint_count(project),
-            warnings: self.unacknowledged_warning_count(project),
+            warnings: self.open_warning_count(project),
         }
     }
 
@@ -180,7 +180,6 @@ impl EditorSession {
             project,
             &self.track_filter,
             None,
-            self.diff_view,
             &self.asserted_warning_keys,
             crate::transcript_model::RowContributions {
                 diagnostics: self.diagnostics(),

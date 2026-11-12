@@ -9,9 +9,19 @@ use crate::edit::text::TextMoveDirection;
 use crate::edit::time::{
     CommitTimeCellEdit, CommitTimeCellResult, TimeEditState, TimeField, commit_time_cell_edit,
 };
+use crate::i18n::{Text, localized};
+use crate::localized_format;
 use crate::transcript_model::speaker_label;
 use exaudio_core::{EditorCommand, Speaker};
 use exaudio_extension::document::{Completion, CompletionRequest, TextRange};
+
+const TEXT_EDIT: Text = Text::new("Text edit", "Правка текста");
+const APPLY: Text = Text::new("Apply", "Применение правок");
+const TIME_EDIT: Text = Text::new("Time edit", "Правка времени");
+const TRACK_CHANGE: Text = Text::new("Track change", "Смена дорожки");
+const SPEAKER_CHANGE: Text = Text::new("Speaker change", "Смена спикера");
+const ADD_SPEAKER: Text = Text::new("Add speaker", "Добавление спикера");
+const RENAME_SPEAKER: Text = Text::new("Rename speaker", "Переименование спикера");
 
 /// Open provider completion list for a row.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,7 +48,7 @@ impl EditorDoc {
         text: String,
         selection: TextSelection,
     ) -> EditResult {
-        self.guard("Text edit")?;
+        self.guard(TEXT_EDIT.get())?;
         let draft = self
             .drafts
             .get_mut(segment_id)
@@ -70,7 +80,7 @@ impl EditorDoc {
     }
 
     fn step_text_history(&mut self, segment_id: &str, undo: bool) -> EditResult {
-        self.guard("Text edit")?;
+        self.guard(TEXT_EDIT.get())?;
         let cross_row = if undo {
             self.drafts.undo_cross_row_move(segment_id)
         } else {
@@ -81,9 +91,15 @@ impl EditorDoc {
             self.clear_tag_ui_for(&target);
             self.mark_dirty();
             let status = if undo {
-                "Undid cross-row text move."
+                localized(
+                    "Undid cross-row text move.",
+                    "Перенос текста между сегментами отменён.",
+                )
             } else {
-                "Redid cross-row text move."
+                localized(
+                    "Redid cross-row text move.",
+                    "Перенос текста между сегментами повторён.",
+                )
             };
             return Ok(Outcome::status(status)
                 .with(Effect::DraftChanged { segment_id: source })
@@ -107,7 +123,7 @@ impl EditorDoc {
 
     /// Commits one row's draft (text + typed times) to the project as one undo step.
     pub fn commit_draft(&mut self, segment_id: &str) -> EditResult {
-        self.guard("Apply")?;
+        self.guard(APPLY.get())?;
         let segment = self.segment(segment_id)?;
         let draft = self
             .drafts
@@ -116,30 +132,32 @@ impl EditorDoc {
         let (start, end) =
             crate::edit::draft::parse_draft_times(&segment, draft).map_err(|source| {
                 EditError::Draft {
-                    action: "Apply",
+                    action: APPLY.get(),
                     source,
                 }
             })?;
         if start >= end {
             return Err(EditError::Draft {
-                action: "Apply",
+                action: APPLY.get(),
                 source: crate::edit::draft::DraftError::StartNotBeforeEnd,
             });
         }
         let text = draft.text().to_string();
         if segment.start_seconds == start && segment.end_seconds == end && segment.text == text {
-            return Ok(Outcome::status(format!(
+            return Ok(Outcome::status(localized_format!(
                 "No changes to apply for {}.",
+                "Нет изменений для применения: {}.",
                 self.segment_label(segment_id)
             )));
         }
-        self.apply("Apply", |workflow| {
+        self.apply(APPLY.get(), |workflow| {
             workflow.apply_segment_edit(segment_id, start, end, text)
         })?;
         self.drafts.refresh(self.workflow.project(), segment_id);
         self.mark_dirty();
-        Ok(Outcome::status(format!(
+        Ok(Outcome::status(localized_format!(
             "Applied edits to {}.",
+            "Правки применены: {}.",
             self.segment_label(segment_id)
         ))
         .with(Effect::DraftChanged {
@@ -162,7 +180,7 @@ impl EditorDoc {
             return Ok(Outcome::none());
         }
         let text = draft.text().to_string();
-        self.apply("Text edit", |workflow| {
+        self.apply(TEXT_EDIT.get(), |workflow| {
             workflow.apply_text_edit(segment_id, text)
         })?;
         self.drafts.refresh(self.workflow.project(), segment_id);
@@ -189,7 +207,7 @@ impl EditorDoc {
             .drafts
             .pending_updates(self.workflow.project())
             .map_err(|source| EditError::Draft {
-                action: "Recovery snapshot",
+                action: localized("Recovery snapshot", "Снимок для восстановления"),
                 source,
             })?;
         let mut project = self.workflow.project().clone();
@@ -218,8 +236,9 @@ impl EditorDoc {
         let count = updates.len();
         self.apply(action, |workflow| workflow.apply_segment_edits(updates))?;
         self.mark_dirty();
-        Ok(Outcome::status(format!(
-            "{action}: applied {count} pending draft rows."
+        Ok(Outcome::status(localized_format!(
+            "{action}: applied {count} pending draft rows.",
+            "{action}: применено черновиков сегментов: {count}."
         )))
     }
 
@@ -236,7 +255,11 @@ impl EditorDoc {
     }
 
     fn step_history(&mut self, undo: bool) -> EditResult {
-        let action = if undo { "Undo" } else { "Redo" };
+        let action = if undo {
+            localized("Undo", "Отмена правки")
+        } else {
+            localized("Redo", "Повтор правки")
+        };
         self.guard(action)?;
         if self.has_pending_drafts() {
             return Err(EditError::PendingDrafts { action });
@@ -253,9 +276,9 @@ impl EditorDoc {
         self.mark_dirty();
         self.reconcile(true);
         Ok(Outcome::status(if undo {
-            "Undid last edit."
+            localized("Undid last edit.", "Последняя правка отменена.")
         } else {
-            "Redid last edit."
+            localized("Redid last edit.", "Последняя правка повторена.")
         }))
     }
 
@@ -268,7 +291,7 @@ impl EditorDoc {
         field: TimeField,
         value: String,
     ) -> EditResult {
-        self.guard("Time edit")?;
+        self.guard(TIME_EDIT.get())?;
         let current = self
             .workflow
             .project()
@@ -300,7 +323,7 @@ impl EditorDoc {
         field: TimeField,
         from_blur: bool,
     ) -> EditResult {
-        self.guard("Time edit")?;
+        self.guard(TIME_EDIT.get())?;
         let segment = self.segment(segment_id)?;
         let draft = self
             .drafts
@@ -341,13 +364,14 @@ impl EditorDoc {
             if let Some(draft) = self.drafts.get_mut(segment_id) {
                 draft.replace_times(segment.start_seconds, segment.end_seconds);
             }
-            return Ok(Outcome::status(format!(
+            return Ok(Outcome::status(localized_format!(
                 "No timestamp changes to apply for {}.",
+                "Время не изменилось: {}.",
                 self.segment_label(segment_id)
             )));
         }
 
-        self.apply("Time edit", |workflow| {
+        self.apply(TIME_EDIT.get(), |workflow| {
             workflow.move_segment_boundary(segment_id, next.start_seconds, next.end_seconds)?;
             workflow.finish_boundary_edit();
             Ok(())
@@ -358,8 +382,9 @@ impl EditorDoc {
         }
         self.mark_dirty();
         self.reconcile(true);
-        Ok(Outcome::status(format!(
+        Ok(Outcome::status(localized_format!(
             "Updated {} {} time to {}.",
+            "Обновлено время {1} ({0}): {2}.",
             self.segment_label(segment_id),
             field.label(),
             format_time(field.value_from(next.start_seconds, next.end_seconds))
@@ -386,14 +411,15 @@ impl EditorDoc {
 
     /// Moves a row to another lane (speaker track), as one undo step.
     pub fn change_segment_track(&mut self, segment_id: &str, lane_id: &str) -> EditResult {
-        self.guard("Track change")?;
-        self.apply("Track change", |workflow| {
+        self.guard(TRACK_CHANGE.get())?;
+        self.apply(TRACK_CHANGE.get(), |workflow| {
             workflow.change_segment_track(segment_id, lane_id)
         })?;
         self.mark_dirty();
         self.reconcile_selection_to_visible();
-        Ok(Outcome::status(format!(
+        Ok(Outcome::status(localized_format!(
             "Moved {} to {}.",
+            "Перемещён {} на дорожку: {}.",
             self.segment_label(segment_id),
             self.lane_label(lane_id)
         )))
@@ -402,7 +428,7 @@ impl EditorDoc {
     /// Assigns a row to a speaker, as one undo step. Where speakers are bound to lanes
     /// (policy), this is a move to the speaker's lane.
     pub fn set_segment_speaker(&mut self, segment_id: &str, speaker_id: &str) -> EditResult {
-        self.guard("Speaker change")?;
+        self.guard(SPEAKER_CHANGE.get())?;
         if self.environment().policy.speakers_bound_to_lanes {
             let lane_id = self
                 .workflow
@@ -413,13 +439,17 @@ impl EditorDoc {
                 .map(|lane| lane.id.clone())
                 .ok_or_else(|| {
                     EditError::Unavailable(
-                        "Speaker change unavailable: that speaker has no audio track.".into(),
+                        localized(
+                            "Speaker change unavailable: that speaker has no audio track.",
+                            "Смена спикера недоступна: у этого спикера нет аудиодорожки.",
+                        )
+                        .into(),
                     )
                 })?;
             return self.change_segment_track(segment_id, &lane_id);
         }
         let lane_id = self.segment(segment_id)?.lane_id;
-        self.apply("Speaker change", |workflow| {
+        self.apply(SPEAKER_CHANGE.get(), |workflow| {
             workflow.apply(EditorCommand::ChangeSegmentSpeaker {
                 segment_id: segment_id.to_string(),
                 speaker_id: speaker_id.to_string(),
@@ -427,8 +457,9 @@ impl EditorDoc {
             })
         })?;
         self.mark_dirty();
-        Ok(Outcome::status(format!(
+        Ok(Outcome::status(localized_format!(
             "Set {} to {}.",
+            "Спикер изменён на {1}: {0}.",
             self.segment_label(segment_id),
             speaker_label(self.workflow.project(), speaker_id)
         )))
@@ -441,10 +472,14 @@ impl EditorDoc {
         segment_id: &str,
         label_template: &str,
     ) -> Result<String, EditError> {
-        self.guard("Add speaker")?;
+        self.guard(ADD_SPEAKER.get())?;
         if self.environment().policy.speakers_bound_to_lanes {
             return Err(EditError::Unavailable(
-                "This project's speakers are its audio tracks.".into(),
+                localized(
+                    "This project's speakers are its audio tracks.",
+                    "В этом проекте спикеры — это аудиодорожки.",
+                )
+                .into(),
             ));
         }
         let lane_id = self.segment(segment_id)?.lane_id;
@@ -454,7 +489,7 @@ impl EditorDoc {
             label: project.next_speaker_label(label_template),
         };
         let speaker_id = speaker.id.clone();
-        self.apply("Add speaker", |workflow| {
+        self.apply(ADD_SPEAKER.get(), |workflow| {
             workflow.apply_batch(vec![
                 EditorCommand::AddSpeaker { speaker },
                 EditorCommand::ChangeSegmentSpeaker {
@@ -470,11 +505,15 @@ impl EditorDoc {
 
     /// Renames a speaker (trimmed; empty names are refused), as one undo step.
     pub fn rename_speaker(&mut self, speaker_id: &str, label: &str) -> EditResult {
-        self.guard("Rename speaker")?;
+        self.guard(RENAME_SPEAKER.get())?;
         let label = label.trim();
         if label.is_empty() {
             return Err(EditError::Unavailable(
-                "Rename speaker: the name cannot be empty.".into(),
+                localized(
+                    "Rename speaker: the name cannot be empty.",
+                    "Переименование спикера: имя не может быть пустым.",
+                )
+                .into(),
             ));
         }
         if self
@@ -485,14 +524,17 @@ impl EditorDoc {
         {
             return Ok(Outcome::none());
         }
-        self.apply("Rename speaker", |workflow| {
+        self.apply(RENAME_SPEAKER.get(), |workflow| {
             workflow.apply(EditorCommand::RenameSpeaker {
                 speaker_id: speaker_id.to_string(),
                 label: label.to_string(),
             })
         })?;
         self.mark_dirty();
-        Ok(Outcome::status(format!("Renamed speaker to {label}.")))
+        Ok(Outcome::status(localized_format!(
+            "Renamed speaker to {label}.",
+            "Спикер переименован: {label}."
+        )))
     }
 
     // ---- cross-row text moves ---------------------------------------------------------
@@ -508,27 +550,32 @@ impl EditorDoc {
     }
 
     fn move_text(&mut self, segment_id: &str, direction: TextMoveDirection) -> EditResult {
-        self.guard("Text move")?;
+        self.guard(localized("Text move", "Перенос текста"))?;
         let moved =
             self.drafts
                 .move_text_across_rows(self.workflow.project(), segment_id, direction)?;
         self.clear_tag_ui_for(&moved.source_segment_id);
         self.clear_tag_ui_for(&moved.target_segment_id);
         self.mark_dirty();
-        let where_to = match direction {
-            TextMoveDirection::Previous => "previous",
-            TextMoveDirection::Next => "next",
+        let status = match direction {
+            TextMoveDirection::Previous => localized_format!(
+                "Moved {} characters to the previous same-speaker segment.",
+                "Перенесено символов в предыдущий сегмент того же спикера: {}.",
+                moved.moved_chars
+            ),
+            TextMoveDirection::Next => localized_format!(
+                "Moved {} characters to the next same-speaker segment.",
+                "Перенесено символов в следующий сегмент того же спикера: {}.",
+                moved.moved_chars
+            ),
         };
-        Ok(Outcome::status(format!(
-            "Moved {} characters to the {where_to} same-speaker segment.",
-            moved.moved_chars
-        ))
-        .with(Effect::DraftChanged {
-            segment_id: moved.source_segment_id,
-        })
-        .with(Effect::DraftChanged {
-            segment_id: moved.target_segment_id,
-        }))
+        Ok(Outcome::status(status)
+            .with(Effect::DraftChanged {
+                segment_id: moved.source_segment_id,
+            })
+            .with(Effect::DraftChanged {
+                segment_id: moved.target_segment_id,
+            }))
     }
 
     // ---- tag suggestions --------------------------------------------------------------
@@ -571,7 +618,7 @@ impl EditorDoc {
 
     /// Up/Down/Enter/Escape inside an open suggestion list.
     pub fn completion_key(&mut self, segment_id: &str, key: CompletionKey) -> EditResult {
-        self.guard("Text edit")?;
+        self.guard(TEXT_EDIT.get())?;
         let Some(list) = self.completions(segment_id) else {
             self.clear_tag_ui_for(segment_id);
             return Ok(Outcome::none());
@@ -600,7 +647,7 @@ impl EditorDoc {
 
     /// Inserts a suggestion (click or Enter) as one local undo step.
     pub fn apply_completion(&mut self, segment_id: &str, suggestion: &Completion) -> EditResult {
-        self.guard("Text edit")?;
+        self.guard(TEXT_EDIT.get())?;
         let draft = self
             .drafts
             .get_mut(segment_id)
@@ -612,7 +659,11 @@ impl EditorDoc {
             || !draft.text().is_char_boundary(range.end)
         {
             return Err(EditError::Unavailable(
-                "Completion returned an invalid text range.".into(),
+                localized(
+                    "Completion returned an invalid text range.",
+                    "Подсказка вернула неверный диапазон текста.",
+                )
+                .into(),
             ));
         }
         let mut text = draft.text().to_string();
@@ -622,7 +673,11 @@ impl EditorDoc {
             .unwrap_or(range.start + suggestion.insert_text.len());
         if caret > text.len() || !text.is_char_boundary(caret) {
             return Err(EditError::Unavailable(
-                "Completion returned an invalid caret.".into(),
+                localized(
+                    "Completion returned an invalid caret.",
+                    "Подсказка вернула неверную позицию курсора.",
+                )
+                .into(),
             ));
         }
         let selection = TextSelection::caret(text[..caret].chars().count());

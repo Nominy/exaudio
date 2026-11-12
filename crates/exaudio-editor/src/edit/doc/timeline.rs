@@ -14,6 +14,8 @@ use crate::edit::structure::{
     OverlayDrag, OverlayDragTarget, TIMELINE_AUTOSCROLL_HOLD_MOVE_THRESHOLD_FRACTION,
     TimelineAutoscroll, WaveformCreateDrag, WaveformDrag, audition_range, cut_overlay_hit,
 };
+use crate::i18n::{Text, localized};
+use crate::localized_format;
 use crate::timeline_model::TimelineSegmentPreview;
 use crate::track_filter::TrackFilter;
 
@@ -28,6 +30,8 @@ const META_TIMELINE_MUTED_LANE_IDS: &str = "exaudio.timeline.mutedLaneIds";
 const META_TIMELINE_LANE_VERTICAL_ZOOM: &str = "exaudio.timeline.laneVerticalZoom";
 /// Longest transport step accepted per tick (seconds).
 pub const MAX_TICK_SECONDS: f64 = 0.25;
+
+const CREATE: Text = Text::new("Create", "Создание сегмента");
 
 impl EditorDoc {
     // ---- transport --------------------------------------------------------------------
@@ -111,7 +115,10 @@ impl EditorDoc {
         let target = (self.session.playhead_seconds - 1.0).max(start);
         let outcome = self.seek(target);
         self.session.reveal_playhead(self.workflow.project());
-        outcome.with_status(format!("Rewound playback to {target:.2}s."))
+        outcome.with_status(localized_format!(
+            "Rewound playback to {target:.2}s.",
+            "Перемотка назад: {target:.2} с."
+        ))
     }
 
     pub fn set_speed(&mut self, speed: f32) -> Outcome {
@@ -125,8 +132,11 @@ impl EditorDoc {
         self.session.step_speed(direction);
         self.persist_timeline_defaults();
         let speed = self.session.speed;
-        Outcome::status(format!("Playback speed set to {speed:.2}x."))
-            .with(Effect::SpeedChanged(speed))
+        Outcome::status(localized_format!(
+            "Playback speed set to {speed:.2}x.",
+            "Скорость воспроизведения: {speed:.2}x."
+        ))
+        .with(Effect::SpeedChanged(speed))
     }
 
     pub fn set_zoom(&mut self, zoom: f32) {
@@ -227,13 +237,17 @@ impl EditorDoc {
         if let Some(overlay) = self.session.overlay.take() {
             self.pointer.overlay_drag = None;
             return if overlay.looping {
-                Outcome::status("Selection cleared; stopped looping.")
+                Outcome::status(localized(
+                    "Selection cleared; stopped looping.",
+                    "Выделение снято, повтор остановлен.",
+                ))
             } else {
                 Outcome::none()
             };
         }
-        self.try_toggle_keeping_caret()
-            .unwrap_or_else(|| Outcome::status("No segment selected."))
+        self.try_toggle_keeping_caret().unwrap_or_else(|| {
+            Outcome::status(localized("No segment selected.", "Сегмент не выбран."))
+        })
     }
 
     // ---- pointer ----------------------------------------------------------------------
@@ -426,8 +440,9 @@ impl EditorDoc {
             self.session.is_playing = false;
             self.session.playhead_seconds = start_seconds;
             self.touch();
-            return Ok(Outcome::status(format!(
-                "Auditioning {start_seconds:.3}s-{end_seconds:.3}s."
+            return Ok(Outcome::status(localized_format!(
+                "Auditioning {start_seconds:.3}s-{end_seconds:.3}s.",
+                "Прослушивание {start_seconds:.3}–{end_seconds:.3} с."
             ))
             .with(Effect::PlayRange {
                 start_seconds,
@@ -483,7 +498,8 @@ impl EditorDoc {
                 drag.preview_start_seconds,
                 drag.preview_end_seconds,
             );
-            let moved = self.apply("Waveform edit", |workflow| {
+            let action = localized("Waveform edit", "Сдвиг границы");
+            let moved = self.apply(action, |workflow| {
                 let result = workflow.move_segment_boundary(&segment_id, start, end);
                 workflow.finish_boundary_edit();
                 result
@@ -494,8 +510,9 @@ impl EditorDoc {
             }
             self.mark_dirty();
             self.reconcile(true);
-            return Ok(Outcome::status(format!(
+            return Ok(Outcome::status(localized_format!(
                 "Moved {} to {start:.3}s-{end:.3}s.",
+                "Перемещён {}: {start:.3}–{end:.3} с.",
                 self.segment_label(&segment_id)
             )));
         }
@@ -626,11 +643,15 @@ impl EditorDoc {
     }
 
     fn create_segment_from_drag(&mut self, drag: WaveformCreateDrag) -> EditResult {
-        self.guard("Create")?;
+        self.guard(CREATE.get())?;
         let (start, end) = drag.range();
         if end - start < MIN_CREATED_REGION_DURATION_SECONDS {
             return Err(EditError::Unavailable(
-                "Created region is too short.".into(),
+                localized(
+                    "Created region is too short.",
+                    "Новый сегмент слишком короткий.",
+                )
+                .into(),
             ));
         }
         if let Some(command) = &self.environment().policy.region_creation_command {
@@ -642,15 +663,16 @@ impl EditorDoc {
             }));
         }
         let lane_id = drag.lane_id.clone();
-        let created = self.apply("Create", |workflow| {
+        let created = self.apply(CREATE.get(), |workflow| {
             workflow.create_segment_in_lane(&lane_id, start, end)
         })?;
         self.mark_dirty();
         self.reconcile(true);
         self.drafts.refresh(self.workflow.project(), &created);
         let outcome = self.edit_segment_text(&created)?;
-        let status = format!(
+        let status = localized_format!(
             "Created {} at {start:.3}s-{end:.3}s.",
+            "Создан {}: {start:.3}–{end:.3} с.",
             self.segment_label(&created)
         );
         Ok(outcome.with_status(status))

@@ -20,7 +20,6 @@ use super::wrap::WrappedText;
 pub(super) const ID_W: Rems = rems(2.75);
 pub(super) const TRACK_W: Rems = rems(7.5);
 pub(super) const TIME_W: Rems = rems(5.25);
-pub(super) const REVIEWER_W: Rems = rems(8.75);
 pub(super) const LINT_W: Rems = rems(2.75);
 pub(super) const ACTIONS_W: Rems = rems(2.5);
 /// Horizontal padding of fixed cells.
@@ -34,14 +33,14 @@ pub(super) const TEXT_PY: Pixels = px(2.);
 /// The input wraps this much short of its text area (fixed pixels too); static text mirrors
 /// it.
 pub(super) const WRAP_MARGIN: Pixels = px(10.);
-/// Secondary lines (annotation type, diff status, time errors).
+/// Secondary lines (annotation type, speaker note, time errors).
 pub(super) const SMALL_LINE_H: Rems = rems(1.);
-/// Height of the low-confidence review chip strip.
+/// Height of the chip strip.
 pub(super) const CHIP_ROW_H: Rems = rems(1.625);
-/// Width reserved for the diff badge in front of the word diff.
-pub(super) const DIFF_BADGE_W: Rems = rems(5.25);
-/// Gap between an annotation's text and its word diff (`mt_1`).
-const DIFF_GAP: Rems = rems(0.25);
+/// Width reserved for the badge in front of a styled text.
+pub(super) const BADGE_W: Rems = rems(5.25);
+/// Gap between a segment's text and its styled text (`mt_1`).
+const STYLED_GAP: Rems = rems(0.25);
 /// Fallback text-column width before the first layout.
 const DEFAULT_TEXT_W: Rems = rems(40.);
 
@@ -92,8 +91,8 @@ impl CacheKey {
     }
 }
 
-/// Row wrap and diff line-count caches keyed by segment id, plus the heights of the last
-/// measured row list.
+/// Row wrap and styled-text line-count caches keyed by segment id, plus the heights of the
+/// last measured row list.
 #[derive(Default)]
 pub(super) struct RowMetrics {
     text: HashMap<String, (CacheKey, Rc<WrappedText>)>,
@@ -112,7 +111,7 @@ struct SizesKey {
     rem: Pixels,
     font_size: Pixels,
     line_height: Pixels,
-    /// Diff rows of an empty word diff measure a localized placeholder.
+    /// Styled texts measure the active language's variant.
     language: &'static str,
 }
 
@@ -202,30 +201,30 @@ impl RowMetrics {
             .line_count();
         let mut text_block = line_height * text_lines as f32 + TEXT_PY * 2.;
 
-        if row.row_kind == TranscriptRowKind::Annotation && has_review_chips(row) {
+        if row.row_kind == TranscriptRowKind::Segment && has_chips(row) {
             text_block += metrics.px(CHIP_ROW_H);
         }
-        if row.diff.is_some() {
-            let diff_text = diff_display_text(row);
-            let diff_width = (wrap_width - metrics.px(DIFF_BADGE_W)).max(px(40.));
-            let diff_lines = match self.aux.get(&row.segment_id) {
+        if let Some(styled) = &row.styled_text {
+            let styled_text = styled.plain_text();
+            let styled_width = (wrap_width - metrics.px(BADGE_W)).max(px(40.));
+            let styled_lines = match self.aux.get(&row.segment_id) {
                 Some((cached, lines))
-                    if cached.matches(&diff_text, diff_width, metrics.font_size) =>
+                    if cached.matches(&styled_text, styled_width, metrics.font_size) =>
                 {
                     *lines
                 }
                 _ => {
-                    let lines = shaper.lines(&diff_text, diff_width);
-                    let key = CacheKey::new(&diff_text, diff_width, metrics.font_size);
+                    let lines = shaper.lines(&styled_text, styled_width);
+                    let key = CacheKey::new(&styled_text, styled_width, metrics.font_size);
                     self.aux.insert(row.segment_id.clone(), (key, lines));
                     lines
                 }
             };
-            let diff_block = line_height * diff_lines as f32;
-            text_block = if row.row_kind == TranscriptRowKind::Annotation {
-                text_block + metrics.px(DIFF_GAP) + diff_block
+            let styled_block = line_height * styled_lines as f32;
+            text_block = if row.row_kind == TranscriptRowKind::Segment {
+                text_block + metrics.px(STYLED_GAP) + styled_block
             } else {
-                diff_block + TEXT_PY * 2.
+                styled_block + TEXT_PY * 2.
             };
         }
 
@@ -233,9 +232,9 @@ impl RowMetrics {
         let mut track_block = line_height;
         if !row.annotation_kind.is_transcription() {
             track_block += small_line;
-            if row.annotation_diff.is_some() {
-                track_block += small_line;
-            }
+        }
+        if row.speaker_note.is_some() {
+            track_block += small_line;
         }
 
         let time_block = draft
@@ -311,7 +310,8 @@ impl RowMetrics {
     }
 }
 
-/// Text shown in a row's text cell: the draft for editable rows, else the row text.
+/// Text shown in a row's text cell: the draft for segment rows that have one, else the row
+/// text.
 pub(super) fn display_text<'a>(row: &'a TranscriptRowView, doc: &'a EditorDoc) -> &'a str {
     shown_text(row, doc.draft(&row.segment_id))
 }
@@ -319,40 +319,19 @@ pub(super) fn display_text<'a>(row: &'a TranscriptRowView, doc: &'a EditorDoc) -
 /// [`display_text`] for a row whose draft was already looked up.
 fn shown_text<'a>(row: &'a TranscriptRowView, draft: Option<&'a SegmentDraft>) -> &'a str {
     match draft {
-        Some(draft) if row.row_kind == TranscriptRowKind::Annotation => draft.text(),
+        Some(draft) if row.row_kind == TranscriptRowKind::Segment => draft.text(),
         _ => &row.text,
     }
 }
 
-/// Unacknowledged low-confidence words get a review chip strip under the text.
-pub(super) fn has_review_chips(row: &TranscriptRowView) -> bool {
-    !row.is_read_only
-        && row
-            .word_views
-            .iter()
-            .any(|word| word.is_low_confidence && !word.is_acknowledged && word.command.is_some())
+/// The row shows a chip strip under its text.
+pub(super) fn has_chips(row: &TranscriptRowView) -> bool {
+    !row.is_read_only && !row.chips.is_empty()
 }
 
-/// Plain text of a row's word diff (what the diff cell paints, minus styling).
-pub(super) fn diff_display_text(row: &TranscriptRowView) -> String {
-    let Some(diff) = &row.diff else {
-        return String::new();
-    };
-    if diff.words.is_empty() {
-        return if diff.kind == exaudio_editor::transcript_model::TranscriptDiffCellKind::New {
-            row.text.clone()
-        } else {
-            exaudio_editor::i18n::localized("No content", "Пусто").to_string()
-        };
-    }
-    let mut text = String::new();
-    for (index, word) in diff.words.iter().enumerate() {
-        if index > 0 {
-            text.push(' ');
-        }
-        text.push_str(&word.value);
-    }
-    text
+/// The row shows its text with its word marks instead of opening it for editing.
+pub(super) fn has_word_marks(row: &TranscriptRowView) -> bool {
+    !row.is_read_only && !row.word_marks.is_empty()
 }
 
 struct Shaper<'a> {

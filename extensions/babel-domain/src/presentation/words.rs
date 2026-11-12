@@ -3,12 +3,21 @@ use std::collections::BTreeSet;
 use exaudio_core::Segment;
 use serde_json::Value;
 
-use super::TranscriptWordView;
-
 const LOW_CONFIDENCE_WORDS_METADATA: &str = "babelLowConfidenceWords";
 const LOW_CONFIDENCE_RESOLVED_METADATA: &str = "lowConfidenceResolved";
 
-pub(crate) fn build_transcript_word_views(segment: &Segment) -> Vec<TranscriptWordView> {
+/// A word of a segment the recognizer was unsure about.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LowConfidenceWord {
+    /// Position among the words of the segment text.
+    pub index: usize,
+    pub text: String,
+    pub start_seconds: Option<f64>,
+}
+
+/// The low-confidence words of `segment` still to review, in time order; none once the
+/// segment is marked resolved.
+pub(crate) fn low_confidence_words(segment: &Segment) -> Vec<LowConfidenceWord> {
     if segment
         .metadata
         .get(LOW_CONFIDENCE_RESOLVED_METADATA)
@@ -28,7 +37,7 @@ pub(crate) fn build_transcript_word_views(segment: &Segment) -> Vec<TranscriptWo
 
     let content_words = normalized_content_words(&segment.text);
     let display_words = display_words_by_global_index(segment, words, &content_words);
-    let mut views = words
+    let mut found = words
         .iter()
         .filter_map(|word| {
             if !is_highlighted_low_confidence_word(word)
@@ -44,26 +53,21 @@ pub(crate) fn build_transcript_word_views(segment: &Segment) -> Vec<TranscriptWo
             let global_index = word.get("index").and_then(Value::as_u64)? as usize;
             let display_word = display_words.get(&global_index)?;
 
-            Some(TranscriptWordView {
+            Some(LowConfidenceWord {
                 index: display_word.local_index,
                 text: display_word.text.clone(),
                 start_seconds: display_word.start_seconds,
-                end_seconds: display_word.end_seconds,
-                is_low_confidence: true,
-                is_acknowledged: false,
-                command: Some("babel.acknowledge-low-confidence-word".into()),
-                command_arguments: serde_json::json!({ "word_index": display_word.local_index }),
             })
         })
         .collect::<Vec<_>>();
 
-    views.sort_by(|left, right| {
+    found.sort_by(|left, right| {
         left.start_seconds
             .unwrap_or(f64::INFINITY)
             .total_cmp(&right.start_seconds.unwrap_or(f64::INFINITY))
             .then_with(|| left.index.cmp(&right.index))
     });
-    views
+    found
 }
 
 fn normalized_content_words(content: &str) -> BTreeSet<String> {
@@ -124,7 +128,6 @@ struct DisplayLowConfidenceWord {
     local_index: usize,
     text: String,
     start_seconds: Option<f64>,
-    end_seconds: Option<f64>,
 }
 
 fn display_words_by_global_index(
@@ -149,7 +152,6 @@ fn display_words_by_global_index(
                     local_index: 0,
                     text: text.to_string(),
                     start_seconds: word.get("start").and_then(Value::as_f64),
-                    end_seconds: word.get("end").and_then(Value::as_f64),
                 },
             ))
         })

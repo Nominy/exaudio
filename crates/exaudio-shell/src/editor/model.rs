@@ -23,6 +23,7 @@ use exaudio_editor::timeline_model::LaneWaveform;
 use gpui_kit::*;
 
 use crate::editor::blended_waveforms::{BlendKey, BlendedWaveforms, Selection, build_blend};
+use crate::screens::ui::localized;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct LaneSource {
@@ -420,7 +421,7 @@ impl EditorModel {
                     self.last_frame = None;
                     let start = self.doc.session().playhead_seconds;
                     let result = self.audio.play_from(start);
-                    self.report_audio(result);
+                    self.report_audio(result, cx);
                 }
                 Effect::StopPlayback => {
                     self.audio.pause();
@@ -434,7 +435,7 @@ impl EditorModel {
                     end_seconds,
                 } => {
                     let result = self.audio.audition(start_seconds, end_seconds);
-                    self.report_audio(result);
+                    self.report_audio(result, cx);
                 }
                 Effect::SpeedChanged(speed) => self.audio.set_speed(speed),
                 Effect::RevealSegment { segment_id, center } => {
@@ -454,7 +455,7 @@ impl EditorModel {
             let playhead = self.doc.session().playhead_seconds;
             if self.doc.session().is_playing && self.audio.state() == PlaybackState::Stopped {
                 let result = self.audio.play_from(playhead);
-                self.report_audio(result);
+                self.report_audio(result, cx);
             } else {
                 self.audio.seek(playhead);
             }
@@ -519,10 +520,11 @@ impl EditorModel {
         }
     }
 
-    fn report_audio(&mut self, result: Result<usize, AudioError>) {
+    fn report_audio(&mut self, result: Result<usize, AudioError>, cx: &App) {
         if let Err(error) = result {
             self.status = Some(
-                exaudio_editor::i18n::localized(
+                localized(
+                    cx,
                     "Can't play audio on this device.",
                     "Не удаётся воспроизвести звук на этом устройстве.",
                 )
@@ -611,7 +613,8 @@ impl EditorModel {
                 self.audio_load.failed += 1;
                 let lane = self.doc.lane_label(&lane_id);
                 self.status = Some(
-                    exaudio_editor::i18n::localized(
+                    localized(
+                        cx,
                         "Couldn't load audio for “{track}”.",
                         "Не удалось загрузить аудио для «{track}».",
                     )

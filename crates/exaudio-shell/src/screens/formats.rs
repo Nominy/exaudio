@@ -85,7 +85,8 @@ pub fn import_document(shell: ShellHandle, window: &mut Window, cx: &mut App) {
         );
         return;
     }
-    let Some((project, revision, selected)) = snapshot(&shell, "Import", cx) else {
+    let action = localized(cx, "Import", "Импорт");
+    let Some((project, revision, selected)) = snapshot(&shell, action, cx) else {
         return;
     };
     let lane = selected
@@ -239,7 +240,8 @@ fn pick_export(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let Some((project, _, _)) = snapshot(&shell, "Export", cx) else {
+    let action = localized(cx, "Export", "Экспорт");
+    let Some((project, _, _)) = snapshot(&shell, action, cx) else {
         return;
     };
     let descriptor = provider.descriptor();

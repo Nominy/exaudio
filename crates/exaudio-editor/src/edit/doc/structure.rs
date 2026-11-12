@@ -14,6 +14,8 @@ use crate::edit::structure::{
 };
 use crate::edit::text::join_segment_text;
 use crate::edit::text_placement::{baseline_groups, place_group_text};
+use crate::i18n::{Text, localized};
+use crate::localized_format;
 use crate::timing::{SplitSource, TimeRange, smart_split_text};
 use exaudio_core::SegmentUpdate;
 
@@ -22,6 +24,16 @@ pub const SMART_SPLIT_EDGE_GUARD_SECONDS: f64 = 0.05;
 
 /// Cap on merge attempts in one auto-segmentation run.
 const AUTO_SEGMENT_MERGE_ATTEMPTS: usize = 200;
+
+const SPLIT: Text = Text::new("Split", "Разрез");
+const SMART_SPLIT: Text = Text::new("Smart split", "Умный разрез");
+const MERGE: Text = Text::new("Merge", "Объединение");
+const DELETE: Text = Text::new("Delete", "Удаление");
+const CUT_PREVIEW: Text = Text::new("Cut preview", "Разрез по выделению");
+const AUDIO_TRIM: Text = Text::new("Audio trim", "Обрезка по речи");
+const TRIM_VISIBLE: Text = Text::new("Trim visible segments", "Обрезка видимых сегментов");
+const AUTO_INSERT: Text = Text::new("Auto insert segment", "Автодобавление сегмента");
+const AUTO_SEGMENTATION: Text = Text::new("Auto segmentation", "Автосегментация");
 
 /// What the silent-row phase of auto-segmentation did.
 #[derive(Debug, Default)]
@@ -38,18 +50,18 @@ impl EditorDoc {
     /// selects the new right-hand row. Rejects points outside the row or within 100ms of its
     /// end.
     pub fn split_segment_at(&mut self, segment_id: &str, at_seconds: f64) -> EditResult {
-        self.guard("Split")?;
+        self.guard(SPLIT.get())?;
         let segment = self.segment(segment_id)?;
         let ratio = split_ratio(&segment, at_seconds)?;
         let text = self.drafts.text_or(&segment).to_string();
         let (left, right) = split_text_by_word_ratio(&text, ratio);
-        self.split_with_texts("Split", segment_id, at_seconds, left, right, "")
+        self.split_with_texts(SPLIT.get(), segment_id, at_seconds, left, right, "")
     }
 
     /// `S` outside a cut selection: splits the selected row at the playhead (rejected when the
     /// playhead is outside it, as [`Self::split_segment_at`] does).
     pub fn split_selected_at_playhead(&mut self) -> EditResult {
-        let segment_id = self.selected_segment_id("Split")?;
+        let segment_id = self.selected_segment_id(SPLIT.get())?;
         let at_seconds = self.session.playhead_seconds;
         self.split_segment_at(&segment_id, at_seconds)
     }
@@ -58,7 +70,7 @@ impl EditorDoc {
     /// timings — the exact completed-word boundary, else the interpolated timing offset, else
     /// the word ratio.
     pub fn smart_split_segment_at(&mut self, segment_id: &str, at_seconds: f64) -> EditResult {
-        self.guard("Smart split")?;
+        self.guard(SMART_SPLIT.get())?;
         let segment = self.segment(segment_id)?;
         split_ratio(&segment, at_seconds)?;
         if at_seconds <= segment.start_seconds + SMART_SPLIT_EDGE_GUARD_SECONDS {
@@ -74,7 +86,7 @@ impl EditorDoc {
         .ok_or(EditError::Split(SplitError::OutsideSegment))?;
         let note = split_source_note(parts.source);
         self.split_with_texts(
-            "Smart split",
+            SMART_SPLIT.get(),
             segment_id,
             at_seconds,
             parts.first,
@@ -99,8 +111,9 @@ impl EditorDoc {
         self.mark_dirty();
         self.reconcile(true);
         let outcome = self.select_segment_without_seek(&created);
-        let status = format!(
+        let status = localized_format!(
             "Split {} at {at_seconds:.3}s into {}{note}.",
+            "Разрезан {} на {at_seconds:.3} с, создан {}{note}.",
             self.segment_label(segment_id),
             self.segment_label(&created)
         );
@@ -121,24 +134,24 @@ impl EditorDoc {
     }
 
     pub fn merge_selected_above(&mut self) -> EditResult {
-        let segment_id = self.selected_segment_id("Merge")?;
+        let segment_id = self.selected_segment_id(MERGE.get())?;
         self.merge(&segment_id, true)
     }
 
     pub fn merge_selected_below(&mut self) -> EditResult {
-        let segment_id = self.selected_segment_id("Merge")?;
+        let segment_id = self.selected_segment_id(MERGE.get())?;
         self.merge(&segment_id, false)
     }
 
     fn merge(&mut self, segment_id: &str, previous: bool) -> EditResult {
         self.session.open_actions_segment_id = None;
-        self.guard("Merge")?;
+        self.guard(MERGE.get())?;
         let pending: Vec<SegmentUpdate> =
             merge_neighbor_segment_id(self.workflow.project(), segment_id, previous)
                 .map(|neighbor| self.pending_text_updates(&[segment_id, &neighbor]))
                 .unwrap_or_default();
         let label = self.segment_label(segment_id);
-        self.apply("Merge", |workflow| {
+        self.apply(MERGE.get(), |workflow| {
             if !pending.is_empty() {
                 workflow.apply_segment_edits(pending)?;
             }
@@ -152,9 +165,15 @@ impl EditorDoc {
         self.mark_dirty();
         self.reconcile(false);
         Ok(Outcome::status(if previous {
-            format!("Merged {label} into the previous segment on its track.")
+            localized_format!(
+                "Merged {label} into the previous segment on its track.",
+                "Объединён {label} с предыдущим сегментом дорожки."
+            )
         } else {
-            format!("Merged {label} with the next segment on its track.")
+            localized_format!(
+                "Merged {label} with the next segment on its track.",
+                "Объединён {label} со следующим сегментом дорожки."
+            )
         }))
     }
 
@@ -177,18 +196,21 @@ impl EditorDoc {
 
     pub fn delete_segment(&mut self, segment_id: &str) -> EditResult {
         self.session.open_actions_segment_id = None;
-        self.guard("Delete")?;
+        self.guard(DELETE.get())?;
         let label = self.segment_label(segment_id);
-        self.apply("Delete", |workflow| workflow.delete_segment(segment_id))?;
+        self.apply(DELETE.get(), |workflow| workflow.delete_segment(segment_id))?;
         self.drafts.remove(segment_id);
         self.mark_dirty();
         self.reconcile(false);
-        Ok(Outcome::status(format!("Deleted {label}.")))
+        Ok(Outcome::status(localized_format!(
+            "Deleted {label}.",
+            "Удалён {label}."
+        )))
     }
 
     /// D outside text inputs.
     pub fn delete_selected(&mut self) -> EditResult {
-        let segment_id = self.selected_segment_id("Delete")?;
+        let segment_id = self.selected_segment_id(DELETE.get())?;
         self.delete_segment(&segment_id)
     }
 
@@ -204,22 +226,31 @@ impl EditorDoc {
 
     fn create_adjacent(&mut self, segment_id: &str, before: bool) -> EditResult {
         self.session.open_actions_segment_id = None;
-        let created = self.apply("Create", |workflow| {
-            if before {
-                workflow.create_segment_before(segment_id)
-            } else {
-                workflow.create_segment_after(segment_id)
-            }
-        })?;
+        let created = self.apply(
+            localized("Create", "Создание сегмента"),
+            |workflow| {
+                if before {
+                    workflow.create_segment_before(segment_id)
+                } else {
+                    workflow.create_segment_after(segment_id)
+                }
+            },
+        )?;
         self.mark_dirty();
         self.reconcile(true);
-        let side = if before { "before" } else { "after" };
         let outcome = self.select_segment_without_seek(&created);
-        let status = format!(
-            "Created {} {side} {}.",
-            self.segment_label(&created),
-            self.segment_label(segment_id)
-        );
+        let (new, anchor) = (self.segment_label(&created), self.segment_label(segment_id));
+        let status = if before {
+            localized_format!(
+                "Created {new} before {anchor}.",
+                "Создан {new}, после него — {anchor}."
+            )
+        } else {
+            localized_format!(
+                "Created {new} after {anchor}.",
+                "Создан {new}, перед ним — {anchor}."
+            )
+        };
         Ok(outcome.with_status(status))
     }
 
@@ -236,19 +267,26 @@ impl EditorDoc {
     /// (word timings first, like Ctrl+Shift+Click); clears the overlay and selects the row
     /// after the cut.
     pub fn commit_cut_preview(&mut self, smart_split: bool) -> EditResult {
-        self.guard("Cut preview")?;
+        self.guard(CUT_PREVIEW.get())?;
         let (lane_id, range) = self
             .session
             .overlay
             .as_ref()
             .map(|overlay| (overlay.lane_id.clone(), overlay.range))
             .ok_or_else(|| {
-                EditError::Unavailable("Cut preview unavailable: no active overlay range.".into())
+                EditError::Unavailable(
+                    localized(
+                        "Cut preview unavailable: no active overlay range.",
+                        "Разрез недоступен: нет выделения для разреза.",
+                    )
+                    .into(),
+                )
             })?;
         let minimum = self.minimum_cut_duration_seconds();
         if range.duration_seconds() < minimum {
-            return Err(EditError::Unavailable(format!(
-                "Cut needs a selection of at least {minimum} seconds; shorter selections can still loop."
+            return Err(EditError::Unavailable(localized_format!(
+                "Cut needs a selection of at least {minimum} seconds; shorter selections can still loop.",
+                "Для разреза нужно выделение не короче {minimum} с; более короткое можно только повторять."
             )));
         }
         let project = self.workflow.project();
@@ -264,7 +302,11 @@ impl EditorDoc {
             .collect();
         if affected.is_empty() {
             return Err(EditError::Unavailable(
-                "Cut preview found no overlapping segment on the target lane.".into(),
+                localized(
+                    "Cut preview found no overlapping segment on the target lane.",
+                    "На дорожке нет сегментов, пересекающихся с выделением для разреза.",
+                )
+                .into(),
             ));
         }
         let split = smart_split
@@ -290,7 +332,7 @@ impl EditorDoc {
             .map_or("", |(_, parts)| split_source_note(parts.source));
         let split_source = split.as_ref().map(|(id, _)| id.clone());
         let split_texts = split.map(|(_, parts)| (parts.first, parts.second));
-        self.apply("Cut preview", |workflow| {
+        self.apply(CUT_PREVIEW.get(), |workflow| {
             workflow.cut_lane_range(
                 &lane_id,
                 range.start_seconds,
@@ -317,12 +359,17 @@ impl EditorDoc {
         self.mark_dirty();
         self.reconcile(true);
         self.session.overlay = None;
-        let status = format!(
+        let status = localized_format!(
             "Cut {:.3}s-{:.3}s on {}{}{note}.",
+            "Вырезано {:.3}–{:.3} с ({}){}{note}.",
             range.start_seconds,
             range.end_seconds,
             self.lane_label(&lane_id),
-            if smart_split { " with smart split" } else { "" }
+            if smart_split {
+                localized(" with smart split", " с умным разрезом")
+            } else {
+                ""
+            }
         );
         let outcome = match cut_preview_scroll_target(self.workflow.project(), &lane_id, range) {
             Some(target) => self
@@ -337,16 +384,27 @@ impl EditorDoc {
     /// loop on moves a playhead outside the selection to its start.
     pub fn loop_cut_preview(&mut self) -> EditResult {
         let overlay = self.session.overlay.as_mut().ok_or_else(|| {
-            EditError::Unavailable("Selection loop unavailable: no cut selection.".into())
+            EditError::Unavailable(
+                localized(
+                    "Selection loop unavailable: no cut selection.",
+                    "Повтор недоступен: нет выделения для разреза.",
+                )
+                .into(),
+            )
         })?;
         overlay.looping = !overlay.looping;
         if !overlay.looping {
-            return Ok(Outcome::status("Stopped looping the selection."));
+            return Ok(Outcome::status(localized(
+                "Stopped looping the selection.",
+                "Повтор выделения остановлен.",
+            )));
         }
         let range = overlay.range;
-        let status = format!(
+        let status = localized_format!(
             "Looping selection {:.3}s-{:.3}s (L stops, Escape clears).",
-            range.start_seconds, range.end_seconds
+            "Повтор выделения {:.3}–{:.3} с (L — стоп, Escape — снять выделение).",
+            range.start_seconds,
+            range.end_seconds
         );
         let playhead = self.session.playhead_seconds;
         let outcome = if (range.start_seconds..range.end_seconds).contains(&playhead) {
@@ -361,43 +419,52 @@ impl EditorDoc {
 
     /// Alt+R: trims the selected row to nearby speech in its lane's decoded audio.
     pub fn trim_current_segment_to_audio(&mut self) -> EditResult {
-        self.guard("Audio trim")?;
-        let segment_id = self.selected_segment_id("Audio trim")?;
+        self.guard(AUDIO_TRIM.get())?;
+        let segment_id = self.selected_segment_id(AUDIO_TRIM.get())?;
         let segment = self.segment(&segment_id)?;
         let label = self.segment_label(&segment_id);
         let plan =
             match audio_trim_plan_for_segment(self.workflow.project(), &self.session, &segment) {
                 Some(Ok(plan)) => plan,
                 Some(Err(reason)) => {
-                    return Err(EditError::Unavailable(format!(
-                        "Audio trim skipped {label}: {reason}."
+                    return Err(EditError::Unavailable(localized_format!(
+                        "Audio trim skipped {label}: {reason}.",
+                        "Обрезка по речи пропустила {label}: {reason}."
                     )));
                 }
                 None => {
-                    return Ok(Outcome::status(format!(
-                        "Audio trim made no timestamp changes for {label}."
+                    return Ok(Outcome::status(localized_format!(
+                        "Audio trim made no timestamp changes for {label}.",
+                        "Обрезка по речи: границы не изменились ({label})."
                     )));
                 }
             };
-        self.apply_trim_plans(vec![plan], "Trim current segment")?;
-        Ok(Outcome::status(format!(
-            "Trimmed {label} to nearby decoded audio."
+        let action = localized("Trim current segment", "Обрезка сегмента");
+        self.apply_trim_plans(vec![plan], action)?;
+        Ok(Outcome::status(localized_format!(
+            "Trimmed {label} to nearby decoded audio.",
+            "Обрезан по речи {label}."
         )))
     }
 
     /// Alt+Shift+R: trims every visible transcription row with decoded audio.
     pub fn trim_visible_segments_to_audio(&mut self) -> EditResult {
-        self.guard("Audio trim")?;
+        self.guard(AUDIO_TRIM.get())?;
         let plans = self.visible_trim_plans();
         if plans.is_empty() {
             return Err(EditError::Unavailable(
-                "Audio trim found no visible segments with decoded speech.".into(),
+                localized(
+                    "Audio trim found no visible segments with decoded speech.",
+                    "Обрезка по речи: нет видимых сегментов с речью в загруженном аудио.",
+                )
+                .into(),
             ));
         }
         let count = plans.len();
-        self.apply_trim_plans(plans, "Trim visible segments")?;
-        Ok(Outcome::status(format!(
-            "Trimmed {count} visible segments to nearby decoded audio."
+        self.apply_trim_plans(plans, TRIM_VISIBLE.get())?;
+        Ok(Outcome::status(localized_format!(
+            "Trimmed {count} visible segments to nearby decoded audio.",
+            "Обрезано видимых сегментов по речи: {count}."
         )))
     }
 
@@ -458,16 +525,20 @@ impl EditorDoc {
     /// Alt+C: creates an empty row around the nearest uncovered speech within 1s of the
     /// playhead on each visible lane, merging with same-speaker rows closer than 1s.
     pub fn auto_insert_segment_at_playhead(&mut self) -> EditResult {
-        self.guard("Auto insert segment")?;
+        self.guard(AUTO_INSERT.get())?;
         let plans = auto_insert_plans_for_caret(self.workflow.project(), &self.session);
         if plans.is_empty() {
             return Err(EditError::Unavailable(
-                "Auto-insert found no uncovered speech near caret.".into(),
+                localized(
+                    "Auto-insert found no uncovered speech near caret.",
+                    "Рядом с курсором нет речи без сегмента.",
+                )
+                .into(),
             ));
         }
         let mut created = Vec::new();
         let mut merges = 0;
-        self.apply("Auto insert segment", |workflow| {
+        self.apply(AUTO_INSERT.get(), |workflow| {
             for plan in &plans {
                 let id = workflow.create_segment_in_lane(
                     &plan.lane_id,
@@ -484,8 +555,9 @@ impl EditorDoc {
         for id in &created {
             self.drafts.refresh(self.workflow.project(), id);
         }
-        let status = format!(
+        let status = localized_format!(
             "Auto-inserted {} segment(s) around nearest uncovered speech, merged {merges} adjacent row(s).",
+            "Добавлено сегментов вокруг ближайшей речи без сегмента: {}; объединено соседних: {merges}.",
             created.len()
         );
         Ok(
@@ -510,16 +582,20 @@ impl EditorDoc {
     /// whole sentences and duration. Text is conserved exactly: a group whose placement would
     /// lose words keeps the split-time allocation and is reported.
     pub fn auto_segment_visible_silences(&mut self) -> EditResult {
-        self.guard("Auto segmentation")?;
+        self.guard(AUTO_SEGMENTATION.get())?;
         if self.visible_segments().is_empty() {
             return Err(EditError::Unavailable(
-                "Auto-segmentation found no visible segments.".into(),
+                localized(
+                    "Auto-segmentation found no visible segments.",
+                    "Автосегментация: нет видимых сегментов.",
+                )
+                .into(),
             ));
         }
         let pre_trim = self.visible_trim_plans();
         let mut trimmed = pre_trim.len();
         if !pre_trim.is_empty() {
-            self.apply_trim_plans(pre_trim, "Trim visible segments")?;
+            self.apply_trim_plans(pre_trim, TRIM_VISIBLE.get())?;
         }
         let merged = self.merge_close_visible_rows()?;
 
@@ -534,7 +610,7 @@ impl EditorDoc {
         let count = plans.len();
         let mut created = Vec::new();
         if !plans.is_empty() {
-            self.apply("Auto segmentation", |workflow| {
+            self.apply(AUTO_SEGMENTATION.get(), |workflow| {
                 for plan in &plans {
                     created.push(workflow.split_segment_with_project_text_ratio(
                         &plan.segment_id,
@@ -549,7 +625,7 @@ impl EditorDoc {
         let post_trim = self.visible_trim_plans();
         trimmed += post_trim.len();
         if !post_trim.is_empty() {
-            self.apply_trim_plans(post_trim, "Trim visible segments")?;
+            self.apply_trim_plans(post_trim, TRIM_VISIBLE.get())?;
         }
         let cleanup = self.remove_silent_visible_rows()?;
 
@@ -561,9 +637,8 @@ impl EditorDoc {
             .collect();
         if !placement.updates.is_empty() {
             let updates = placement.updates.clone();
-            self.apply("Place segment text", |workflow| {
-                workflow.apply_segment_edits(updates)
-            })?;
+            let action = localized("Place segment text", "Размещение текста");
+            self.apply(action, |workflow| workflow.apply_segment_edits(updates))?;
             self.mark_dirty();
         }
         if trimmed == 0
@@ -573,9 +648,13 @@ impl EditorDoc {
             && placed.is_empty()
         {
             return Err(EditError::Unavailable(
-                "Auto-segmentation found no close same-speaker segments, silence runs over \
-                 1000ms or silent segments."
-                    .into(),
+                localized(
+                    "Auto-segmentation found no close same-speaker segments, silence runs over \
+                     1000ms or silent segments.",
+                    "Автосегментация: нет близких сегментов одного спикера, пауз длиннее \
+                     1000 мс и сегментов без звука.",
+                )
+                .into(),
             ));
         }
         let split_sources = plans.iter().map(|plan| &plan.segment_id);
@@ -589,34 +668,50 @@ impl EditorDoc {
             self.drafts.refresh(self.workflow.project(), id);
         }
 
-        let mut status =
-            format!("Auto-segmented {count} silence run(s) over 1000ms and trimmed all");
+        let mut status = localized_format!(
+            "Auto-segmented {count} silence run(s) over 1000ms and trimmed all",
+            "Автосегментация: разрезов по паузам от 1000 мс — {count}, все сегменты обрезаны"
+        );
         if !merged.is_empty() {
-            status.push_str(&format!(
+            status.push_str(&localized_format!(
                 "; merged {} close same-speaker segment pair(s) first",
+                "; сначала объединено близких пар сегментов одного спикера: {}",
                 merged.len()
             ));
         }
         if cleanup.removed > 0 {
-            status.push_str(&format!("; removed {} silent segment(s)", cleanup.removed));
+            status.push_str(&localized_format!(
+                "; removed {} silent segment(s)",
+                "; удалено сегментов без звука: {}",
+                cleanup.removed
+            ));
         }
         if cleanup.kept > 0 {
-            status.push_str(&format!(
+            status.push_str(&localized_format!(
                 "; kept {} silent segment(s) with text and no same-speaker neighbour",
+                "; оставлено сегментов без звука с текстом и без соседа того же спикера: {}",
                 cleanup.kept
             ));
         }
         match (placement.timed_groups, placement.sentence_groups) {
             (0, 0) => {}
-            (timed, 0) => status.push_str(&format!("; placed text by word timestamps ({timed})")),
-            (0, sentences) => status.push_str(&format!("; placed text by sentences ({sentences})")),
-            (timed, sentences) => status.push_str(&format!(
-                "; placed text by word timestamps ({timed}) and sentences ({sentences})"
+            (timed, 0) => status.push_str(&localized_format!(
+                "; placed text by word timestamps ({timed})",
+                "; текст размещён по таймингам слов ({timed})"
+            )),
+            (0, sentences) => status.push_str(&localized_format!(
+                "; placed text by sentences ({sentences})",
+                "; текст размещён по предложениям ({sentences})"
+            )),
+            (timed, sentences) => status.push_str(&localized_format!(
+                "; placed text by word timestamps ({timed}) and sentences ({sentences})",
+                "; текст размещён по таймингам слов ({timed}) и по предложениям ({sentences})"
             )),
         }
         if let Some((lane, error)) = placement.failed.first() {
-            status.push_str(&format!(
+            status.push_str(&localized_format!(
                 "; {} group(s) kept split text ({}: {error})",
+                "; групп, где текст остался как после разреза: {} ({}: {error})",
                 placement.failed.len(),
                 self.lane_label(lane)
             ));
@@ -642,7 +737,7 @@ impl EditorDoc {
         }
         let mut merged = Vec::new();
         let environment = self.environment().clone();
-        self.apply("Auto segmentation", |workflow| {
+        self.apply(AUTO_SEGMENTATION.get(), |workflow| {
             let mut skipped: Vec<AutoSegmentMergePlan> = Vec::new();
             for _ in 0..AUTO_SEGMENT_MERGE_ATTEMPTS {
                 let rows = visible_transcription_segments(
@@ -693,7 +788,8 @@ impl EditorDoc {
         let track_filter = self.session.track_filter.clone();
         let collapsed = self.session.collapsed_lane_ids.clone();
         let environment = self.environment().clone();
-        self.apply("Remove silent segments", |workflow| {
+        let action = localized("Remove silent segments", "Удаление сегментов без звука");
+        self.apply(action, |workflow| {
             for id in silent.iter().rev() {
                 let rows = visible_transcription_segments(
                     workflow.project(),
@@ -770,8 +866,10 @@ impl EditorDoc {
 /// Status suffix naming how a smart split placed its text.
 fn split_source_note(source: SplitSource) -> &'static str {
     match source {
-        SplitSource::CompletedWord => " at a word timestamp",
-        SplitSource::Interpolated => " between word timestamps",
+        SplitSource::CompletedWord => localized(" at a word timestamp", " по таймингу слова"),
+        SplitSource::Interpolated => {
+            localized(" between word timestamps", " между таймингами слов")
+        }
         SplitSource::WordRatio | SplitSource::Empty => "",
     }
 }

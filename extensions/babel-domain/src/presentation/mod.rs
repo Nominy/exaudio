@@ -1,3 +1,7 @@
+//! Babel's additions to the transcript table, contributed as decorations: the reviewer column,
+//! annotation kinds, the low-confidence word review and, while the diff view is on, the
+//! comparison with another version of the task.
+
 mod annotation_kind;
 mod diff;
 mod reviewer;
@@ -5,215 +9,26 @@ mod visible_cells;
 mod words;
 
 use crate::babel_metadata::project_is_read_only;
+use crate::editor_model::diff_toolbar::diff_view_enabled;
 use diff::{
-    annotation_diff_state, annotation_removed_ghost_rows, diff_state, modified_segment_diff_rows,
+    AnnotationDiffStatus, DiffCell, DiffCellKind, WordDiffStatus, annotation_diff_status,
+    annotation_removed_ghost_rows, diff_cell, modified_segment_diff_rows,
 };
-use exaudio_core::Project;
-use exaudio_editor::track_filter::TrackFilter;
-use exaudio_editor::transcript_model::compute_row_availability;
-use exaudio_editor::transcript_model::*;
+use exaudio_core::{Project, Segment};
+use exaudio_editor::transcript_model::{
+    LocalizedText, TranscriptAnnotationKind, TranscriptChip, TranscriptNote, TranscriptRowPatch,
+    TranscriptStaticRow, TranscriptStyledBody, TranscriptStyledText, TranscriptStyledWord,
+    TranscriptTablePatch, TranscriptTone, TranscriptWordMark, TranscriptWordStyle, format_mm_ss,
+};
+use exaudio_extension::document::Decoration;
 use reviewer::ReviewerLookup;
-pub(crate) use words::build_transcript_word_views;
+pub(crate) use words::low_confidence_words;
 
+const SOURCE: &str = "exaudio.babel-domain";
 const META_SELECTED_COMPARE_ACTION_ID: &str = "studio.babel.diff.selectedCompareActionId";
+const ACKNOWLEDGE_WORD_COMMAND: &str = "babel.acknowledge-low-confidence-word";
 
-pub fn build_transcript_rows(
-    project: &Project,
-    track_filter: &TrackFilter,
-    selected_segment_id: Option<&str>,
-    diff_view: bool,
-) -> Vec<TranscriptRowView> {
-    let mut segments: Vec<_> = project.segments.iter().collect();
-    segments.sort_by(|left, right| left.start_seconds.total_cmp(&right.start_seconds));
-    let row_availability = compute_row_availability(project);
-    let selected_compare_action_id = selected_compare_action_id(project);
-    let track_options = build_transcript_track_options(project);
-    let reviewer_lookup = ReviewerLookup::for_project(project);
-    let visible_cells = visible_cells::derive_transcription_row_visible_cells(project);
-    let is_read_only = project_is_read_only(project);
-
-    let mut rows: Vec<TranscriptRowView> = segments
-        .into_iter()
-        .filter(|segment| track_filter.matches_lane(&segment.lane_id))
-        .map(|segment| {
-            let annotation_kind = annotation_kind::annotation_kind(segment);
-            let annotation_type_label = annotation_kind.label();
-            let availability = row_availability
-                .get(&segment.id)
-                .copied()
-                .unwrap_or_default();
-            let diff = diff_view.then(|| diff_state(segment, selected_compare_action_id));
-            let diff_cell = diff.as_ref().map(|diff| diff.cell.clone());
-            let annotation_diff = if diff_view {
-                annotation_diff_state(segment, selected_compare_action_id)
-            } else {
-                None
-            };
-            TranscriptRowView {
-                row_kind: TranscriptRowKind::Annotation,
-                sort_start_seconds: segment.start_seconds,
-                segment_id: segment.id.clone(),
-                display_id: String::new(),
-                speaker_label: speaker_label(project, &segment.speaker_id),
-                lane_id: segment.lane_id.clone(),
-                selected_lane_id: segment.lane_id.clone(),
-                selected_track_option: selected_track_option(&track_options, &segment.lane_id),
-                track_options: track_options.clone(),
-                annotation_kind,
-                annotation_type_label,
-                start_time: format_mm_ss(segment.start_seconds),
-                end_time: format_mm_ss(segment.end_seconds),
-                visible_cells,
-                show_reviewer: visible_cells.reviewer,
-                reviewer: reviewer_lookup.reviewer_at(segment.start_seconds),
-                text: segment.text.clone(),
-                is_selected: selected_segment_id == Some(segment.id.as_str()),
-                lint: None,
-                lint_issues: Vec::new(),
-                diff_marker: diff.as_ref().map(|diff| diff.marker.clone()),
-                diff_source_text: diff.as_ref().and_then(|diff| diff.cell.source_text.clone()),
-                diff: diff_cell,
-                annotation_diff,
-                word_views: build_transcript_word_views(segment),
-                has_asserted_warning: false,
-                has_unresolved_low_confidence:
-                    exaudio_babel_lint::linter::has_unresolved_low_confidence_word(segment),
-                is_read_only,
-                can_insert_above: availability.can_insert_above,
-                can_insert_below: availability.can_insert_below,
-                can_merge_above: availability.can_merge_above,
-                can_merge_below: availability.can_merge_below,
-            }
-        })
-        .collect();
-
-    if diff_view {
-        rows.extend(
-            modified_segment_diff_rows(project)
-                .into_iter()
-                .filter(|row| {
-                    row.lane_id
-                        .as_deref()
-                        .is_none_or(|lane_id| track_filter.matches_lane(lane_id))
-                })
-                .map(|row| {
-                    let row_kind = if row.show_as_added {
-                        TranscriptRowKind::ModifiedAdded
-                    } else {
-                        TranscriptRowKind::ModifiedDeleted
-                    };
-                    let marker = if row.show_as_added {
-                        "Added"
-                    } else {
-                        "Deleted"
-                    };
-                    let lane_id = row.lane_id.clone().unwrap_or_default();
-                    TranscriptRowView {
-                        row_kind,
-                        sort_start_seconds: row.start_seconds.unwrap_or(0.0),
-                        segment_id: format!("modified-{}", row.annotation_id),
-                        display_id: String::new(),
-                        speaker_label: marker.to_string(),
-                        lane_id: lane_id.clone(),
-                        selected_lane_id: lane_id.clone(),
-                        selected_track_option: selected_track_option(&track_options, &lane_id),
-                        track_options: track_options.clone(),
-                        annotation_kind: TranscriptAnnotationKind::Transcription,
-                        annotation_type_label: "Transcription".to_string(),
-                        start_time: row
-                            .start_seconds
-                            .map(format_mm_ss)
-                            .unwrap_or_else(|| "--".to_string()),
-                        end_time: row
-                            .end_seconds
-                            .map(format_mm_ss)
-                            .unwrap_or_else(|| "--".to_string()),
-                        visible_cells,
-                        show_reviewer: visible_cells.reviewer,
-                        reviewer: row
-                            .start_seconds
-                            .and_then(|start_seconds| reviewer_lookup.reviewer_at(start_seconds)),
-                        text: String::new(),
-                        is_selected: false,
-                        lint: None,
-                        lint_issues: Vec::new(),
-                        diff_marker: Some(marker.to_string()),
-                        diff_source_text: None,
-                        diff: Some(row.cell),
-                        annotation_diff: None,
-                        word_views: Vec::new(),
-                        has_asserted_warning: false,
-                        has_unresolved_low_confidence: false,
-                        is_read_only: true,
-                        can_insert_above: false,
-                        can_insert_below: false,
-                        can_merge_above: false,
-                        can_merge_below: false,
-                    }
-                }),
-        );
-        rows.extend(
-            annotation_removed_ghost_rows(project)
-                .into_iter()
-                .map(|row| TranscriptRowView {
-                    row_kind: TranscriptRowKind::AnnotationRemovedGhost,
-                    sort_start_seconds: row.start_seconds.unwrap_or(0.0),
-                    segment_id: format!("annotation-ghost-{}", row.annotation_id),
-                    display_id: String::new(),
-                    speaker_label: row.comparison_label,
-                    lane_id: String::new(),
-                    selected_lane_id: String::new(),
-                    selected_track_option: None,
-                    track_options: track_options.clone(),
-                    annotation_kind: TranscriptAnnotationKind::NonTranscription(
-                        "removed".to_string(),
-                    ),
-                    annotation_type_label: "Removed".to_string(),
-                    start_time: row
-                        .start_seconds
-                        .map(format_mm_ss)
-                        .unwrap_or_else(|| "--:--".to_string()),
-                    end_time: row
-                        .end_seconds
-                        .map(format_mm_ss)
-                        .unwrap_or_else(|| "--:--".to_string()),
-                    visible_cells,
-                    show_reviewer: visible_cells.reviewer,
-                    reviewer: row
-                        .start_seconds
-                        .and_then(|start_seconds| reviewer_lookup.reviewer_at(start_seconds)),
-                    text: row.text,
-                    is_selected: false,
-                    lint: None,
-                    lint_issues: Vec::new(),
-                    diff_marker: Some("Removed".to_string()),
-                    diff_source_text: None,
-                    diff: None,
-                    annotation_diff: Some(row.diff),
-                    word_views: Vec::new(),
-                    has_asserted_warning: false,
-                    has_unresolved_low_confidence: false,
-                    is_read_only: true,
-                    can_insert_above: false,
-                    can_insert_below: false,
-                    can_merge_above: false,
-                    can_merge_below: false,
-                }),
-        );
-        rows.sort_by(|left, right| left.sort_start_seconds.total_cmp(&right.sort_start_seconds));
-    }
-
-    apply_visible_order_display_ids(&mut rows);
-
-    rows
-}
-
-fn apply_visible_order_display_ids(rows: &mut [TranscriptRowView]) {
-    for (index, row) in rows.iter_mut().enumerate() {
-        row.display_id = (index + 1).to_string();
-    }
-}
-
+/// The review version the diff view compares with, when one is chosen.
 fn selected_compare_action_id(project: &Project) -> Option<&str> {
     project
         .metadata
@@ -222,46 +37,207 @@ fn selected_compare_action_id(project: &Project) -> Option<&str> {
         .filter(|value| !value.is_empty())
 }
 
-pub(crate) fn speaker_label(project: &Project, speaker_id: &str) -> String {
-    project
-        .speakers
-        .iter()
-        .find(|speaker| speaker.id == speaker_id)
-        .map(|speaker| speaker.label.clone())
-        .unwrap_or_else(|| speaker_id.to_string())
-}
-
 #[derive(Debug)]
 pub struct BabelPresentationProvider {
     pub acknowledgements: std::sync::Arc<crate::workflow::BabelLowConfidenceCommandProvider>,
 }
 
 impl exaudio_extension::document::DecorationProvider for BabelPresentationProvider {
-    fn decorate(
-        &self,
-        project: &Project,
-        revision: u64,
-    ) -> Vec<exaudio_extension::document::Decoration> {
-        build_transcript_rows(project, &TrackFilter::All, None, true)
-            .into_iter()
-            .map(|mut row| {
-                for word in &mut row.word_views {
-                    word.is_acknowledged = self.acknowledgements.is_acknowledged(
-                        &row.segment_id,
-                        word.index,
-                        revision,
-                    );
-                }
-                exaudio_extension::document::Decoration {
-                    source: "exaudio.babel-domain".into(),
-                    kind: TRANSCRIPT_ROW_DECORATION.into(),
-                    segment_id: row.segment_id.clone(),
-                    range: None,
-                    label: row.annotation_type_label.clone(),
-                    data: serde_json::to_value(row).expect("finite transcript presentation"),
-                }
-            })
-            .collect()
+    fn decorate(&self, project: &Project, revision: u64) -> Vec<Decoration> {
+        let reviewers = ReviewerLookup::for_project(project);
+        let read_only = project_is_read_only(project);
+        let diff_view = diff_view_enabled(project);
+        let compare_action_id = selected_compare_action_id(project);
+
+        let table = TranscriptTablePatch {
+            visible_cells: visible_cells::visible_cells(project),
+            extra_column: reviewers.column(),
+        };
+        let mut decorations = vec![table.decoration(SOURCE)];
+        for segment in &project.segments {
+            let mut patch = TranscriptRowPatch {
+                annotation_kind: Some(annotation_kind::annotation_kind(segment)),
+                read_only,
+                extra_cell: reviewers.reviewer_at(segment.start_seconds),
+                ..Default::default()
+            };
+            self.review_words(segment, revision, &mut patch);
+            if diff_view {
+                compare_segment(segment, compare_action_id, &mut patch);
+            }
+            decorations.push(patch.decoration(SOURCE, &segment.id));
+        }
+        if diff_view {
+            decorations.extend(other_version_rows(project, &reviewers));
+        }
+        decorations
+    }
+}
+
+impl BabelPresentationProvider {
+    /// Marks the segment's low-confidence words: a click seeks to the word, and a word not
+    /// acknowledged at `revision` is underlined and gets a chip that acknowledges it.
+    fn review_words(&self, segment: &Segment, revision: u64, patch: &mut TranscriptRowPatch) {
+        let acknowledgements = &self.acknowledgements;
+        for word in low_confidence_words(segment) {
+            let acknowledged = acknowledgements.is_acknowledged(&segment.id, word.index, revision);
+            patch.word_marks.push(TranscriptWordMark {
+                word_index: word.index,
+                underlined: !acknowledged,
+                seek_seconds: word.start_seconds,
+            });
+            if !acknowledged {
+                patch.chips.push(TranscriptChip {
+                    label: word.text,
+                    tooltip: LocalizedText::new("Mark as reviewed", "Отметить как проверенное"),
+                    command: ACKNOWLEDGE_WORD_COMMAND.into(),
+                    arguments: serde_json::json!({ "word_index": word.index }),
+                });
+            }
+        }
+    }
+}
+
+/// Adds how `segment` differs from the compared version: the word diff under its text, the
+/// annotation status under its speaker and the mark on its timeline region.
+fn compare_segment(
+    segment: &Segment,
+    compare_action_id: Option<&str>,
+    patch: &mut TranscriptRowPatch,
+) {
+    let cell = diff_cell(segment, compare_action_id);
+    let annotation_status = annotation_diff_status(segment, compare_action_id);
+    patch.styled_text = Some(styled_text(&cell, &segment.text));
+    patch.speaker_note = annotation_status.map(annotation_note);
+    patch.is_flagged = true;
+}
+
+/// Static rows for what only the compared version has: its segments and its annotations.
+fn other_version_rows(project: &Project, reviewers: &ReviewerLookup) -> Vec<Decoration> {
+    let reviewer_at = |start_seconds: Option<f64>| {
+        start_seconds.and_then(|seconds| reviewers.reviewer_at(seconds))
+    };
+    let mut rows = Vec::new();
+    for row in modified_segment_diff_rows(project) {
+        let row_id = format!("modified-{}", row.annotation_id);
+        let (label, tone) = if row.show_as_added {
+            ("Added", TranscriptTone::Success)
+        } else {
+            ("Deleted", TranscriptTone::Danger)
+        };
+        let static_row = TranscriptStaticRow {
+            sort_seconds: row.start_seconds.unwrap_or(0.0),
+            lane_id: row.lane_id.unwrap_or_default(),
+            tone,
+            label: label.to_string(),
+            start_time: time_or(row.start_seconds, "--"),
+            end_time: time_or(row.end_seconds, "--"),
+            text: String::new(),
+            styled_text: Some(styled_text(&row.cell, "")),
+            annotation_kind: TranscriptAnnotationKind::Transcription,
+            speaker_note: None,
+            extra_cell: reviewer_at(row.start_seconds),
+        };
+        rows.push(static_row.decoration(SOURCE, &row_id));
+    }
+    for row in annotation_removed_ghost_rows(project) {
+        let row_id = format!("annotation-ghost-{}", row.annotation_id);
+        let static_row = TranscriptStaticRow {
+            sort_seconds: row.start_seconds.unwrap_or(0.0),
+            lane_id: String::new(),
+            tone: TranscriptTone::Danger,
+            label: row.comparison_label,
+            start_time: time_or(row.start_seconds, "--:--"),
+            end_time: time_or(row.end_seconds, "--:--"),
+            text: row.text,
+            styled_text: None,
+            annotation_kind: TranscriptAnnotationKind::NonTranscription("removed".to_string()),
+            speaker_note: Some(annotation_note(AnnotationDiffStatus::UnmatchedReference)),
+            extra_cell: reviewer_at(row.start_seconds),
+        };
+        rows.push(static_row.decoration(SOURCE, &row_id));
+    }
+    rows
+}
+
+fn time_or(seconds: Option<f64>, missing: &str) -> String {
+    seconds.map_or_else(|| missing.to_string(), format_mm_ss)
+}
+
+/// A diff cell as styled text: its badge and the word diff, or a note when the cell has no
+/// words (`row_text` for a new segment).
+fn styled_text(cell: &DiffCell, row_text: &str) -> TranscriptStyledText {
+    let body = if cell.words.is_empty() {
+        TranscriptStyledBody::Note(if cell.kind == DiffCellKind::New {
+            LocalizedText::same(row_text)
+        } else {
+            LocalizedText::new("No content", "Пусто")
+        })
+    } else {
+        TranscriptStyledBody::Words(
+            cell.words
+                .iter()
+                .map(|word| TranscriptStyledWord {
+                    text: word.value.clone(),
+                    style: match word.status {
+                        WordDiffStatus::Unchanged => TranscriptWordStyle::Plain,
+                        WordDiffStatus::Added => TranscriptWordStyle::Inserted,
+                        WordDiffStatus::Removed => TranscriptWordStyle::Deleted,
+                        WordDiffStatus::Unknown => TranscriptWordStyle::Muted,
+                    },
+                })
+                .collect(),
+        )
+    };
+    TranscriptStyledText {
+        badge: diff_badge(cell),
+        body,
+    }
+}
+
+fn diff_badge(cell: &DiffCell) -> TranscriptNote {
+    match cell.kind {
+        DiffCellKind::New => note("New", "Новый", TranscriptTone::Info),
+        DiffCellKind::ModifiedAdded => note("Added", "Добавлен", TranscriptTone::Success),
+        DiffCellKind::ModifiedDeleted => note("Deleted", "Удалён", TranscriptTone::Danger),
+        DiffCellKind::Diff => match cell.change_count {
+            0 => note("No changes", "Без изменений", TranscriptTone::Muted),
+            1 => note("1 change", "1 изменение", TranscriptTone::Warning),
+            count => note(
+                format!("{count} changes"),
+                format!("{count} изменений"),
+                TranscriptTone::Warning,
+            ),
+        },
+    }
+}
+
+fn annotation_note(status: AnnotationDiffStatus) -> TranscriptNote {
+    match status {
+        AnnotationDiffStatus::Matched => note("Unchanged", "Без изменений", TranscriptTone::Muted),
+        AnnotationDiffStatus::LabelMismatch => {
+            note("Label changed", "Изменена метка", TranscriptTone::Warning)
+        }
+        AnnotationDiffStatus::SubcategoryMismatch => note(
+            "Subcategory changed",
+            "Изменена подкатегория",
+            TranscriptTone::Warning,
+        ),
+        AnnotationDiffStatus::IntensityMismatch => note(
+            "Intensity changed",
+            "Изменена интенсивность",
+            TranscriptTone::Warning,
+        ),
+        AnnotationDiffStatus::UnmatchedReference => {
+            note("Removed", "Удалено", TranscriptTone::Danger)
+        }
+    }
+}
+
+fn note(en: impl Into<String>, ru: impl Into<String>, tone: TranscriptTone) -> TranscriptNote {
+    TranscriptNote {
+        label: LocalizedText::new(en, ru),
+        tone,
     }
 }
 

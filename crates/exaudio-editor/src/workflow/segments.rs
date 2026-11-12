@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::{Context, Result};
-use exaudio_core::{EditorCommand, Segment, SegmentUpdate};
+use exaudio_core::{EditorCommand, Segment, SegmentUpdate, derived_segment_id};
 use serde_json::Value;
 
 use super::{DocumentWorkflow, compare_seconds};
@@ -29,16 +29,6 @@ impl DocumentWorkflow {
         self.apply(EditorCommand::UpdateSegments { updates })
     }
 
-    pub fn split_segment(&mut self, segment_id: &str, at_seconds: f64) -> Result<String> {
-        let new_segment_id = self.next_derived_segment_id(segment_id);
-        self.apply(EditorCommand::SplitSegment {
-            segment_id: segment_id.to_string(),
-            at_seconds,
-            new_segment_id: new_segment_id.clone(),
-        })?;
-        Ok(new_segment_id)
-    }
-
     pub fn split_segment_with_text(
         &mut self,
         segment_id: &str,
@@ -46,7 +36,7 @@ impl DocumentWorkflow {
         left_text: impl Into<String>,
         right_text: impl Into<String>,
     ) -> Result<String> {
-        let new_segment_id = self.next_derived_segment_id(segment_id);
+        let new_segment_id = self.project.next_derived_segment_id(segment_id);
         self.apply(EditorCommand::SplitSegmentWithText {
             segment_id: segment_id.to_string(),
             at_seconds,
@@ -174,7 +164,7 @@ impl DocumentWorkflow {
             .segment(anchor_segment_id)
             .with_context(|| format!("segment `{anchor_segment_id}` was not found"))?
             .clone();
-        let new_segment_id = self.next_derived_segment_id(anchor_segment_id);
+        let new_segment_id = self.project.next_derived_segment_id(anchor_segment_id);
         let next_start_seconds = self
             .project
             .segments
@@ -212,7 +202,7 @@ impl DocumentWorkflow {
             .segment(anchor_segment_id)
             .with_context(|| format!("segment `{anchor_segment_id}` was not found"))?
             .clone();
-        let new_segment_id = self.next_derived_segment_id(anchor_segment_id);
+        let new_segment_id = self.project.next_derived_segment_id(anchor_segment_id);
         let previous_end_seconds = self
             .project
             .segments
@@ -284,7 +274,7 @@ impl DocumentWorkflow {
             .find(|lane| lane.id == lane_id)
             .with_context(|| format!("audio lane `{lane_id}` was not found"))?
             .clone();
-        let new_segment_id = self.next_derived_segment_id(lane_id);
+        let new_segment_id = self.project.next_derived_segment_id(lane_id);
         let segment = Segment {
             id: new_segment_id.clone(),
             source_annotation_id: None,
@@ -319,7 +309,7 @@ impl DocumentWorkflow {
                 .with_context(|| format!("audio lane `{lane_id}` was not found"))?;
             let index = next_index.entry(lane_id.clone()).or_insert(1);
             let id = loop {
-                let candidate = format!("{lane_id}__studio_{index}");
+                let candidate = derived_segment_id(&lane_id, *index);
                 *index += 1;
                 if !self.project.has_segment(&candidate) {
                     break candidate;
@@ -359,10 +349,6 @@ impl DocumentWorkflow {
             start_seconds,
             start_seconds + INSERT_DEFAULT_DURATION_SECONDS,
         )
-    }
-
-    pub fn create_blank_segment_in_lane(&mut self, lane_id: &str) -> Result<String> {
-        self.create_segment_at_time_in_lane(lane_id, 0.0)
     }
 
     pub fn change_segment_speaker(&mut self, segment_id: &str, speaker_id: &str) -> Result<()> {

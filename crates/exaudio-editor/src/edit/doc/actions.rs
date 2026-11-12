@@ -97,7 +97,7 @@ impl EditorDoc {
         }
     }
 
-    /// Applies an edit made outside the doc's own operations (drafting/reviewer suggestions)
+    /// Applies an edit made outside the doc's own operations (suggestions an extension applies)
     /// as an undoable, read-only-guarded edit: rows whose drafts matched the project follow the
     /// change (drafts with unapplied edits are kept), then marks dirty and reconciles.
     pub fn edit_workflow<T>(

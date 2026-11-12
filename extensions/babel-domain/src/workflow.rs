@@ -380,9 +380,8 @@ impl exaudio_extension::document::CommandProvider for BabelLowConfidenceCommandP
                 .to_owned()
             })?;
         let reviewable: std::collections::BTreeSet<_> =
-            crate::presentation::build_transcript_word_views(segment)
+            crate::presentation::low_confidence_words(segment)
                 .into_iter()
-                .filter(|word| word.is_low_confidence)
                 .map(|word| word.index)
                 .collect();
         if !reviewable.contains(&word_index) {

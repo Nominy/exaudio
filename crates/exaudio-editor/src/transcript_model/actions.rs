@@ -24,7 +24,7 @@ pub enum TranscriptActionCommand {
     Delete,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TranscriptTrackOptionView {
     pub lane_id: String,
     pub label: String,

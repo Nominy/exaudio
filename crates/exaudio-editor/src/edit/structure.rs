@@ -7,6 +7,7 @@ use std::cmp::Ordering;
 use exaudio_core::{Project, Segment};
 use exaudio_waveform::WaveformHitTarget;
 
+use crate::i18n::localized;
 use crate::timeline_model::{TimeRange, TimelineSegmentPreview};
 
 /// Regions shorter than this are not created from a waveform drag.
@@ -32,7 +33,7 @@ pub const TIMELINE_AUTOSCROLL_DEAD_ZONE_SECONDS: f64 = 0.025;
 /// Viewport pan speed per second of pointer offset.
 pub const TIMELINE_AUTOSCROLL_SPEED_MULTIPLIER: f64 = 4.0;
 /// Segment id of the create-drag preview region.
-pub const CREATE_PREVIEW_SEGMENT_ID: &str = "__studio_create_preview__";
+pub const CREATE_PREVIEW_SEGMENT_ID: &str = "__exaudio_create_preview__";
 
 /// Splits `text` into two word groups proportional to `ratio`; an interior ratio always
 /// leaves at least one word on each side.
@@ -59,13 +60,28 @@ pub fn split_text_by_word_ratio(text: &str, ratio: f64) -> (String, String) {
 }
 
 /// Why a split point was rejected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SplitError {
-    #[error("Split must be inside the segment.")]
     OutsideSegment,
-    #[error("Split must be at least 100ms before the segment end.")]
     TooCloseToEnd,
 }
+
+impl std::fmt::Display for SplitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::OutsideSegment => localized(
+                "Split must be inside the segment.",
+                "Точка разреза должна быть внутри сегмента.",
+            ),
+            Self::TooCloseToEnd => localized(
+                "Split must be at least 100ms before the segment end.",
+                "Точка разреза должна быть не ближе 100 мс к концу сегмента.",
+            ),
+        })
+    }
+}
+
+impl std::error::Error for SplitError {}
 
 /// Validates a split time and returns the fraction of the segment before it.
 pub fn split_ratio(segment: &Segment, split_at: f64) -> Result<f64, SplitError> {

@@ -64,8 +64,13 @@ fn local_documents_have_no_implicit_diagnostics_or_review_providers() {
     let row = session.transcript_rows(&project).remove(0);
     assert!(row.lint.is_none());
     assert!(row.lint_issues.is_empty());
-    assert!(row.diff.is_none());
-    assert!(row.reviewer.is_none());
+    assert!(row.extra_column.is_none());
+    assert!(row.extra_cell.is_none());
+    assert!(row.speaker_note.is_none());
+    assert!(row.styled_text.is_none());
+    assert!(row.word_marks.is_empty());
+    assert!(row.chips.is_empty());
+    assert!(!row.is_flagged);
 }
 
 #[test]

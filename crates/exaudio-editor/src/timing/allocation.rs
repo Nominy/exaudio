@@ -6,6 +6,7 @@ use super::text::{
     SplitParts, SplitSource, compact_text, nearest_word_boundary, normalize_text,
     split_at_floor_offset, split_by_word_ratio,
 };
+use crate::i18n::localized;
 
 /// Splits `text` for a cut at `split_seconds` inside `range`: exact completed-word boundary →
 /// interpolated timing offset → word-ratio estimate. `None` for an invalid split point.
@@ -69,17 +70,35 @@ pub struct TextGroup {
     pub segments: Vec<AllocationSegment>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AllocationError {
-    #[error("the group has no rows")]
     MissingSegments,
-    #[error("a row has an invalid time range")]
     InvalidSegment,
-    #[error("no word timestamps anchor this text")]
     MissingTimingAnchors,
-    #[error("the allocation would lose text")]
     LostText,
 }
+
+impl std::fmt::Display for AllocationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::MissingSegments => localized("the group has no rows", "в группе нет сегментов"),
+            Self::InvalidSegment => localized(
+                "a row has an invalid time range",
+                "у сегмента неверный диапазон времени",
+            ),
+            Self::MissingTimingAnchors => localized(
+                "no word timestamps anchor this text",
+                "для этого текста нет таймингов слов",
+            ),
+            Self::LostText => localized(
+                "the allocation would lose text",
+                "при размещении потерялся бы текст",
+            ),
+        })
+    }
+}
+
+impl std::error::Error for AllocationError {}
 
 fn validate_group(group: &TextGroup) -> Result<(), AllocationError> {
     if group.segments.is_empty() {

@@ -12,7 +12,8 @@ impl EditorSession {
             .count()
     }
 
-    pub fn unacknowledged_warning_count(&self, _project: &Project) -> usize {
+    /// Warnings the user has not asserted.
+    pub fn open_warning_count(&self, _project: &Project) -> usize {
         self.diagnostics()
             .iter()
             .flat_map(|collection| &collection.diagnostics)

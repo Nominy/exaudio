@@ -5,6 +5,7 @@
 
 use exaudio_babel_domain::editor_model::diff_toolbar::{
     AnnotationDiffMetrics, DiffMetrics, DiffToolbarState, MetricTriplet, TranscriptionDiffMetrics,
+    toggle_diff_view,
 };
 use exaudio_babel_domain::editor_model::review_actions::{
     ReadOnlyActionCommand, ReadOnlyNotice, ReviewActionStrip,
@@ -419,7 +420,7 @@ impl TransportStrip {
                     .disabled(!state.diff_toggle_enabled())
                     .on_click(move |_, _, cx| {
                         model.update(cx, |model, cx| {
-                            model.update_doc(cx, |doc| doc.session_mut().toggle_diff_view());
+                            model.update_doc(cx, toggle_diff_view);
                         });
                     }),
             );

@@ -8,11 +8,15 @@ use exaudio_extension::document::{
 
 use super::{EditError, EditResult, EditorDoc, Effect, Outcome};
 use crate::edit::draft::{TextSelection, byte_offset};
+use crate::i18n::{Text, localized};
+use crate::localized_format;
+
+const EXTENSION_TRANSACTION: Text = Text::new("Extension transaction", "Транзакция расширения");
 
 impl EditorDoc {
     /// Opens the contributed editor for non-text rows, or focuses the native text editor.
     pub fn open_segment_editor(&mut self, segment_id: &str) -> EditResult {
-        self.guard("Edit segment")?;
+        self.guard(localized("Edit segment", "Редактирование сегмента"))?;
         let segment = self
             .project()
             .segment(segment_id)
@@ -24,7 +28,13 @@ impl EditorDoc {
                 .segment_edit_command
                 .as_ref()
                 .ok_or_else(|| {
-                    EditError::Unavailable("No editor is registered for this segment.".into())
+                    EditError::Unavailable(
+                        localized(
+                            "No editor is registered for this segment.",
+                            "Для этого сегмента нет редактора.",
+                        )
+                        .into(),
+                    )
                 })?;
             return Ok(Outcome::none().with(Effect::ExecuteCommand {
                 command: command.clone(),
@@ -53,7 +63,7 @@ impl EditorDoc {
         arguments: &serde_json::Value,
         segment_id: Option<&str>,
     ) -> EditResult {
-        self.guard("Extension command")?;
+        self.guard(localized("Extension command", "Команда расширения"))?;
         let provider = self
             .environment()
             .providers
@@ -62,8 +72,9 @@ impl EditorDoc {
             .find(|provider| provider.command_ids().contains(&command))
             .cloned()
             .ok_or_else(|| {
-                EditError::Unavailable(format!(
-                    "Command `{command}` is not registered for this document."
+                EditError::Unavailable(localized_format!(
+                    "Command `{command}` is not registered for this document.",
+                    "Команда «{command}» не зарегистрирована для этого документа."
                 ))
             })?;
         let segment_id = segment_id
@@ -101,8 +112,11 @@ impl EditorDoc {
             .map_err(EditError::Unavailable)?;
         if result.transaction.is_some() && !result.drafts.is_empty() {
             return Err(EditError::Unavailable(
-                "A command must return either a document transaction or draft edits, not both."
-                    .into(),
+                localized(
+                    "A command must return either a document transaction or draft edits, not both.",
+                    "Команда должна вернуть либо транзакцию документа, либо правки черновиков, но не то и другое.",
+                )
+                .into(),
             ));
         }
         // Validate all draft outputs before modifying any state.
@@ -168,10 +182,14 @@ impl EditorDoc {
         transaction: DocumentTransaction,
         commit_guard: impl FnOnce() -> Result<(), EditError>,
     ) -> EditResult {
-        self.guard("Extension transaction")?;
+        self.guard(EXTENSION_TRANSACTION.get())?;
         if transaction.expected_revision != self.session.current_edit_revision() {
             return Err(EditError::Unavailable(
-                "The document changed before the extension transaction was applied.".into(),
+                localized(
+                    "The document changed before the extension transaction was applied.",
+                    "Документ изменился до применения транзакции расширения.",
+                )
+                .into(),
             ));
         }
         if transaction.edits.is_empty() {
@@ -180,7 +198,7 @@ impl EditorDoc {
         }
         if self.has_pending_drafts() {
             return Err(EditError::PendingDrafts {
-                action: "Extension transaction",
+                action: EXTENSION_TRANSACTION.get(),
             });
         }
         let mutation_policy = self.workflow.mutation_policy();
@@ -235,7 +253,7 @@ impl EditorDoc {
                 commit_guard().map_err(anyhow::Error::new)
             })
             .map_err(|source| EditError::Workflow {
-                action: "Extension transaction",
+                action: EXTENSION_TRANSACTION.get(),
                 source,
             })?;
         self.drafts.reset(self.workflow.project());
@@ -252,7 +270,11 @@ fn validate_range(text: &str, range: TextRange) -> Result<(), String> {
         || !text.is_char_boundary(range.start)
         || !text.is_char_boundary(range.end)
     {
-        return Err("Extension returned an invalid UTF-8 text range.".into());
+        return Err(localized(
+            "Extension returned an invalid UTF-8 text range.",
+            "Расширение вернуло неверный диапазон текста UTF-8.",
+        )
+        .into());
     }
     Ok(())
 }

@@ -1,5 +1,7 @@
 use exaudio_babel_domain::editor_model::context_panels::{original_script, script_context};
-use exaudio_babel_domain::editor_model::diff_toolbar::{DiffCompareOption, DiffMetrics};
+use exaudio_babel_domain::editor_model::diff_toolbar::{
+    DiffCompareOption, DiffMetrics, set_diff_view,
+};
 use exaudio_babel_domain::editor_model::feedback_assessment::{
     FEEDBACK_MAX_COMMENT_LENGTH, FeedbackDraft, FeedbackInput, FeedbackInputResponse,
     FeedbackRubricEntry, FeedbackSaveRequestInput, compute_feedback_draft_save_request,
@@ -26,9 +28,9 @@ use exaudio_editor::editor_model::{EditorSession as CoreSession, ProblemCounts, 
 use exaudio_editor::timeline_model::{LaneColor, LaneWaveform, TimeRange, WaveformPeakSource};
 use exaudio_editor::track_filter::TrackFilter;
 use exaudio_editor::transcript_model::{
-    AnnotationDiffStatus, TranscriptActionCommand, TranscriptActionMenuEntry,
-    TranscriptAnnotationKind, TranscriptDiffCellKind, TranscriptDiffView, TranscriptRowKind,
-    TranscriptRowVisibleCells, TranscriptWordDiffStatus,
+    TranscriptActionCommand, TranscriptActionMenuEntry, TranscriptAnnotationKind,
+    TranscriptRowKind, TranscriptRowVisibleCells, TranscriptStyledBody, TranscriptStyledText,
+    TranscriptTone, TranscriptWordStyle,
 };
 use exaudio_editor::workflow::DocumentWorkflow;
 use exaudio_extension::document::Severity;
@@ -190,11 +192,28 @@ fn action_menu_entry_summary(
     }
 }
 
-fn word_diff_summary(diff: &TranscriptDiffView) -> Vec<(TranscriptWordDiffStatus, &str)> {
-    diff.words
-        .iter()
-        .map(|word| (word.status, word.value.as_str()))
-        .collect()
+/// English badge label of a row's styled text; empty without one.
+fn badge_of(styled: Option<&TranscriptStyledText>) -> &str {
+    styled.map_or("", |styled| styled.badge.label.en.as_str())
+}
+
+/// The words a styled text draws, with their styles; empty when it shows a note.
+fn styled_word_summary(styled: &TranscriptStyledText) -> Vec<(TranscriptWordStyle, &str)> {
+    match &styled.body {
+        TranscriptStyledBody::Words(words) => words
+            .iter()
+            .map(|word| (word.style, word.text.as_str()))
+            .collect(),
+        TranscriptStyledBody::Note(_) => Vec::new(),
+    }
+}
+
+/// English text of the note a styled text shows; `None` when it draws words.
+fn note_of(styled: &TranscriptStyledText) -> Option<&str> {
+    match &styled.body {
+        TranscriptStyledBody::Note(note) => Some(note.en.as_str()),
+        TranscriptStyledBody::Words(_) => None,
+    }
 }
 
 #[test]
@@ -205,7 +224,7 @@ fn editor_session_defaults_to_babel_workspace_state() {
     assert_eq!(session.speed, 1.0);
     assert_eq!(session.zoom, 1.0);
     assert!(!session.is_playing);
-    assert!(!session.diff_view);
+    assert!(!session.diff_toolbar(&project).is_diff_mode);
     assert!(session.loop_range().is_none());
     assert_eq!(session.track_filter, TrackFilter::All);
     assert_eq!(session.domain.review_state, ReviewState::Draft);
@@ -890,7 +909,7 @@ fn diff_toolbar_exposes_compare_options_and_transcription_metrics() {
         .to_string(),
     );
     let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    set_diff_view(&mut project, true);
     session.mark_dirty();
 
     let toolbar = session.diff_toolbar(&project);
@@ -941,7 +960,7 @@ fn diff_toolbar_exposes_compare_options_and_transcription_metrics() {
         (25, 50, 75)
     );
 
-    session.toggle_diff_view();
+    set_diff_view(&mut project, false);
     assert_eq!(session.diff_toolbar(&project).metrics, None);
 }
 
@@ -973,8 +992,8 @@ fn diff_toolbar_exposes_annotation_options_and_metrics() {
         })
         .to_string(),
     );
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let toolbar = session.diff_toolbar(&project);
 
@@ -1080,11 +1099,15 @@ fn transcript_rows_expose_babel_reviewer_intervals_when_enabled() {
 
     let rows = session.transcript_rows(&project);
 
-    assert!(rows.iter().all(|row| row.show_reviewer));
-    assert_eq!(rows[0].reviewer.as_ref().unwrap().label, "L1: alice");
-    assert_eq!(rows[0].reviewer.as_ref().unwrap().color_hue, Some(49));
-    assert_eq!(rows[1].reviewer.as_ref().unwrap().label, "L2: \u{2014}");
-    assert_eq!(rows[1].reviewer.as_ref().unwrap().color_hue, Some(287));
+    let column = rows[0].extra_column.as_ref().unwrap();
+    assert_eq!(column.header.en, "Reviewer");
+    assert_eq!(column.header.ru, "Ревьюер");
+    assert_eq!(column.width_rems, 8.75);
+    assert!(rows.iter().all(|row| row.extra_column.is_some()));
+    assert_eq!(rows[0].extra_cell.as_ref().unwrap().text, "L1: alice");
+    assert_eq!(rows[0].extra_cell.as_ref().unwrap().color_hue, Some(49));
+    assert_eq!(rows[1].extra_cell.as_ref().unwrap().text, "L2: \u{2014}");
+    assert_eq!(rows[1].extra_cell.as_ref().unwrap().color_hue, Some(287));
 }
 
 #[test]
@@ -1109,8 +1132,8 @@ fn transcript_rows_hide_reviewer_intervals_when_babel_toggle_is_off() {
 
     let rows = session.transcript_rows(&project);
 
-    assert!(rows.iter().all(|row| !row.show_reviewer));
-    assert!(rows.iter().all(|row| row.reviewer.is_none()));
+    assert!(rows.iter().all(|row| row.extra_column.is_none()));
+    assert!(rows.iter().all(|row| row.extra_cell.is_none()));
 }
 
 #[test]
@@ -1135,12 +1158,12 @@ fn transcript_rows_expose_babel_hidden_timestamp_visible_cells() {
             track: false,
             start: false,
             end: false,
-            reviewer: true,
             text: true,
             linter: true,
             actions: false,
         }
     );
+    assert!(row.extra_column.is_some());
     assert_eq!(
         session.transcript_visible_cells(&project),
         row.visible_cells
@@ -1687,7 +1710,7 @@ fn non_transcription_babel_annotations_skip_transcription_lint_and_actions() {
         row.annotation_kind,
         TranscriptAnnotationKind::NonTranscription("non-transcription".to_string())
     );
-    assert_eq!(row.annotation_type_label, "non-transcription");
+    assert_eq!(row.annotation_kind.label(), "non-transcription");
     assert!(row.lint.is_none());
     assert!(row.lint_issues.is_empty());
 
@@ -1822,13 +1845,12 @@ fn transcript_rows_expose_babel_low_confidence_word_views_for_text_cell() {
     let session = EditorSession::for_project(&project);
 
     let rows = session.transcript_rows(&project);
-
-    assert_eq!(rows[0].word_views.len(), 1);
-    assert_eq!(rows[0].word_views[0].index, 1);
-    assert_eq!(rows[0].word_views[0].text, "beta");
-    assert_eq!(rows[0].word_views[0].start_seconds, Some(1.25));
-    assert_eq!(rows[0].word_views[0].end_seconds, Some(1.45));
-    assert!(rows[0].word_views[0].is_low_confidence);
+    assert_eq!(rows[0].word_marks.len(), 1);
+    assert_eq!(rows[0].word_marks[0].word_index, 1);
+    assert!(rows[0].word_marks[0].underlined);
+    assert_eq!(rows[0].word_marks[0].seek_seconds, Some(1.25));
+    assert_eq!(rows[0].chips.len(), 1);
+    assert_eq!(rows[0].chips[0].label, "beta");
 }
 
 #[test]
@@ -2074,19 +2096,23 @@ fn transport_selects_segment_under_playhead_without_rewinding_playhead() {
 
 #[test]
 fn diff_view_adds_visible_row_markers() {
-    let project = sample_project();
-    let mut session = EditorSession::for_project(&project);
+    let mut project = sample_project();
+    let session = EditorSession::for_project(&project);
 
-    assert!(session.transcript_rows(&project)[0].diff_marker.is_none());
-    session.toggle_diff_view();
+    let row = session.transcript_rows(&project).remove(0);
+    assert!(!row.is_flagged);
+    assert!(row.styled_text.is_none());
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
-    assert_eq!(rows[0].diff_marker.as_deref(), Some("Babel unchanged"));
-    assert!(rows[0].diff_source_text.is_none());
+    let styled = rows[0].styled_text.as_ref().unwrap();
+    assert!(rows[0].is_flagged);
+    assert_eq!(badge_of(Some(styled)), "No changes");
+    assert_eq!(styled.badge.tone, TranscriptTone::Muted);
 }
 
 #[test]
-fn diff_view_reports_changed_fields_and_original_text_from_babel_snapshot() {
+fn diff_view_diffs_text_against_the_original_babel_snapshot() {
     let mut changed = segment("annotation-1", 1.5, 2.5, "edited text");
     changed.speaker_id = "speaker-2".to_string();
     changed.lane_id = "track-2".to_string();
@@ -2134,7 +2160,7 @@ fn diff_view_reports_changed_fields_and_original_text_from_babel_snapshot() {
     );
 
     let added = Segment {
-        id: "annotation-2__studio_1".to_string(),
+        id: "annotation-2__exaudio_1".to_string(),
         source_annotation_id: None,
         speaker_id: "speaker-1".to_string(),
         lane_id: "track-1".to_string(),
@@ -2143,21 +2169,35 @@ fn diff_view_reports_changed_fields_and_original_text_from_babel_snapshot() {
         text: "new native row".to_string(),
         metadata: Default::default(),
     };
-    let project = two_lane_project(vec![changed, unchanged, added]);
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let mut project = two_lane_project(vec![changed, unchanged, added]);
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
+    let changed = rows[0].styled_text.as_ref().unwrap();
+    let unchanged = rows[1].styled_text.as_ref().unwrap();
+    let added = rows[2].styled_text.as_ref().unwrap();
 
+    assert!(rows.iter().all(|row| row.is_flagged));
+    assert_eq!(badge_of(Some(changed)), "1 change");
     assert_eq!(
-        rows[0].diff_marker.as_deref(),
-        Some("Changed: text, timing, track")
+        styled_word_summary(changed),
+        vec![
+            (TranscriptWordStyle::Deleted, "original"),
+            (TranscriptWordStyle::Inserted, "edited"),
+            (TranscriptWordStyle::Plain, "text"),
+        ]
     );
-    assert_eq!(rows[0].diff_source_text.as_deref(), Some("original text"));
-    assert_eq!(rows[1].diff_marker.as_deref(), Some("Babel unchanged"));
-    assert!(rows[1].diff_source_text.is_none());
-    assert_eq!(rows[2].diff_marker.as_deref(), Some("New"));
-    assert!(rows[2].diff_source_text.is_none());
+    assert_eq!(badge_of(Some(unchanged)), "No changes");
+    assert_eq!(
+        styled_word_summary(unchanged),
+        vec![
+            (TranscriptWordStyle::Plain, "same"),
+            (TranscriptWordStyle::Plain, "text"),
+        ]
+    );
+    assert_eq!(badge_of(Some(added)), "New");
+    assert_eq!(note_of(added), Some("new native row"));
 }
 
 #[test]
@@ -2203,27 +2243,20 @@ fn diff_view_uses_selected_compare_action_snapshot_for_row_diff_source() {
         "studio.babel.diff.selectedCompareActionId".to_string(),
         "l1".to_string(),
     );
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
-    let diff = rows[0].diff.as_ref().unwrap();
+    let styled = rows[0].styled_text.as_ref().unwrap();
 
+    assert_eq!(badge_of(Some(styled)), "1 change");
+    assert_eq!(styled.badge.tone, TranscriptTone::Warning);
     assert_eq!(
-        rows[0].diff_source_text.as_deref(),
-        Some("selected compare text")
-    );
-    assert_eq!(
-        rows[0].diff_marker.as_deref(),
-        Some("Changed: text, timing, track")
-    );
-    assert_eq!(diff.change_count, 1);
-    assert_eq!(
-        word_diff_summary(diff),
+        styled_word_summary(styled),
         vec![
-            (TranscriptWordDiffStatus::Removed, "selected"),
-            (TranscriptWordDiffStatus::Added, "edited"),
-            (TranscriptWordDiffStatus::Unchanged, "text"),
+            (TranscriptWordStyle::Deleted, "selected"),
+            (TranscriptWordStyle::Inserted, "edited"),
+            (TranscriptWordStyle::Plain, "text"),
         ]
     );
 }
@@ -2263,23 +2296,14 @@ fn diff_view_exposes_babel_annotation_status_from_compare_snapshot() {
         "studio.babel.diff.selectedCompareActionId".to_string(),
         "l0".to_string(),
     );
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
-    let annotation_diff = rows[0].annotation_diff.as_ref().unwrap();
+    let note = rows[0].speaker_note.as_ref().unwrap();
 
-    assert_eq!(
-        annotation_diff.status,
-        AnnotationDiffStatus::SubcategoryMismatch
-    );
-    assert_eq!(
-        annotation_diff.other_secondary_label.as_deref(),
-        Some("mic bump")
-    );
-    assert_eq!(annotation_diff.other_intensity, Some(2));
-    assert_eq!(annotation_diff.counterpart_start_seconds, Some(1.0));
-    assert_eq!(annotation_diff.counterpart_end_seconds, Some(2.0));
+    assert_eq!(note.label.en, "Subcategory changed");
+    assert_eq!(note.tone, TranscriptTone::Warning);
 }
 
 #[test]
@@ -2309,7 +2333,7 @@ fn diff_view_text_cells_are_separate_from_linter() {
     );
 
     let added = Segment {
-        id: "annotation-2__studio_1".to_string(),
+        id: "annotation-2__exaudio_1".to_string(),
         source_annotation_id: None,
         speaker_id: "speaker-1".to_string(),
         lane_id: "track-1".to_string(),
@@ -2318,24 +2342,27 @@ fn diff_view_text_cells_are_separate_from_linter() {
         text: "New native row.".to_string(),
         metadata: Default::default(),
     };
-    let project = two_lane_project(vec![changed, added]);
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let mut project = two_lane_project(vec![changed, added]);
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
+    let changed = rows[0].styled_text.as_ref().unwrap();
+    let added = rows[1].styled_text.as_ref().unwrap();
 
     assert!(rows[0].lint.is_none());
-    assert_eq!(rows[0].diff.as_ref().unwrap().change_count, 1);
+    assert_eq!(badge_of(Some(changed)), "1 change");
     assert_eq!(
-        rows[0].diff.as_ref().unwrap().source_text.as_deref(),
-        Some("Original text.")
+        styled_word_summary(changed),
+        vec![
+            (TranscriptWordStyle::Deleted, "Original"),
+            (TranscriptWordStyle::Inserted, "Edited"),
+            (TranscriptWordStyle::Plain, "text."),
+        ]
     );
     assert!(rows[1].lint.is_none());
-    assert_eq!(
-        rows[1].diff.as_ref().unwrap().kind,
-        TranscriptDiffCellKind::New
-    );
-    assert!(rows[1].diff.as_ref().unwrap().source_text.is_none());
+    assert_eq!(badge_of(Some(added)), "New");
+    assert_eq!(note_of(added), Some("New native row."));
 }
 
 #[test]
@@ -2355,23 +2382,22 @@ fn diff_view_uses_babel_word_diffs_and_counts_replacements_once() {
             { "status": "added", "value": "new" }
         ]),
     );
-    let project = project_with_segments(vec![changed]);
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let mut project = project_with_segments(vec![changed]);
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
-    let diff = rows[0].diff.as_ref().unwrap();
+    let styled = rows[0].styled_text.as_ref().unwrap();
 
-    assert_eq!(diff.kind, TranscriptDiffCellKind::Diff);
-    assert_eq!(diff.change_count, 2);
+    assert_eq!(badge_of(Some(styled)), "2 changes");
     assert_eq!(
-        word_diff_summary(diff),
+        styled_word_summary(styled),
         vec![
-            (TranscriptWordDiffStatus::Unchanged, "alpha"),
-            (TranscriptWordDiffStatus::Removed, "beta"),
-            (TranscriptWordDiffStatus::Added, "gamma"),
-            (TranscriptWordDiffStatus::Removed, "old"),
-            (TranscriptWordDiffStatus::Added, "new"),
+            (TranscriptWordStyle::Plain, "alpha"),
+            (TranscriptWordStyle::Deleted, "beta"),
+            (TranscriptWordStyle::Inserted, "gamma"),
+            (TranscriptWordStyle::Deleted, "old"),
+            (TranscriptWordStyle::Inserted, "new"),
         ]
     );
 }
@@ -2389,7 +2415,7 @@ fn diff_view_marks_empty_diffs_and_new_rows() {
     );
 
     let added_empty = Segment {
-        id: "annotation-2__studio_1".to_string(),
+        id: "annotation-2__exaudio_1".to_string(),
         source_annotation_id: None,
         speaker_id: "speaker-1".to_string(),
         lane_id: "track-1".to_string(),
@@ -2398,21 +2424,19 @@ fn diff_view_marks_empty_diffs_and_new_rows() {
         text: "".to_string(),
         metadata: Default::default(),
     };
-    let project = project_with_segments(vec![unchanged_empty, added_empty]);
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let mut project = project_with_segments(vec![unchanged_empty, added_empty]);
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
-    let unchanged_diff = rows[0].diff.as_ref().unwrap();
-    let added_diff = rows[1].diff.as_ref().unwrap();
+    let unchanged_text = rows[0].styled_text.as_ref().unwrap();
+    let added_text = rows[1].styled_text.as_ref().unwrap();
 
-    assert_eq!(unchanged_diff.kind, TranscriptDiffCellKind::Diff);
-    assert_eq!(unchanged_diff.change_count, 0);
-    assert!(unchanged_diff.words.is_empty());
+    assert_eq!(badge_of(Some(unchanged_text)), "No changes");
+    assert_eq!(note_of(unchanged_text), Some("No content"));
 
-    assert_eq!(added_diff.kind, TranscriptDiffCellKind::New);
-    assert_eq!(added_diff.change_count, 0);
-    assert!(added_diff.words.is_empty());
+    assert_eq!(badge_of(Some(added_text)), "New");
+    assert_eq!(note_of(added_text), Some(""));
 }
 
 #[test]
@@ -2445,27 +2469,30 @@ fn diff_view_interleaves_babel_deleted_segment_rows() {
         })
         .to_string(),
     );
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
 
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows[1].row_kind, TranscriptRowKind::ModifiedDeleted);
+    assert_eq!(
+        rows[1].row_kind,
+        TranscriptRowKind::Static(TranscriptTone::Danger)
+    );
     assert_eq!(rows[1].segment_id, "modified-deleted-reference");
     assert_eq!(rows[1].display_id, "2");
     assert_eq!(rows[1].speaker_label, "Deleted");
     assert_eq!(rows[1].start_time, "00:02.00");
     assert_eq!(rows[1].end_time, "00:03.00");
     assert!(rows[1].is_read_only);
-    assert_eq!(rows[1].diff_marker.as_deref(), Some("Deleted"));
-    let diff = rows[1].diff.as_ref().unwrap();
-    assert_eq!(diff.kind, TranscriptDiffCellKind::ModifiedDeleted);
+    let styled = rows[1].styled_text.as_ref().unwrap();
+    assert_eq!(badge_of(Some(styled)), "Deleted");
+    assert_eq!(styled.badge.tone, TranscriptTone::Danger);
     assert_eq!(
-        word_diff_summary(diff),
+        styled_word_summary(styled),
         vec![
-            (TranscriptWordDiffStatus::Removed, "old"),
-            (TranscriptWordDiffStatus::Removed, "missing"),
+            (TranscriptWordStyle::Deleted, "old"),
+            (TranscriptWordStyle::Deleted, "missing"),
         ]
     );
 }
@@ -2503,25 +2530,28 @@ fn diff_view_interleaves_babel_compare_newer_added_segment_rows() {
         })
         .to_string(),
     );
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
 
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows[1].row_kind, TranscriptRowKind::ModifiedAdded);
+    assert_eq!(
+        rows[1].row_kind,
+        TranscriptRowKind::Static(TranscriptTone::Success)
+    );
     assert_eq!(rows[1].segment_id, "modified-newer-added");
     assert_eq!(rows[1].display_id, "2");
     assert_eq!(rows[1].speaker_label, "Added");
     assert!(rows[1].is_read_only);
-    assert_eq!(rows[1].diff_marker.as_deref(), Some("Added"));
-    let diff = rows[1].diff.as_ref().unwrap();
-    assert_eq!(diff.kind, TranscriptDiffCellKind::ModifiedAdded);
+    let styled = rows[1].styled_text.as_ref().unwrap();
+    assert_eq!(badge_of(Some(styled)), "Added");
+    assert_eq!(styled.badge.tone, TranscriptTone::Success);
     assert_eq!(
-        word_diff_summary(diff),
+        styled_word_summary(styled),
         vec![
-            (TranscriptWordDiffStatus::Added, "newer"),
-            (TranscriptWordDiffStatus::Added, "line"),
+            (TranscriptWordStyle::Inserted, "newer"),
+            (TranscriptWordStyle::Inserted, "line"),
         ]
     );
 }
@@ -2549,13 +2579,16 @@ fn diff_view_interleaves_babel_removed_annotation_ghost_rows() {
         }])
         .to_string(),
     );
-    let mut session = EditorSession::for_project(&project);
-    session.toggle_diff_view();
+    let session = EditorSession::for_project(&project);
+    set_diff_view(&mut project, true);
 
     let rows = session.transcript_rows(&project);
 
     assert_eq!(rows.len(), 3);
-    assert_eq!(rows[1].row_kind, TranscriptRowKind::AnnotationRemovedGhost);
+    assert_eq!(
+        rows[1].row_kind,
+        TranscriptRowKind::Static(TranscriptTone::Danger)
+    );
     assert_eq!(rows[1].segment_id, "annotation-ghost-removed-annotation");
     assert_eq!(rows[1].display_id, "2");
     assert_eq!(rows[1].speaker_label, "Reference");
@@ -2563,17 +2596,14 @@ fn diff_view_interleaves_babel_removed_annotation_ghost_rows() {
         rows[1].annotation_kind,
         TranscriptAnnotationKind::NonTranscription("removed".to_string())
     );
-    assert_eq!(rows[1].annotation_type_label, "Removed");
     assert_eq!(rows[1].start_time, "00:02.00");
     assert_eq!(rows[1].end_time, "00:03.00");
     assert_eq!(rows[1].text, "background-noise / rustle · intensity 3");
     assert!(rows[1].is_read_only);
-    assert_eq!(rows[1].diff_marker.as_deref(), Some("Removed"));
-    let annotation_diff = rows[1].annotation_diff.as_ref().unwrap();
-    assert_eq!(
-        annotation_diff.status,
-        AnnotationDiffStatus::UnmatchedReference
-    );
+    assert!(rows[1].styled_text.is_none());
+    let note = rows[1].speaker_note.as_ref().unwrap();
+    assert_eq!(note.label.en, "Removed");
+    assert_eq!(note.tone, TranscriptTone::Danger);
 }
 
 #[test]
@@ -2749,7 +2779,7 @@ fn display_ids_are_visible_row_order_numbers_not_babel_annotation_ids() {
         segment("annotation-20", 0.0, 1.0, "twenty"),
         segment("annotation-2", 2.0, 3.0, "two"),
         Segment {
-            id: "annotation-20__studio_1".to_string(),
+            id: "annotation-20__exaudio_1".to_string(),
             source_annotation_id: None,
             speaker_id: "speaker-1".to_string(),
             lane_id: "track-1".to_string(),
@@ -2766,7 +2796,7 @@ fn display_ids_are_visible_row_order_numbers_not_babel_annotation_ids() {
         rows.iter()
             .map(|row| row.segment_id.as_str())
             .collect::<Vec<_>>(),
-        vec!["annotation-20", "annotation-2", "annotation-20__studio_1"]
+        vec!["annotation-20", "annotation-2", "annotation-20__exaudio_1"]
     );
     assert_eq!(
         rows.iter()
@@ -3345,9 +3375,9 @@ fn partial_word_acknowledgements_are_shared_with_neutral_presentation() {
     let environment = test_environment(&project);
     let session = CoreSession::for_project_with_environment(&project, environment);
     let rows = session.transcript_rows(&project);
-    let word = &rows[0].word_views[0];
-    assert!(!word.is_acknowledged);
-    let command = word.command.as_deref().unwrap();
+    assert!(rows[0].word_marks[0].underlined);
+    let chip = &rows[0].chips[0];
+    let command = chip.command.as_str();
     let provider = session
         .environment()
         .providers
@@ -3365,14 +3395,16 @@ fn partial_word_acknowledgements_are_shared_with_neutral_presentation() {
                 text: None,
                 selection: None,
                 caret_offset: None,
-                arguments: &word.command_arguments,
+                arguments: &chip.arguments,
             },
         )
         .unwrap();
     assert!(outcome.transaction.is_none());
     let rows = session.transcript_rows(&project);
-    assert!(rows[0].word_views[0].is_acknowledged);
-    assert!(!rows[0].word_views[1].is_acknowledged);
+    assert!(!rows[0].word_marks[0].underlined);
+    assert!(rows[0].word_marks[1].underlined);
+    assert_eq!(rows[0].chips.len(), 1);
+    assert_eq!(rows[0].chips[0].label, "beta");
 }
 
 #[test]

@@ -299,7 +299,8 @@ pub fn open(shell: ShellHandle, root: PathBuf, window: &mut Window, cx: &mut App
 /// Status line for a failed backup write; the I/O error stays behind the hover.
 fn backup_not_saved(model: &mut EditorModel, error: &str, cx: &mut Context<EditorModel>) {
     model.set_status_with_detail(
-        exaudio_editor::i18n::localized(
+        ui::localized(
+            cx,
             "Couldn't save a backup of unsaved work.",
             "Не удалось сохранить резервную копию.",
         ),

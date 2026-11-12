@@ -29,6 +29,15 @@ impl Project {
         self.segment(segment_id).is_some()
     }
 
+    /// First unused id derived from `base_id`: the id of a segment split off or created next
+    /// to `base_id`, or of a segment created in the lane `base_id`.
+    pub fn next_derived_segment_id(&self, base_id: &str) -> String {
+        (1..)
+            .map(|index| derived_segment_id(base_id, index))
+            .find(|candidate| !self.has_segment(candidate))
+            .expect("unbounded segment id search")
+    }
+
     pub fn speaker(&self, speaker_id: &str) -> Option<&Speaker> {
         self.speakers
             .iter()
@@ -107,6 +116,12 @@ impl Project {
         }
         total
     }
+}
+
+/// The `index`-th id derived from `base_id`; [`Project::next_derived_segment_id`] picks the
+/// first unused one. Ids are opaque: nothing reads the base back out of them.
+pub fn derived_segment_id(base_id: &str, index: usize) -> String {
+    format!("{base_id}__exaudio_{index}")
 }
 
 /// Rough heap estimate for a [`serde_json::Value`], walking the structure

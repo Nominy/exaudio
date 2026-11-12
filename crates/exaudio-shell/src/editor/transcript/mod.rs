@@ -44,9 +44,7 @@ use gpui_kit::*;
 use crate::actions::{self, IS_MAC, keystroke_string};
 use crate::editor::model::{EditorEvent, EditorModel};
 use crate::screens::ui::localized;
-use layout::{
-    ACTIONS_W, CELL_PX, ID_W, LINT_W, REVIEWER_W, RowMetrics, TEXT_PX, TIME_W, TRACK_W, TextMetrics,
-};
+use layout::{ACTIONS_W, CELL_PX, ID_W, LINT_W, RowMetrics, TEXT_PX, TIME_W, TRACK_W, TextMetrics};
 use row::RowParams;
 
 const MAX_EDITOR_ROWS: usize = 400;
@@ -1228,11 +1226,15 @@ impl TranscriptView {
             .when(cells.end, |el| {
                 el.child(label(localized(cx, "End", "Конец"), Some(TIME_W)))
             })
-            .when(cells.reviewer, |el| {
-                el.child(label(
-                    localized(cx, "Reviewer", "Ревьюер"),
-                    Some(REVIEWER_W),
-                ))
+            .when_some(doc.transcript_extra_column(), |el, column| {
+                el.child(
+                    div()
+                        .w(rems(column.width_rems))
+                        .flex_none()
+                        .px(CELL_PX)
+                        .truncate()
+                        .child(column.header.get().to_string()),
+                )
             })
             .when(cells.text, |el| {
                 el.child(

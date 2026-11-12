@@ -1,6 +1,8 @@
-//! Diff-toolbar state: compare-version choices, toggles and diff metrics carried in task metadata.
+//! Diff-toolbar state: whether the diff view is on, compare-version choices, toggles and diff
+//! metrics, all carried in task metadata.
 
 use exaudio_core::Project;
+use exaudio_editor::edit::EditorDoc;
 use serde_json::Value;
 
 use super::{AssessmentPhase, EditorSessionView};
@@ -14,6 +16,30 @@ const META_SHOW_REVIEWERS: &str = "studio.babel.diff.showReviewers";
 const META_HAS_REVIEWER_TOGGLE: &str = "studio.babel.diff.hasReviewerToggle";
 const META_ASSESSMENT_PHASE: &str = "studio.babel.diff.assessmentPhase";
 const META_IS_LOADING: &str = "studio.babel.diff.isLoading";
+const META_DIFF_VIEW: &str = "studio.babel.diff.enabled";
+
+/// Whether the task shows its comparison with the selected version: diff rows in the
+/// transcript and metrics in the toolbar.
+pub fn diff_view_enabled(project: &Project) -> bool {
+    metadata_bool(project, META_DIFF_VIEW)
+}
+
+/// Turns the diff view of `project` on or off.
+pub fn set_diff_view(project: &mut Project, enabled: bool) {
+    project.metadata.extend([diff_view_entry(enabled)]);
+}
+
+/// Flips the diff view of an open document and returns whether it is now on. Drafts, the
+/// selection and the edit history stay as they are.
+pub fn toggle_diff_view(doc: &mut EditorDoc) -> bool {
+    let enabled = !diff_view_enabled(doc.project());
+    doc.merge_project_metadata([diff_view_entry(enabled)]);
+    enabled
+}
+
+fn diff_view_entry(enabled: bool) -> (String, String) {
+    (META_DIFF_VIEW.to_string(), enabled.to_string())
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DiffToolbarState {
@@ -116,7 +142,8 @@ impl EditorSessionView<'_> {
             .metadata
             .get(META_ASSESSMENT_PHASE)
             .and_then(|phase| AssessmentPhase::parse(phase));
-        let metrics = if !self.diff_view {
+        let is_diff_mode = diff_view_enabled(project);
+        let metrics = if !is_diff_mode {
             None
         } else if annotation_mode {
             annotation_metrics(project).map(DiffMetrics::Annotation)
@@ -127,7 +154,7 @@ impl EditorSessionView<'_> {
         DiffToolbarState {
             annotation_mode,
             assessment_phase,
-            is_diff_mode: self.diff_view,
+            is_diff_mode,
             has_unsaved_changes: self.is_dirty,
             is_loading: metadata_bool(project, META_IS_LOADING),
             show_reviewers_control: !annotation_mode

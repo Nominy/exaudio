@@ -39,17 +39,6 @@ impl DocumentWorkflow {
         self.clear_pending_boundary_edit();
         self.mutation_policy = mutation_policy;
     }
-
-    fn next_derived_segment_id(&self, base_segment_id: &str) -> String {
-        for index in 1.. {
-            let candidate = format!("{base_segment_id}__studio_{index}");
-            if !self.project.has_segment(&candidate) {
-                return candidate;
-            }
-        }
-
-        unreachable!("failed to allocate derived segment id")
-    }
 }
 
 fn compare_seconds(left: f64, right: f64) -> Ordering {

@@ -288,10 +288,6 @@ impl EditorSession {
         }
     }
 
-    pub fn toggle_diff_view(&mut self) {
-        self.diff_view = !self.diff_view;
-    }
-
     /// T: toggles a one-second cut preview at the playhead on the selected row's lane (else the
     /// first visible lane).
     pub fn toggle_overlay(&mut self, project: &Project) {

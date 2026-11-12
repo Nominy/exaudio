@@ -272,7 +272,7 @@ impl TimelineView {
         lanes
     }
 
-    /// Lint / diff decorations per visible row, rebuilt per doc generation.
+    /// Lint state and flags of the visible rows, rebuilt per doc generation.
     fn marks(&mut self, cx: &App) -> RegionMarks {
         let doc = self.model.read(cx).doc();
         let generation = doc.generation();
@@ -281,16 +281,15 @@ impl TimelineView {
         {
             return Rc::clone(marks);
         }
-        let diff_view = doc.session().diff_view;
         let rows = doc.transcript_rows();
         let mut marks = HashMap::new();
         for row in rows.iter() {
             let lint = doc.row_lint(row).and_then(|(severity, _)| {
                 matches!(severity, Severity::Error | Severity::Warning).then_some(severity)
             });
-            let changed = diff_view && row.diff_marker.is_some();
-            if lint.is_some() || changed {
-                marks.insert(row.segment_id.clone(), RegionMark { lint, changed });
+            let flagged = row.is_flagged;
+            if lint.is_some() || flagged {
+                marks.insert(row.segment_id.clone(), RegionMark { lint, flagged });
             }
         }
         let marks = Rc::new(marks);

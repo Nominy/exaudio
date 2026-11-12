@@ -39,8 +39,12 @@ use super::structure::{
 use super::text::TextMoveError;
 use super::time::TimeEditError;
 use crate::editor_model::{EditorSession, ProblemCounts};
+use crate::i18n::localized;
+use crate::localized_format;
 use crate::timing::WordTimings;
-use crate::transcript_model::{TranscriptRowView, TranscriptRowVisibleCells, speaker_label};
+use crate::transcript_model::{
+    TranscriptExtraColumn, TranscriptRowView, TranscriptRowVisibleCells, speaker_label,
+};
 use crate::workflow::DocumentWorkflow;
 use exaudio_extension::document::{DocumentEnvironment, Severity};
 
@@ -119,41 +123,120 @@ impl Outcome {
 }
 
 /// Why an operation was refused. `Display` is the status-bar message.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum EditError {
-    #[error("{action} unavailable: project is read-only.")]
-    ReadOnly { action: &'static str },
-    #[error("That segment no longer exists.")]
+    ReadOnly {
+        action: &'static str,
+    },
     SegmentNotFound(String),
-    #[error("That segment has no editable draft.")]
     NoDraft(String),
-    #[error("{action}: select a transcript segment first.")]
-    NoSelection { action: &'static str },
-    #[error(
-        "{action} blocked: use the focused text editor's local undo or save transcript edits first."
-    )]
-    PendingDrafts { action: &'static str },
-    #[error("{action} blocked: {source}")]
+    NoSelection {
+        action: &'static str,
+    },
+    PendingDrafts {
+        action: &'static str,
+    },
     Draft {
         action: &'static str,
         source: DraftError,
     },
-    #[error("{0}")]
-    Time(#[from] TimeEditError),
-    #[error("{0}")]
-    Split(#[from] SplitError),
-    #[error("{0}")]
-    TextMove(#[from] TextMoveError),
-    #[error("{0}")]
-    CreateRegion(#[from] CreateRegionError),
-    #[error("{action} failed: {source}")]
+    Time(TimeEditError),
+    Split(SplitError),
+    TextMove(TextMoveError),
+    CreateRegion(CreateRegionError),
     Workflow {
         action: &'static str,
         source: anyhow::Error,
     },
     /// Precondition not met (no overlay, no decoded audio, nothing to do...).
-    #[error("{0}")]
     Unavailable(String),
+}
+
+impl std::fmt::Display for EditError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let message = match self {
+            Self::ReadOnly { action } => localized_format!(
+                "{action} unavailable: project is read-only.",
+                "{action}: недоступно, проект только для чтения."
+            ),
+            Self::SegmentNotFound(_) => {
+                return f.write_str(localized(
+                    "That segment no longer exists.",
+                    "Этот сегмент больше не существует.",
+                ));
+            }
+            Self::NoDraft(_) => {
+                return f.write_str(localized(
+                    "That segment has no editable draft.",
+                    "У этого сегмента нет редактируемого черновика.",
+                ));
+            }
+            Self::NoSelection { action } => localized_format!(
+                "{action}: select a transcript segment first.",
+                "{action}: сначала выберите сегмент."
+            ),
+            Self::PendingDrafts { action } => localized_format!(
+                "{action} blocked: use the focused text editor's local undo or save transcript edits first.",
+                "{action}: сначала отмените правку в активном текстовом поле или сохраните правки расшифровки."
+            ),
+            Self::Draft { action, source } => localized_format!(
+                "{action} blocked: {source}",
+                "{action}: не выполнено — {source}"
+            ),
+            Self::Time(error) => return std::fmt::Display::fmt(error, f),
+            Self::Split(error) => return std::fmt::Display::fmt(error, f),
+            Self::TextMove(error) => return std::fmt::Display::fmt(error, f),
+            Self::CreateRegion(error) => return std::fmt::Display::fmt(error, f),
+            Self::Workflow { action, source } => {
+                localized_format!("{action} failed: {source}", "{action}: ошибка — {source}")
+            }
+            Self::Unavailable(message) => return f.write_str(message),
+        };
+        f.write_str(&message)
+    }
+}
+
+impl std::error::Error for EditError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Draft { source, .. } => Some(source),
+            Self::Time(source) => Some(source),
+            Self::Split(source) => Some(source),
+            Self::TextMove(source) => Some(source),
+            Self::CreateRegion(source) => Some(source),
+            Self::Workflow { source, .. } => Some(&**source),
+            Self::ReadOnly { .. }
+            | Self::SegmentNotFound(_)
+            | Self::NoDraft(_)
+            | Self::NoSelection { .. }
+            | Self::PendingDrafts { .. }
+            | Self::Unavailable(_) => None,
+        }
+    }
+}
+
+impl From<TimeEditError> for EditError {
+    fn from(source: TimeEditError) -> Self {
+        Self::Time(source)
+    }
+}
+
+impl From<SplitError> for EditError {
+    fn from(source: SplitError) -> Self {
+        Self::Split(source)
+    }
+}
+
+impl From<TextMoveError> for EditError {
+    fn from(source: TextMoveError) -> Self {
+        Self::TextMove(source)
+    }
+}
+
+impl From<CreateRegionError> for EditError {
+    fn from(source: CreateRegionError) -> Self {
+        Self::CreateRegion(source)
+    }
 }
 
 pub type EditResult = Result<Outcome, EditError>;
@@ -296,8 +379,8 @@ impl EditorDoc {
         &self.workflow
     }
 
-    /// Direct workflow access for non-editing operations (lint snapshot metadata, diff compare,
-    /// admin flags, save/export). Drafts are re-synced and the session reconciled afterwards.
+    /// Direct workflow access for non-editing operations (project metadata, save/export).
+    /// Drafts are re-synced and the session reconciled afterwards.
     pub fn with_workflow<T>(&mut self, change: impl FnOnce(&mut DocumentWorkflow) -> T) -> T {
         let value = change(&mut self.workflow);
         self.drafts
@@ -307,12 +390,19 @@ impl EditorDoc {
         value
     }
 
+    /// Stores project metadata an extension keeps its view state in. Segments, drafts and the
+    /// session stay as they are; the row cache is invalidated.
+    pub fn merge_project_metadata(&mut self, entries: impl IntoIterator<Item = (String, String)>) {
+        self.workflow.merge_project_metadata(entries);
+        self.touch();
+    }
+
     pub fn session(&self) -> &EditorSession {
         &self.session
     }
 
     /// Mutable session access for view-only state the doc does not wrap (overview/scrollbar
-    /// dragging, lane heights, diff view, save bookkeeping). Invalidates the row cache.
+    /// dragging, lane heights, save bookkeeping). Invalidates the row cache.
     pub fn session_mut(&mut self) -> &mut EditorSession {
         self.touch();
         &mut self.session
@@ -406,6 +496,13 @@ impl EditorDoc {
             .first()
             .map(|row| row.visible_cells)
             .unwrap_or_default()
+    }
+
+    /// The transcript's extra column, read from the cached rows like the visible cells.
+    pub fn transcript_extra_column(&self) -> Option<std::sync::Arc<TranscriptExtraColumn>> {
+        self.transcript_rows()
+            .first()
+            .and_then(|row| row.extra_column.clone())
     }
 
     /// Error/warning counts behind the problem summary, cached per generation (linting every
@@ -598,16 +695,22 @@ impl EditorDoc {
             .iter()
             .find(|row| row.segment_id == segment_id)
         {
-            return format!("segment {} ({})", row.display_id, row.speaker_label);
+            return localized_format!(
+                "segment {} ({})",
+                "сегмент {} ({})",
+                row.display_id,
+                row.speaker_label
+            );
         }
         let project = self.workflow.project();
         match project.segment(segment_id) {
-            Some(segment) => format!(
+            Some(segment) => localized_format!(
                 "the {} segment at {}",
+                "сегмент ({}) на {}",
                 speaker_label(project, &segment.speaker_id),
                 format_time(segment.start_seconds)
             ),
-            None => "the segment".to_string(),
+            None => localized("the segment", "сегмент").to_string(),
         }
     }
 
@@ -619,7 +722,7 @@ impl EditorDoc {
             .iter()
             .find(|lane| lane.id == lane_id)
             .map_or_else(
-                || "the track".to_string(),
+                || localized("the track", "дорожка").to_string(),
                 |lane| speaker_label(project, &lane.speaker_id),
             )
     }

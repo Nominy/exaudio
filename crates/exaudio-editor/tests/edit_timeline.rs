@@ -149,7 +149,7 @@ fn cut_preview_commit_smart_splits_middle_segment_and_clears_overlay() {
 
     let project = doc.project();
     let left = project.segment("annotation-1").unwrap();
-    let right = project.segment("annotation-1__studio_1").unwrap();
+    let right = project.segment("annotation-1__exaudio_1").unwrap();
     assert_eq!(left.start_seconds, 1.0);
     assert_eq!(left.end_seconds, 2.5);
     assert_eq!(left.text, "one two three");
@@ -157,7 +157,7 @@ fn cut_preview_commit_smart_splits_middle_segment_and_clears_overlay() {
     assert_eq!(right.end_seconds, 6.0);
     assert_eq!(right.text, "four five six");
     assert!(doc.session().overlay.is_none());
-    assert_eq!(selected(&doc), Some("annotation-1__studio_1"));
+    assert_eq!(selected(&doc), Some("annotation-1__exaudio_1"));
     assert!(doc.session().is_dirty);
 }
 
@@ -176,12 +176,12 @@ fn cut_preview_commit_cuts_the_lane_it_was_drawn_on_not_the_selected_rows() {
     let untouched = project.segment("a").unwrap();
     assert_eq!((untouched.start_seconds, untouched.end_seconds), (1.0, 6.0));
     let left = project.segment("b").unwrap();
-    let right = project.segment("b__studio_1").unwrap();
+    let right = project.segment("b__exaudio_1").unwrap();
     assert_eq!((left.start_seconds, left.end_seconds), (1.0, 2.5));
     assert_eq!((right.start_seconds, right.end_seconds), (4.0, 6.0));
     assert_eq!(left.text, "uno dos tres");
     assert_eq!(right.text, "cuatro cinco seis");
-    assert_eq!(selected(&doc), Some("b__studio_1"));
+    assert_eq!(selected(&doc), Some("b__exaudio_1"));
 }
 
 #[test]
@@ -424,7 +424,7 @@ fn auto_segment_visible_silences_splits_long_silence_then_trims_segments() {
     lane_segments.sort_by(|left, right| left.start_seconds.total_cmp(&right.start_seconds));
     assert_eq!(lane_segments.len(), 2);
     assert_eq!(lane_segments[0].id, "annotation-1");
-    assert_eq!(lane_segments[1].id, "annotation-1__studio_1");
+    assert_eq!(lane_segments[1].id, "annotation-1__exaudio_1");
     assert_close(lane_segments[0].start_seconds, 1.195);
     assert_close(lane_segments[0].end_seconds, 1.595);
     assert_close(lane_segments[1].start_seconds, 3.195);
@@ -432,7 +432,7 @@ fn auto_segment_visible_silences_splits_long_silence_then_trims_segments() {
     assert_eq!(lane_segments[0].text, "first island");
     assert_eq!(lane_segments[1].text, "second island");
     assert_eq!(draft_text(&doc, "annotation-1"), "first island");
-    assert_eq!(draft_text(&doc, "annotation-1__studio_1"), "second island");
+    assert_eq!(draft_text(&doc, "annotation-1__exaudio_1"), "second island");
     assert!(doc.session().is_dirty);
 }
 
@@ -595,7 +595,7 @@ fn auto_insert_at_playhead_creates_padded_empty_segment_around_nearest_uncovered
     let created = project
         .segments
         .iter()
-        .find(|segment| segment.id.starts_with("track-speaker-1__studio_"))
+        .find(|segment| segment.id.starts_with("track-speaker-1__exaudio_"))
         .expect("auto-insert should create a derived segment in the decoded lane");
     assert_eq!(created.lane_id, "track-speaker-1");
     assert_eq!(created.speaker_id, "speaker-1");
@@ -647,12 +647,12 @@ fn auto_insert_at_playhead_merges_adjacent_same_lane_rows_and_selects_result() {
         .collect();
     assert_eq!(lane_segments.len(), 1);
     let merged = lane_segments[0];
-    assert_eq!(merged.id, "lane-1__studio_1");
+    assert_eq!(merged.id, "lane-1__exaudio_1");
     assert_eq!(merged.start_seconds, 1.0);
     assert_eq!(merged.end_seconds, 3.0);
     assert_eq!(merged.text, "before after");
-    assert_eq!(selected(&doc), Some("lane-1__studio_1"));
-    assert_eq!(draft_text(&doc, "lane-1__studio_1"), "before after");
+    assert_eq!(selected(&doc), Some("lane-1__exaudio_1"));
+    assert_eq!(draft_text(&doc, "lane-1__exaudio_1"), "before after");
 }
 
 #[test]
@@ -1876,12 +1876,27 @@ fn transcript_rows_cache_hit_returns_same_rows_until_selection_or_session_change
             .any(|row| row.segment_id == "a" && row.is_selected)
     );
 
-    let diff_view = doc.session().diff_view;
-    doc.session_mut().diff_view = !diff_view;
+    let speed = doc.session().speed;
+    doc.session_mut().speed = speed * 2.0;
     let after_session_change = doc.transcript_rows();
     assert!(!std::rc::Rc::ptr_eq(&reselected, &after_session_change));
     assert!(std::rc::Rc::ptr_eq(
         &after_session_change,
         &doc.transcript_rows()
     ));
+}
+
+#[test]
+fn project_metadata_changes_rebuild_rows_and_keep_drafts() {
+    let mut doc = doc(vec![seg("a", "lane-1", 0.0, 2.0, "first")]);
+    let rows = doc.transcript_rows();
+    let drafts_revision = doc.drafts().revision();
+
+    let entry = ("extension.view".to_string(), "on".to_string());
+    doc.merge_project_metadata([entry]);
+
+    assert!(!std::rc::Rc::ptr_eq(&rows, &doc.transcript_rows()));
+    assert_eq!(doc.drafts().revision(), drafts_revision);
+    let stored = doc.project().metadata.get("extension.view");
+    assert_eq!(stored.map(String::as_str), Some("on"));
 }

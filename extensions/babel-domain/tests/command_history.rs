@@ -281,10 +281,12 @@ fn timestamped_annotation_commands_stamp_babel_updated_at_metadata() {
     CommandHistory::default()
         .apply_with_policy(
             &mut split_project,
-            EditorCommand::SplitSegment {
+            EditorCommand::SplitSegmentWithText {
                 segment_id: "segment-1".to_string(),
                 at_seconds: 2.0,
                 new_segment_id: "segment-1b".to_string(),
+                left_text: "original".to_string(),
+                right_text: "one".to_string(),
             },
             &BabelMutationPolicy::with_clock(|| "2026-06-21T12:34:56.000Z".into()),
         )
@@ -320,17 +322,19 @@ fn timestamped_annotation_commands_stamp_babel_updated_at_metadata() {
 }
 
 #[test]
-fn split_segment_leaves_babel_gap_and_clones_recovered_content() {
+fn split_segment_leaves_babel_gap_between_the_halves() {
     let mut project = sample_project();
     let mut history = CommandHistory::default();
 
     history
         .apply_with_policy(
             &mut project,
-            EditorCommand::SplitSegment {
+            EditorCommand::SplitSegmentWithText {
                 segment_id: "segment-1".to_string(),
                 at_seconds: 2.2,
                 new_segment_id: "segment-1b".to_string(),
+                left_text: "original".to_string(),
+                right_text: "one".to_string(),
             },
             &BabelMutationPolicy::default(),
         )
@@ -340,10 +344,10 @@ fn split_segment_leaves_babel_gap_and_clones_recovered_content() {
     let right = project.segment("segment-1b").unwrap();
     assert_eq!(left.start_seconds, 1.0);
     assert!((left.end_seconds - 2.15).abs() < f64::EPSILON * 4.0);
-    assert_eq!(left.text, "original one");
+    assert_eq!(left.text, "original");
     assert!((right.start_seconds - 2.25).abs() < f64::EPSILON * 4.0);
     assert_eq!(right.end_seconds, 3.0);
-    assert_eq!(right.text, "original one");
+    assert_eq!(right.text, "one");
     assert_eq!(right.speaker_id, "speaker-1");
     assert_eq!(right.lane_id, "track-1");
 }

@@ -2,6 +2,10 @@
 
 use super::{EditError, EditResult, EditorDoc, Outcome};
 use crate::edit::create_region::{CreateRegionDialog, CreateRegionTimeField};
+use crate::i18n::{Text, localized};
+use crate::localized_format;
+
+const CREATE: Text = Text::new("Create", "Создание сегмента");
 
 impl EditorDoc {
     // ---- add region -------------------------------------------------------------------
@@ -31,12 +35,20 @@ impl EditorDoc {
 
     /// Enter in a start/end field.
     pub fn commit_create_region_time(&mut self, field: CreateRegionTimeField) -> EditResult {
-        let dialog = self
-            .create_region
-            .as_mut()
-            .ok_or_else(|| EditError::Unavailable("No region draft is open.".into()))?;
+        let dialog = self.create_region.as_mut().ok_or_else(|| {
+            EditError::Unavailable(
+                localized(
+                    "No region draft is open.",
+                    "Диалог нового сегмента не открыт.",
+                )
+                .into(),
+            )
+        })?;
         if dialog.commit_time_field(field) {
-            return Ok(Outcome::status("Region time updated."));
+            return Ok(Outcome::status(localized(
+                "Region time updated.",
+                "Время сегмента обновлено.",
+            )));
         }
         let error = dialog
             .start_error
@@ -60,9 +72,15 @@ impl EditorDoc {
     /// Create (Ctrl/Cmd+Enter): the dialog is validated and a new row is created (one undo
     /// step) and selected. The dialog stays open with errors when invalid.
     pub fn submit_create_region(&mut self) -> EditResult {
-        self.guard("Create")?;
+        self.guard(CREATE.get())?;
         let mut dialog = self.create_region.take().ok_or_else(|| {
-            EditError::Unavailable("Create unavailable: no region draft is open.".into())
+            EditError::Unavailable(
+                localized(
+                    "Create unavailable: no region draft is open.",
+                    "Создание сегмента недоступно: диалог нового сегмента не открыт.",
+                )
+                .into(),
+            )
         })?;
 
         let payload = match dialog.validate_for_submit(self.workflow.project()) {
@@ -73,7 +91,7 @@ impl EditorDoc {
             }
         };
         let (start, end) = (payload.start_seconds, payload.end_seconds);
-        let created = match self.apply("Create", |workflow| {
+        let created = match self.apply(CREATE.get(), |workflow| {
             workflow.create_segment_in_lane_with_text(
                 &payload.lane_id,
                 payload.start_seconds,
@@ -90,8 +108,9 @@ impl EditorDoc {
         self.mark_dirty();
         self.reconcile(true);
         let outcome = self.select_segment_without_seek(&created);
-        let status = format!(
+        let status = localized_format!(
             "Created {} at {start:.3}s-{end:.3}s.",
+            "Создан {}: {start:.3}–{end:.3} с.",
             self.segment_label(&created)
         );
         Ok(outcome.with_status(status))

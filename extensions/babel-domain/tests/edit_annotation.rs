@@ -4,7 +4,7 @@ use edit_support::*;
 use exaudio_babel_domain::edit::BabelAnnotationDialogs;
 use exaudio_babel_domain::edit::annotation::EditAnnotationError;
 use exaudio_babel_domain::edit::create_region::{
-    BACKGROUND_NOISE_ANNOTATION_PROJECT_ID, CreateRegionDialog, CreateRegionError,
+    BACKGROUND_NOISE_ANNOTATION_PROJECT_ID, BabelCreateRegionDialog, BabelCreateRegionError,
     CreateRegionMode, secondary_category_options,
 };
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
@@ -74,7 +74,7 @@ fn annotation_edit_doc(secondary_label: &str) -> EditorDoc {
 
 #[test]
 fn create_region_annotation_enablement_follows_category_rules() {
-    let mut dialog = CreateRegionDialog::new_annotation("lane-1".to_string(), 12.0, 12.8);
+    let mut dialog = BabelCreateRegionDialog::new_annotation("lane-1".to_string(), 12.0, 12.8);
     assert_eq!(dialog.mode, CreateRegionMode::Annotation);
     assert!(!dialog.is_create_enabled());
 
@@ -95,7 +95,7 @@ fn create_region_annotation_enablement_follows_category_rules() {
 #[test]
 fn create_region_annotation_requires_explicit_secondary_choice() {
     let mut dialogs = BabelAnnotationDialogs::default();
-    let mut dialog = CreateRegionDialog::new_annotation("lane-1".to_string(), 12.0, 12.8);
+    let mut dialog = BabelCreateRegionDialog::new_annotation("lane-1".to_string(), 12.0, 12.8);
     dialog.intensity = Some(3);
     dialog.primary_selection = "background-speech".to_string();
     assert_eq!(
@@ -117,7 +117,7 @@ fn create_region_annotation_requires_explicit_secondary_choice() {
 
     assert_eq!(
         err.to_string(),
-        CreateRegionError::IncompleteAnnotation.to_string()
+        BabelCreateRegionError::IncompleteAnnotation.to_string()
     );
     assert_eq!(segment_count(&doc), original_count);
     assert!(dialogs.create_region().is_some());
@@ -134,9 +134,8 @@ fn annotation_range_opens_dialog_without_creating_segment() {
 
     let dialog = dialogs.create_region().expect("annotation dialog opens");
     assert_eq!(dialog.mode, CreateRegionMode::Annotation);
-    assert!(dialog.created_segment_id.is_none());
-    assert_eq!(dialog.start_seconds, 12.0);
-    assert_eq!(dialog.end_seconds, 12.8);
+    assert_eq!(dialog.region.start_seconds, 12.0);
+    assert_eq!(dialog.region.end_seconds, 12.8);
     assert_eq!(segment_count(&doc), original_count);
     assert!(!doc.session().is_dirty);
 }
@@ -202,8 +201,12 @@ fn create_region_intensity_change_accepts_numeric_zero_and_clears_on_empty() {
 fn create_region_annotation_category_rules_are_project_id_gated() {
     let mut fallback_project = annotation_mode_project();
     fallback_project.id = "ordinary-project".to_string();
-    let mut fallback =
-        CreateRegionDialog::new_for_project(&fallback_project, "lane-1".to_string(), 12.0, 12.8);
+    let mut fallback = BabelCreateRegionDialog::new_for_project(
+        &fallback_project,
+        "lane-1".to_string(),
+        12.0,
+        12.8,
+    );
 
     assert_eq!(fallback.mode, CreateRegionMode::Annotation);
     assert!(!fallback.uses_hierarchical_labels);
@@ -212,7 +215,7 @@ fn create_region_annotation_category_rules_are_project_id_gated() {
 
     let mut background_noise_project = fallback_project;
     background_noise_project.id = BACKGROUND_NOISE_ANNOTATION_PROJECT_ID.to_string();
-    let mut hierarchical = CreateRegionDialog::new_for_project(
+    let mut hierarchical = BabelCreateRegionDialog::new_for_project(
         &background_noise_project,
         "lane-1".to_string(),
         12.0,
@@ -463,7 +466,7 @@ fn babel_document_split_preserves_domain_gap_and_given_time() {
     );
     assert_eq!(
         doc.project()
-            .segment("annotation-1__studio_1")
+            .segment("annotation-1__exaudio_1")
             .unwrap()
             .start_seconds,
         2.05
@@ -506,9 +509,8 @@ fn annotation_drag_dispatches_domain_dialog_without_creating_native_row() {
     let _ = ok(dialogs.open_create_region_command(&doc, arguments));
     let dialog = dialogs.create_region().unwrap();
     assert_eq!(dialog.mode, CreateRegionMode::Annotation);
-    assert_eq!(dialog.start_seconds, 12.0);
-    assert_eq!(dialog.end_seconds, 12.8);
-    assert!(dialog.created_segment_id.is_none());
+    assert_eq!(dialog.region.start_seconds, 12.0);
+    assert_eq!(dialog.region.end_seconds, 12.8);
     assert_eq!(segment_count(&doc), count);
     assert!(!doc.session().is_dirty);
 }

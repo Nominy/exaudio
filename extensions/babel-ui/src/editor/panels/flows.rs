@@ -13,9 +13,7 @@ use exaudio_babel_services::babel::{
     review_action_id,
 };
 use exaudio_babel_services::recovery;
-use exaudio_babel_services::review::{
-    build_reviewer_analytics_payload, reviewer_capability_available,
-};
+use exaudio_babel_services::review::reviewer_capability_available;
 use gpui_kit::component::WindowExt;
 use gpui_kit::component::notification::Notification;
 use gpui_kit::*;
@@ -669,11 +667,7 @@ impl TaskPanels {
         if !reviewer_capability_available(project) {
             return;
         }
-        let payload = build_reviewer_analytics_payload(
-            project,
-            self.review.workspace.session(),
-            self.review.workspace.generated_review.as_ref(),
-        );
+        let payload = self.review.workspace.analytics_payload(project);
         match payload {
             Ok(payload) => {
                 let review = cx.global::<BabelServices>().review.clone();
@@ -973,10 +967,11 @@ impl TaskPanels {
                                 "studio.babel.assessment.isFinalSubmitted".into(),
                                 "false".into(),
                             );
+                            exaudio_babel_domain::editor_model::diff_toolbar::set_diff_view(
+                                workflow.project_mut(),
+                                false,
+                            );
                         });
-                        if doc.session().diff_view {
-                            doc.session_mut().toggle_diff_view();
-                        }
                     });
                     model.set_read_only(false, cx);
                 });

@@ -1,10 +1,8 @@
+//! Comparison of the task with its original or a chosen review version: per-segment text
+//! diffs, annotation label diffs, and the segments and annotations only the other version has.
+
 use exaudio_core::{Project, Segment};
 use serde_json::Value;
-
-use super::{
-    AnnotationDiffStatus, TranscriptAnnotationDiffView, TranscriptDiffCellKind, TranscriptDiffView,
-    TranscriptWordDiff, TranscriptWordDiffStatus,
-};
 
 const META_ORIGINAL_TEXT: &str = "studio.babel.original.text";
 const META_ORIGINAL_START_SECONDS: &str = "studio.babel.original.startSeconds";
@@ -16,25 +14,62 @@ const META_COMPARE_SNAPSHOTS: &str = "studio.babel.diff.compareSnapshots";
 const META_DIFF_RESULT: &str = "studio.babel.diff.result";
 const META_DIFF_IS_COMPARE_NEWER: &str = "studio.babel.diff.isCompareNewer";
 const META_ANNOTATION_GHOST_ROWS: &str = "studio.babel.diff.annotationGhostRows";
-const DIFF_EPSILON_SECONDS: f64 = 0.000_001;
 
-#[derive(Clone, Debug)]
-pub(super) struct DiffState {
-    pub marker: String,
-    pub cell: TranscriptDiffView,
+/// How a non-transcription annotation differs from the compared version.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum AnnotationDiffStatus {
+    Matched,
+    LabelMismatch,
+    SubcategoryMismatch,
+    IntensityMismatch,
+    /// Present in the compare version only (removed-annotation ghost rows).
+    UnmatchedReference,
 }
 
+/// Text-cell diff of one row.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct DiffCell {
+    pub kind: DiffCellKind,
+    /// Number of word-level changes (a removed+added pair counts once).
+    pub change_count: usize,
+    /// Word tokens; empty means "no content" (or, for `New`, show the segment text as-is).
+    pub words: Vec<WordDiff>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum DiffCellKind {
+    Diff,
+    New,
+    ModifiedAdded,
+    ModifiedDeleted,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum WordDiffStatus {
+    Unchanged,
+    Added,
+    Removed,
+    Unknown,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct WordDiff {
+    pub status: WordDiffStatus,
+    pub value: String,
+}
+
+/// A segment only the compared version has.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct ModifiedSegmentDiffRow {
     pub annotation_id: String,
     pub lane_id: Option<String>,
-    pub speaker_id: Option<String>,
     pub start_seconds: Option<f64>,
     pub end_seconds: Option<f64>,
     pub show_as_added: bool,
-    pub cell: TranscriptDiffView,
+    pub cell: DiffCell,
 }
 
+/// An annotation only the compared version has.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct AnnotationRemovedGhostRow {
     pub annotation_id: String,
@@ -42,69 +77,39 @@ pub(super) struct AnnotationRemovedGhostRow {
     pub start_seconds: Option<f64>,
     pub end_seconds: Option<f64>,
     pub text: String,
-    pub diff: TranscriptAnnotationDiffView,
 }
 
-pub(super) fn diff_state(segment: &Segment, selected_compare_action_id: Option<&str>) -> DiffState {
+/// The text diff of `segment` against its snapshot in the selected compare version, or its
+/// original when that version has none. A segment the task did not come with is new.
+pub(super) fn diff_cell(segment: &Segment, selected_compare_action_id: Option<&str>) -> DiffCell {
     if segment.source_annotation_id.is_none() {
-        return DiffState {
-            marker: "New".to_string(),
-            cell: build_new_cell(),
+        return DiffCell {
+            kind: DiffCellKind::New,
+            change_count: 0,
+            words: Vec::new(),
         };
     }
 
-    let Some(snapshot) = selected_compare_action_id
+    let snapshot = selected_compare_action_id
         .and_then(|action_id| OriginalSnapshot::for_compare_action(segment, action_id))
-        .or_else(|| OriginalSnapshot::for_segment(segment))
-    else {
-        return DiffState {
-            marker: match segment.source_annotation_id.as_deref() {
-                Some(source_annotation_id) if source_annotation_id == segment.id => {
-                    "Babel source".to_string()
-                }
-                Some(source_annotation_id) => format!("Babel source {source_annotation_id}"),
-                None => "New".to_string(),
-            },
-            cell: build_diff_cell(segment, None, false),
-        };
-    };
+        .or_else(|| OriginalSnapshot::for_segment(segment));
+    let original_text = snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.text.as_deref())
+        .filter(|original_text| *original_text != segment.text);
+    let words = snapshot
+        .as_ref()
+        .and_then(|snapshot| snapshot.word_diffs.clone())
+        .or_else(|| metadata_word_diffs(segment))
+        .unwrap_or_else(|| match original_text {
+            Some(original_text) => infer_word_diffs(original_text, &segment.text),
+            None => unchanged_word_diffs(&segment.text),
+        });
 
-    let text_changed = snapshot.text.as_deref() != Some(segment.text.as_str());
-    let timing_changed = snapshot.start_seconds.is_some_and(|start_seconds| {
-        (start_seconds - segment.start_seconds).abs() > DIFF_EPSILON_SECONDS
-    }) || snapshot.end_seconds.is_some_and(|end_seconds| {
-        (end_seconds - segment.end_seconds).abs() > DIFF_EPSILON_SECONDS
-    });
-    let track_changed = snapshot
-        .speaker_id
-        .as_deref()
-        .is_some_and(|speaker_id| speaker_id != segment.speaker_id)
-        || snapshot
-            .lane_id
-            .as_deref()
-            .is_some_and(|lane_id| lane_id != segment.lane_id);
-
-    let mut changes = Vec::new();
-    if text_changed {
-        changes.push("text");
-    }
-    if timing_changed {
-        changes.push("timing");
-    }
-    if track_changed {
-        changes.push("track");
-    }
-
-    if changes.is_empty() {
-        return DiffState {
-            marker: "Babel unchanged".to_string(),
-            cell: build_diff_cell(segment, Some(&snapshot), false),
-        };
-    }
-
-    DiffState {
-        marker: format!("Changed: {}", changes.join(", ")),
-        cell: build_diff_cell(segment, Some(&snapshot), text_changed),
+    DiffCell {
+        kind: DiffCellKind::Diff,
+        change_count: count_word_diff_changes(&words),
+        words,
     }
 }
 
@@ -170,11 +175,9 @@ pub(super) fn modified_segment_diff_rows(project: &Project) -> Vec<ModifiedSegme
                 let end_seconds =
                     value_seconds(segment, &["endSeconds", "endTimeInSeconds", "end_seconds"]);
                 let lane_id = value_string(segment, &["laneId", "trackId", "track_id"]);
-                let speaker_id = value_string(segment, &["speakerId", "speakerKey", "speaker_key"]);
                 rows.push(ModifiedSegmentDiffRow {
                     annotation_id,
                     lane_id,
-                    speaker_id,
                     start_seconds,
                     end_seconds,
                     show_as_added: is_compare_newer,
@@ -226,14 +229,6 @@ pub(super) fn annotation_removed_ghost_rows(project: &Project) -> Vec<Annotation
                 start_seconds,
                 end_seconds,
                 text: removed_annotation_text(annotation.get("content"), intensity),
-                diff: TranscriptAnnotationDiffView {
-                    status: AnnotationDiffStatus::UnmatchedReference,
-                    other_label: None,
-                    other_secondary_label: None,
-                    other_intensity: None,
-                    counterpart_start_seconds: start_seconds,
-                    counterpart_end_seconds: end_seconds,
-                },
             })
         })
         .collect::<Vec<_>>();
@@ -246,10 +241,12 @@ pub(super) fn annotation_removed_ghost_rows(project: &Project) -> Vec<Annotation
     ghost_rows
 }
 
-pub(super) fn annotation_diff_state(
+/// How a non-transcription annotation differs from its snapshot in the selected compare
+/// version, or from its original when that version has none; `None` without labels to compare.
+pub(super) fn annotation_diff_status(
     segment: &Segment,
     selected_compare_action_id: Option<&str>,
-) -> Option<TranscriptAnnotationDiffView> {
+) -> Option<AnnotationDiffStatus> {
     if segment
         .metadata
         .get("type")
@@ -273,7 +270,8 @@ pub(super) fn annotation_diff_state(
     let primary_matches = reference_primary == prediction_primary;
     let secondary_matches = reference_secondary == prediction_secondary;
     let intensity_matches = snapshot.intensity == prediction_intensity;
-    let status = if !primary_matches {
+
+    Some(if !primary_matches {
         AnnotationDiffStatus::LabelMismatch
     } else if !secondary_matches {
         AnnotationDiffStatus::SubcategoryMismatch
@@ -281,22 +279,11 @@ pub(super) fn annotation_diff_state(
         AnnotationDiffStatus::IntensityMismatch
     } else {
         AnnotationDiffStatus::Matched
-    };
-
-    Some(TranscriptAnnotationDiffView {
-        status,
-        other_label: (!primary_matches)
-            .then(|| reference_primary.clone())
-            .flatten(),
-        other_secondary_label: (primary_matches && !secondary_matches)
-            .then(|| reference_secondary.clone())
-            .flatten(),
-        other_intensity: (!intensity_matches).then_some(snapshot.intensity).flatten(),
-        counterpart_start_seconds: snapshot.start_seconds,
-        counterpart_end_seconds: snapshot.end_seconds,
     })
 }
 
+/// What a version recorded for a segment. The placement fields only tell whether the version
+/// recorded the segment at all: a snapshot with any data is used instead of the original.
 #[derive(Clone, Debug)]
 struct OriginalSnapshot {
     text: Option<String>,
@@ -306,7 +293,7 @@ struct OriginalSnapshot {
     end_seconds: Option<f64>,
     speaker_id: Option<String>,
     lane_id: Option<String>,
-    word_diffs: Option<Vec<TranscriptWordDiff>>,
+    word_diffs: Option<Vec<WordDiff>>,
 }
 
 impl OriginalSnapshot {
@@ -465,60 +452,23 @@ fn removed_annotation_text(content: Option<&Value>, intensity: Option<u8>) -> St
     label
 }
 
-fn build_diff_cell(
-    segment: &Segment,
-    snapshot: Option<&OriginalSnapshot>,
-    text_changed: bool,
-) -> TranscriptDiffView {
-    let source_text = text_changed
-        .then(|| snapshot.and_then(|snapshot| snapshot.text.clone()))
-        .flatten();
-    let word_diffs = snapshot
-        .and_then(|snapshot| snapshot.word_diffs.clone())
-        .or_else(|| metadata_word_diffs(segment))
-        .unwrap_or_else(|| match source_text.as_deref() {
-            Some(original_text) => infer_word_diffs(original_text, &segment.text),
-            None => unchanged_word_diffs(&segment.text),
-        });
-
-    TranscriptDiffView {
-        kind: TranscriptDiffCellKind::Diff,
-        change_count: count_word_diff_changes(&word_diffs),
-        source_text,
-        words: word_diffs,
-    }
-}
-
-fn build_new_cell() -> TranscriptDiffView {
-    TranscriptDiffView {
-        kind: TranscriptDiffCellKind::New,
-        change_count: 0,
-        source_text: None,
-        words: Vec::new(),
-    }
-}
-
-fn build_modified_segment_cell(
-    word_diffs: Vec<TranscriptWordDiff>,
-    show_as_added: bool,
-) -> TranscriptDiffView {
-    TranscriptDiffView {
+fn build_modified_segment_cell(word_diffs: Vec<WordDiff>, show_as_added: bool) -> DiffCell {
+    DiffCell {
         kind: if show_as_added {
-            TranscriptDiffCellKind::ModifiedAdded
+            DiffCellKind::ModifiedAdded
         } else {
-            TranscriptDiffCellKind::ModifiedDeleted
+            DiffCellKind::ModifiedDeleted
         },
         change_count: count_word_diff_changes(&word_diffs),
-        source_text: None,
         words: word_diffs,
     }
 }
 
-fn metadata_word_diffs(segment: &Segment) -> Option<Vec<TranscriptWordDiff>> {
+fn metadata_word_diffs(segment: &Segment) -> Option<Vec<WordDiff>> {
     word_diffs_from_value(segment.metadata.get(META_DIFF_WORD_DIFFS)?)
 }
 
-fn word_diffs_from_value(value: &Value) -> Option<Vec<TranscriptWordDiff>> {
+fn word_diffs_from_value(value: &Value) -> Option<Vec<WordDiff>> {
     let Value::Array(items) = value else {
         return None;
     };
@@ -526,26 +476,26 @@ fn word_diffs_from_value(value: &Value) -> Option<Vec<TranscriptWordDiff>> {
     Some(items.iter().map(word_diff_from_value).collect())
 }
 
-fn word_diff_from_value(value: &Value) -> TranscriptWordDiff {
+fn word_diff_from_value(value: &Value) -> WordDiff {
     let status = value
         .get("status")
         .and_then(Value::as_str)
         .map(word_diff_status)
-        .unwrap_or(TranscriptWordDiffStatus::Unknown);
+        .unwrap_or(WordDiffStatus::Unknown);
     let value = value
         .get("value")
         .map(format_word_value)
         .unwrap_or_default();
 
-    TranscriptWordDiff { status, value }
+    WordDiff { status, value }
 }
 
-fn word_diff_status(status: &str) -> TranscriptWordDiffStatus {
+fn word_diff_status(status: &str) -> WordDiffStatus {
     match status {
-        "unchanged" => TranscriptWordDiffStatus::Unchanged,
-        "added" => TranscriptWordDiffStatus::Added,
-        "removed" => TranscriptWordDiffStatus::Removed,
-        _ => TranscriptWordDiffStatus::Unknown,
+        "unchanged" => WordDiffStatus::Unchanged,
+        "added" => WordDiffStatus::Added,
+        "removed" => WordDiffStatus::Removed,
+        _ => WordDiffStatus::Unknown,
     }
 }
 
@@ -559,14 +509,14 @@ fn format_word_value(value: &Value) -> String {
     }
 }
 
-fn count_word_diff_changes(word_diffs: &[TranscriptWordDiff]) -> usize {
+fn count_word_diff_changes(word_diffs: &[WordDiff]) -> usize {
     let mut count = 0;
     let mut index = 0;
     while index < word_diffs.len() {
         let diff = &word_diffs[index];
-        if diff.status == TranscriptWordDiffStatus::Removed {
+        if diff.status == WordDiffStatus::Removed {
             let next = word_diffs.get(index + 1);
-            if next.is_some_and(|next| next.status == TranscriptWordDiffStatus::Added) {
+            if next.is_some_and(|next| next.status == WordDiffStatus::Added) {
                 count += 1;
                 index += 2;
             } else {
@@ -574,7 +524,7 @@ fn count_word_diff_changes(word_diffs: &[TranscriptWordDiff]) -> usize {
                 index += 1;
             }
         } else {
-            if diff.status == TranscriptWordDiffStatus::Added {
+            if diff.status == WordDiffStatus::Added {
                 count += 1;
             }
             index += 1;
@@ -583,17 +533,17 @@ fn count_word_diff_changes(word_diffs: &[TranscriptWordDiff]) -> usize {
     count
 }
 
-fn unchanged_word_diffs(text: &str) -> Vec<TranscriptWordDiff> {
+fn unchanged_word_diffs(text: &str) -> Vec<WordDiff> {
     split_words(text)
         .into_iter()
-        .map(|value| TranscriptWordDiff {
-            status: TranscriptWordDiffStatus::Unchanged,
+        .map(|value| WordDiff {
+            status: WordDiffStatus::Unchanged,
             value,
         })
         .collect()
 }
 
-fn infer_word_diffs(original_text: &str, current_text: &str) -> Vec<TranscriptWordDiff> {
+fn infer_word_diffs(original_text: &str, current_text: &str) -> Vec<WordDiff> {
     let original = split_words(original_text);
     let current = split_words(current_text);
     let mut lcs = vec![vec![0usize; current.len() + 1]; original.len() + 1];
@@ -616,21 +566,21 @@ fn infer_word_diffs(original_text: &str, current_text: &str) -> Vec<TranscriptWo
 
     while original_index < original.len() && current_index < current.len() {
         if original[original_index] == current[current_index] {
-            result.push(TranscriptWordDiff {
-                status: TranscriptWordDiffStatus::Unchanged,
+            result.push(WordDiff {
+                status: WordDiffStatus::Unchanged,
                 value: current[current_index].clone(),
             });
             original_index += 1;
             current_index += 1;
         } else if lcs[original_index + 1][current_index] >= lcs[original_index][current_index + 1] {
-            result.push(TranscriptWordDiff {
-                status: TranscriptWordDiffStatus::Removed,
+            result.push(WordDiff {
+                status: WordDiffStatus::Removed,
                 value: original[original_index].clone(),
             });
             original_index += 1;
         } else {
-            result.push(TranscriptWordDiff {
-                status: TranscriptWordDiffStatus::Added,
+            result.push(WordDiff {
+                status: WordDiffStatus::Added,
                 value: current[current_index].clone(),
             });
             current_index += 1;
@@ -638,16 +588,16 @@ fn infer_word_diffs(original_text: &str, current_text: &str) -> Vec<TranscriptWo
     }
 
     while original_index < original.len() {
-        result.push(TranscriptWordDiff {
-            status: TranscriptWordDiffStatus::Removed,
+        result.push(WordDiff {
+            status: WordDiffStatus::Removed,
             value: original[original_index].clone(),
         });
         original_index += 1;
     }
 
     while current_index < current.len() {
-        result.push(TranscriptWordDiff {
-            status: TranscriptWordDiffStatus::Added,
+        result.push(WordDiff {
+            status: WordDiffStatus::Added,
             value: current[current_index].clone(),
         });
         current_index += 1;

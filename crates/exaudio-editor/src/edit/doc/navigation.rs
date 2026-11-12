@@ -9,6 +9,8 @@ use crate::edit::navigate::{
     self, CaretRestore, GhostCursor, proportional_restore_offset, segment_id_at_playhead,
     speaker_workflow_lane, speaker_workflow_lane_ids, visible_transcription_rows,
 };
+use crate::i18n::localized;
+use crate::localized_format;
 use crate::track_filter::TrackFilter;
 
 impl EditorDoc {
@@ -45,9 +47,10 @@ impl EditorDoc {
     pub fn seek_to_word(&mut self, segment_id: &str, char_offset: usize) -> EditResult {
         let segment = self.segment(segment_id)?;
         let Some(lane) = self.word_timings.lane(&segment.lane_id) else {
-            return Ok(Outcome::status(
+            return Ok(Outcome::status(localized(
                 "Word seek: this track has no word timestamps yet.",
-            ));
+                "Переход к слову: у этой дорожки пока нет таймингов слов.",
+            )));
         };
         let Some(time) = crate::timing::timestamp_at_offset(
             self.drafts.text_or(&segment),
@@ -55,19 +58,21 @@ impl EditorDoc {
             crate::timing::TimeRange::new(segment.start_seconds, segment.end_seconds),
             char_offset,
         ) else {
-            return Ok(Outcome::status(
+            return Ok(Outcome::status(localized(
                 "Word seek: no word in this row matches its timestamps.",
-            ));
+                "Переход к слову: слова этого сегмента не совпадают с таймингами.",
+            )));
         };
         let project = self.workflow.project();
         self.session
             .select_segment_without_seek(project, segment_id);
         self.session.seek_to_time(project, time);
         self.touch();
-        Ok(
-            Outcome::status(format!("Seeked to the word at {time:.3}s."))
-                .extend(self.restart_if_playing()),
-        )
+        Ok(Outcome::status(localized_format!(
+            "Seeked to the word at {time:.3}s.",
+            "Переход к слову на {time:.3} с."
+        ))
+        .extend(self.restart_if_playing()))
     }
 
     /// Click on a row body: selects without seeking; a double click also seeks to the row.
@@ -105,7 +110,11 @@ impl EditorDoc {
         let rows = visible_transcription_rows(self.workflow.project(), &self.session);
         if rows.is_empty() {
             return Err(EditError::Unavailable(
-                "No visible segments to move to.".into(),
+                localized(
+                    "No visible segments to move to.",
+                    "Нет видимых сегментов для перехода.",
+                )
+                .into(),
             ));
         }
         let playhead = self.session.playhead_seconds;
@@ -119,7 +128,11 @@ impl EditorDoc {
                 let next = step_index(index, direction, rows.len());
                 if next == index {
                     return Err(EditError::Unavailable(
-                        "No further segment in that direction.".into(),
+                        localized(
+                            "No further segment in that direction.",
+                            "В этом направлении сегментов больше нет.",
+                        )
+                        .into(),
                     ));
                 }
                 next
@@ -149,9 +162,15 @@ impl EditorDoc {
         let focus = self.apply_restore(restore);
         self.touch();
         Ok(Outcome::status(if direction < 0 {
-            "Moved to the previous segment."
+            localized(
+                "Moved to the previous segment.",
+                "Переход к предыдущему сегменту.",
+            )
         } else {
-            "Moved to the next segment."
+            localized(
+                "Moved to the next segment.",
+                "Переход к следующему сегменту.",
+            )
         })
         .extend(left.effects)
         .with(Effect::RevealSegment {
@@ -164,7 +183,7 @@ impl EditorDoc {
     /// Click on a timeline region's tooltip: selects the row without seeking and focuses its
     /// text editor with the caret at the end of its text.
     pub fn edit_segment_text(&mut self, segment_id: &str) -> EditResult {
-        self.guard("Text editing")?;
+        self.guard(localized("Text editing", "Редактирование текста"))?;
         let draft = self
             .drafts
             .get_mut(segment_id)
@@ -199,9 +218,15 @@ impl EditorDoc {
             .as_ref()
             .filter(|_| self.text_focus.focused_segment_id.is_none())
             .map(|pending| pending.segment_id.as_str());
-        let source_id = focused_segment
-            .or(ghost)
-            .ok_or_else(|| EditError::Unavailable("No cursor to move to another lane.".into()))?;
+        let source_id = focused_segment.or(ghost).ok_or_else(|| {
+            EditError::Unavailable(
+                localized(
+                    "No cursor to move to another lane.",
+                    "Нет курсора, который можно перенести на другую дорожку.",
+                )
+                .into(),
+            )
+        })?;
         let project = self.workflow.project();
         let session = &self.session;
         let source = project
@@ -224,13 +249,25 @@ impl EditorDoc {
             .collect();
         if lanes.len() < 2 {
             return Err(EditError::Unavailable(
-                "No other speaker lane to move the cursor to.".into(),
+                localized(
+                    "No other speaker lane to move the cursor to.",
+                    "Нет другой дорожки спикера для переноса курсора.",
+                )
+                .into(),
             ));
         }
         let current = lanes.iter().position(|id| *id == source.lane_id);
         let lane_id = lanes[current.map_or(0, |index| (index + 1) % lanes.len())];
-        let target = navigate::lane_row_at(project, session, lane_id, seconds)
-            .ok_or_else(|| EditError::Unavailable("No row to move the cursor to.".into()))?;
+        let target =
+            navigate::lane_row_at(project, session, lane_id, seconds).ok_or_else(|| {
+                EditError::Unavailable(
+                    localized(
+                        "No row to move the cursor to.",
+                        "Нет сегмента, в который можно перенести курсор.",
+                    )
+                    .into(),
+                )
+            })?;
         let caret = focused_segment.map(|_| self.spoken_offset_at(target, seconds, 0));
         let segment_id = target.id.clone();
 
@@ -309,8 +346,9 @@ impl EditorDoc {
     /// Alt+1/Alt+2: show only the "Speaker N" lane; collapse and mute the other speaker lane.
     pub fn switch_speaker_workflow_lane(&mut self, label: &str) -> EditResult {
         let lane = speaker_workflow_lane(self.workflow.project(), label).ok_or_else(|| {
-            EditError::Unavailable(format!(
-                "Speaker workflow unavailable: lane {label} not found."
+            EditError::Unavailable(localized_format!(
+                "Speaker workflow unavailable: lane {label} not found.",
+                "Дорожки спикеров недоступны: дорожка {label} не найдена."
             ))
         })?;
         let (lane_id, lane_label) = (lane.id.clone(), lane.label.clone());
@@ -324,8 +362,9 @@ impl EditorDoc {
         }
         self.reconcile_selection_to_visible();
         self.persist_timeline_defaults();
-        Ok(Outcome::status(format!(
-            "Speaker workflow switched to {label}."
+        Ok(Outcome::status(localized_format!(
+            "Speaker workflow switched to {label}.",
+            "Дорожки спикеров: переключено на {label}."
         )))
     }
 
@@ -338,7 +377,10 @@ impl EditorDoc {
         self.session.track_filter = TrackFilter::All;
         self.touch();
         self.persist_timeline_defaults();
-        Outcome::status("Speaker workflow reset: showing all tracks and unmuting speakers.")
+        Outcome::status(localized(
+            "Speaker workflow reset: showing all tracks and unmuting speakers.",
+            "Дорожки спикеров сброшены: показаны все дорожки, звук спикеров включён.",
+        ))
     }
 
     // ---- caret restore around playback ------------------------------------------------
@@ -367,7 +409,10 @@ impl EditorDoc {
             return Ok(self
                 .set_paused(true)
                 .extend(focused.effects)
-                .with_status("Playback paused."));
+                .with_status(localized(
+                    "Playback paused.",
+                    "Воспроизведение приостановлено.",
+                )));
         }
         let committed = self.set_text_focus(None)?;
         self.text_focus.pending = self.restore_for_segment(segment_id, false, None);
@@ -530,7 +575,11 @@ impl EditorDoc {
                 })
                 .or_else(|| session.selected_segment_id.clone().filter(visible))
                 .ok_or_else(|| {
-                    "No segment at the playback position to put the cursor in.".to_string()
+                    localized(
+                        "No segment at the playback position to put the cursor in.",
+                        "В позиции воспроизведения нет сегмента, куда поставить курсор.",
+                    )
+                    .to_string()
                 })?,
         };
         let blur = pending
@@ -540,7 +589,13 @@ impl EditorDoc {
         let synthetic = pending.as_ref().is_some_and(|restore| restore.synthetic);
         let mut restore = self
             .restore_for_segment(&segment_id, synthetic, Some(blur))
-            .ok_or_else(|| "The segment the cursor was in no longer exists.".to_string())?;
+            .ok_or_else(|| {
+                localized(
+                    "The segment the cursor was in no longer exists.",
+                    "Сегмент, в котором был курсор, больше не существует.",
+                )
+                .to_string()
+            })?;
         if let Some(ghost) = ghost {
             restore.restore_offset = ghost.char_offset;
         }
