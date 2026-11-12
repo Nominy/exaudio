@@ -25,7 +25,6 @@ use reqwest::{
 };
 use serde::Serialize;
 use serde_json::{Map, Value, json};
-use sha2::{Digest, Sha256};
 use tokio::sync::Mutex;
 use url::Url;
 
@@ -1172,13 +1171,6 @@ struct EnhancementSource {
     wav: Bytes,
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
-}
-
 /// Gold swarm `text()`: nonblank, ≤ 256 chars, no control characters.
 fn is_swarm_text(value: &str) -> bool {
     !value.trim().is_empty() && value.chars().count() <= 256 && !value.chars().any(char::is_control)
@@ -1235,7 +1227,7 @@ fn prepare_enhancement_sources(
             speaker_key,
             track_label,
             field_name: if index == 0 { "audio:1" } else { "audio:2" },
-            source_sha256: sha256_hex(&lane.wav),
+            source_sha256: crate::sha256_hex(&lane.wav),
             sample_rate: header.sample_rate,
             frame_count,
             wav: lane.wav.clone(),
@@ -1588,7 +1580,7 @@ async fn receive_enhanced_tracks(
         }
         verify_wav(&wav, Some((source.sample_rate, source.frame_count)), true)
             .map_err(InferenceError::other)?;
-        if sha256_hex(&wav) != wav_sha256 {
+        if crate::sha256_hex(&wav) != wav_sha256 {
             return Err(invalid(
                 "The remote server returned damaged audio. (SHA-256 mismatch)",
             ));

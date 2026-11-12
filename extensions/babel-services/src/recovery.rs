@@ -34,10 +34,6 @@ pub fn recovery_dir() -> PathBuf {
 }
 
 /// Snapshot path for `project`, keyed by its review action id (falls back to the project id).
-pub fn snapshot_path(project: &Project) -> PathBuf {
-    snapshot_path_in(&recovery_dir(), project)
-}
-
 pub fn snapshot_path_in(dir: &Path, project: &Project) -> PathBuf {
     let identifier = project
         .metadata

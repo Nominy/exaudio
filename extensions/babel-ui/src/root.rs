@@ -2,7 +2,12 @@
 //! dashboard alive while the shell shows an editor. Credentials live in the account's
 //! directory (see `exaudio_babel_services::account`); the shell decides which account a mode
 //! launches with.
-use std::{collections::BTreeMap, path::PathBuf, rc::Rc};
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+    rc::Rc,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use exaudio_babel_domain::route::StartupRoute;
 use exaudio_babel_services::account::{AccountStatus, AccountStore};
@@ -311,8 +316,10 @@ pub fn launch(
             return None;
         }
     };
-    let controller =
-        cx.new(|cx| BabelController::new(shell, context.mode_id, instance, client, window, cx));
+    let route = take_startup_route();
+    let controller = cx.new(|cx| {
+        BabelController::new(shell, context.mode_id, instance, client, route, window, cx)
+    });
     cx.global_mut::<Controllers>()
         .0
         .insert(key, controller.clone());
@@ -322,6 +329,16 @@ pub fn launch(
             .ok();
     });
     Some(controller.into())
+}
+
+/// The route named on the command line (`--review-action-id …`, `babel://…?…`), once per
+/// process: the first dashboard opens it.
+fn take_startup_route() -> Option<StartupRoute> {
+    static TAKEN: AtomicBool = AtomicBool::new(false);
+    if TAKEN.swap(true, Ordering::Relaxed) {
+        return None;
+    }
+    Some(StartupRoute::parse_args(std::env::args())).filter(|route| !route.is_empty())
 }
 
 /// Drops every controller (their clients point at account directories that may have moved).
@@ -362,6 +379,7 @@ impl BabelController {
         mode_id: String,
         instance: ProviderInstance,
         client: BabelClient,
+        route: Option<StartupRoute>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -388,7 +406,7 @@ impl BabelController {
             client,
             view: None,
             dashboard: None,
-            route: None,
+            route,
             error_task: None,
             error_events: None,
             audio_guard: None,
@@ -403,10 +421,6 @@ impl BabelController {
         if let Some(dashboard) = &self.dashboard {
             dashboard.update(cx, |dashboard, cx| dashboard.cancel_requests(cx));
         }
-    }
-
-    pub fn set_route(&mut self, route: StartupRoute) {
-        self.route = (!route.is_empty()).then_some(route);
     }
 
     pub fn mode_id(&self) -> &str {

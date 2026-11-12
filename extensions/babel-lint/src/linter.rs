@@ -51,11 +51,6 @@ impl LintStatus {
             kind: LintKind::Pass,
         }
     }
-
-    pub fn is_assertable_warning(&self) -> bool {
-        self.severity == LintSeverity::Warning
-            && self.kind != LintKind::Gold(UNRESOLVED_LOW_CONFIDENCE_RULE)
-    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -288,11 +283,6 @@ pub fn server_lint_issue_matches_segment(issue: &ServerLintIssue, segment: &Segm
             .source_annotation_id
             .as_deref()
             .is_some_and(|source_id| issue.annotation_id == source_id)
-}
-
-pub fn warning_key(segment: &Segment, lint: &LintStatus) -> Option<String> {
-    lint.is_assertable_warning()
-        .then(|| format!("{}::{}", segment.id, lint.message))
 }
 
 #[cfg(test)]

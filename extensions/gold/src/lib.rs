@@ -21,3 +21,13 @@ pub use backend::{LocalBackend, LocalConfig};
 
 /// Virtual host the audio staging folder is served at (allowed by Gold's host manifest).
 pub const AUDIO_HOST: &str = "exaudio-audio.example";
+
+use sha2::{Digest, Sha256};
+
+/// Lowercase hex SHA-256 of `bytes`.
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}

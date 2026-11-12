@@ -209,8 +209,6 @@ pub struct DenoiseControl {
     ticker: Option<Task<()>>,
     /// Set once the task's audio finished loading and the startup cache check ran.
     startup_checked: bool,
-    /// Hides the slider in narrow toolbars (set by the toolbar each render).
-    narrow: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -251,15 +249,10 @@ impl DenoiseControl {
             job: None,
             ticker: None,
             startup_checked: false,
-            narrow: false,
             _subscriptions: subscriptions,
         };
         this.check_startup(cx);
         this
-    }
-
-    pub fn set_narrow(&mut self, narrow: bool) {
-        self.narrow = narrow;
     }
 
     fn task_id(&self, cx: &App) -> String {
@@ -757,25 +750,23 @@ impl Render for DenoiseControl {
             .flex_none()
             .gap_1()
             .child(self.generate_button(cx))
-            .when(!self.narrow, |row| {
-                row.child(
-                    div()
-                        .id("denoise-mix")
-                        .w(rems(6.))
-                        .child(Slider::new(&self.slider).horizontal())
-                        .tooltip(|window, cx| {
-                            Tooltip::new(localized(cx, "Clean ↔ Original", "Очищенный ↔ Исходный"))
-                                .build(window, cx)
-                        }),
-                )
-                .child(
-                    div()
-                        .w(rems(4.))
-                        .text_xs()
-                        .text_color(cx.theme().muted_foreground)
-                        .child(self.preview.label(cx)),
-                )
-            })
+            .child(
+                div()
+                    .id("denoise-mix")
+                    .w(rems(6.))
+                    .child(Slider::new(&self.slider).horizontal())
+                    .tooltip(|window, cx| {
+                        Tooltip::new(localized(cx, "Clean ↔ Original", "Очищенный ↔ Исходный"))
+                            .build(window, cx)
+                    }),
+            )
+            .child(
+                div()
+                    .w(rems(4.))
+                    .text_xs()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(self.preview.label(cx)),
+            )
             .child(status)
     }
 }

@@ -28,14 +28,6 @@ pub enum CapabilityServiceFamily {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CapabilityHotkey {
-    pub keys: &'static [&'static str],
-    pub description: &'static str,
-}
-
-pub type CapabilityHotkeySection = (&'static str, Vec<(Vec<&'static str>, &'static str)>);
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CapabilityDescriptor {
     pub id: CapabilityId,
     pub pack: CapabilityPack,
@@ -43,7 +35,6 @@ pub struct CapabilityDescriptor {
     pub description: &'static str,
     pub default_enabled: bool,
     pub commands: &'static [&'static str],
-    pub hotkeys: &'static [CapabilityHotkey],
     pub service_family: Option<CapabilityServiceFamily>,
 }
 
@@ -98,248 +89,13 @@ impl CapabilityRegistry {
             .filter(|descriptor| self.settings.enabled_for(descriptor))
     }
 
-    pub fn hotkey_sections(&self) -> Vec<CapabilityHotkeySection> {
-        let mut sections = RECOVERED_BABEL_HOTKEY_SECTIONS
-            .iter()
-            .map(|section| {
-                (
-                    section.title,
-                    section
-                        .rows
-                        .iter()
-                        .map(|row| (row.keys.to_vec(), row.description))
-                        .collect(),
-                )
-            })
-            .collect::<Vec<_>>();
-        let helper_rows = self
-            .enabled_descriptors()
-            .filter(|descriptor| descriptor.pack == CapabilityPack::Helper)
-            .flat_map(|descriptor| descriptor.hotkeys.iter())
-            .map(|row| (row.keys.to_vec(), row.description))
-            .collect::<Vec<_>>();
-        if !helper_rows.is_empty() {
-            sections.push(("Helper Extensions", helper_rows));
-        }
-        sections
-    }
-
     pub fn service_family_for(&self, id: CapabilityId) -> Option<CapabilityServiceFamily> {
         self.descriptor(id)
             .and_then(|descriptor| descriptor.service_family)
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct StaticHotkeySection {
-    title: &'static str,
-    rows: &'static [CapabilityHotkey],
-}
-
-const GLOBAL_CONTROLS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["Space"],
-        description: "Play/Pause (restores ghost cursor like Escape)",
-    },
-    CapabilityHotkey {
-        keys: &["\u{2190}"],
-        description: "Seek To Previous Segment",
-    },
-    CapabilityHotkey {
-        keys: &["\u{2192}"],
-        description: "Seek To Next Segment",
-    },
-    CapabilityHotkey {
-        keys: &["Cmd/Ctrl", "Z"],
-        description: "Undo",
-    },
-    CapabilityHotkey {
-        keys: &["Cmd/Ctrl", "Shift", "Z"],
-        description: "Redo",
-    },
-    CapabilityHotkey {
-        keys: &["Cmd/Ctrl", "F"],
-        description: "Find in transcript",
-    },
-    CapabilityHotkey {
-        keys: &["F3", "Or", "Cmd/Ctrl", "G"],
-        description: "Find next match",
-    },
-    CapabilityHotkey {
-        keys: &["Shift", "F3", "Or", "Shift", "Cmd/Ctrl", "G"],
-        description: "Find previous match",
-    },
-    CapabilityHotkey {
-        keys: &["Cmd/Ctrl", "J"],
-        description: "Confirm/undo warning on active segment",
-    },
-    CapabilityHotkey {
-        keys: &["Hold Shift", "Scroll"],
-        description: "Side-scroll",
-    },
-    CapabilityHotkey {
-        keys: &["Pinch", "Or", "Cmd/Ctrl", "Scroll"],
-        description: "Zoom in/out",
-    },
-];
-
-const OVERLAY_CONTROLS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["T"],
-        description: "Toggle 1-second overlay",
-    },
-    CapabilityHotkey {
-        keys: &["Drag"],
-        description: "Move overlay to check different positions",
-    },
-];
-
-const SEGMENT_CONTROLS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["Click"],
-        description: "Select segment",
-    },
-    CapabilityHotkey {
-        keys: &["Click", "Click"],
-        description: "Play segment",
-    },
-    CapabilityHotkey {
-        keys: &["Hold Shift", "Click"],
-        description: "Play segment and continue",
-    },
-    CapabilityHotkey {
-        keys: &["Cmd/Ctrl", "Click"],
-        description: "Split segment at click position",
-    },
-    CapabilityHotkey {
-        keys: &["Hold Q", "Click"],
-        description: "Play 500ms before segment start",
-    },
-    CapabilityHotkey {
-        keys: &["Hold W", "Click"],
-        description: "Play first 500ms of segment",
-    },
-    CapabilityHotkey {
-        keys: &["Hold E", "Click"],
-        description: "Play last 500ms of segment",
-    },
-    CapabilityHotkey {
-        keys: &["Hold R", "Click"],
-        description: "Play 500ms after segment end",
-    },
-];
-
-const RECOVERED_BABEL_HOTKEY_SECTIONS: &[StaticHotkeySection] = &[
-    StaticHotkeySection {
-        title: "Global Controls",
-        rows: GLOBAL_CONTROLS,
-    },
-    StaticHotkeySection {
-        title: "1-Second Overlay",
-        rows: OVERLAY_CONTROLS,
-    },
-    StaticHotkeySection {
-        title: "Segment Controls (Click on segment)",
-        rows: SEGMENT_CONTROLS,
-    },
-];
-
-const TEXT_MOVE_HOTKEYS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["Alt", "["],
-        description: "Move text before caret to previous segment",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "]"],
-        description: "Move text after caret to next segment",
-    },
-];
-
-const ROW_ACTION_HOTKEYS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["Right Shift", "Left/Right"],
-        description: "Focus previous / next segment from start",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "1/2"],
-        description: "Switch active speaker workflow lane",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "`"],
-        description: "Reset speaker workflow lanes",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "X"],
-        description: "Rewind playback 1000ms",
-    },
-    CapabilityHotkey {
-        keys: &["Shift", "1/2"],
-        description: "Increase / decrease playback speed",
-    },
-    CapabilityHotkey {
-        keys: &["D"],
-        description: "Delete current segment when not typing",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "Shift", "Up/Down"],
-        description: "Merge with adjacent segment",
-    },
-];
-
-const TIMELINE_SELECTION_HOTKEYS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["Alt", "R"],
-        description: "Trim current segment to nearby visible audio",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "Shift", "R"],
-        description: "Trim all visible segments to nearby visible audio",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "Shift", "G"],
-        description: "Transcribe current empty segment with native drafting audio",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "C"],
-        description: "Create empty segment around nearest uncovered speech near caret",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "Shift", "S"],
-        description: "Split visible segments on silence runs over 1000ms, then trim all",
-    },
-    CapabilityHotkey {
-        keys: &["S"],
-        description: "Commit active cut preview with smart text split",
-    },
-    CapabilityHotkey {
-        keys: &["Shift", "S"],
-        description: "Commit active cut preview without smart text split",
-    },
-    CapabilityHotkey {
-        keys: &["L"],
-        description: "Loop playback over the cut selection (again: stop; Escape clears)",
-    },
-];
-
-const CUSTOM_LINTER_HOTKEYS: &[CapabilityHotkey] = &[
-    CapabilityHotkey {
-        keys: &["Alt", "F"],
-        description: "Auto-fix lint issues in current row",
-    },
-    CapabilityHotkey {
-        keys: &["Alt", "Shift", "F"],
-        description: "Auto-fix lint issues in all rows",
-    },
-];
-
 const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
-    helper_descriptor(
-        "helper.hotkeys-help",
-        "Hotkeys Help",
-        "Extend the native hotkeys dialog with Helper workflow rows.",
-        &[],
-        &[],
-    ),
     helper_descriptor(
         "helper.row-actions",
         "Row Actions",
@@ -350,7 +106,6 @@ const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
             "helper.row-actions.merge-previous",
             "helper.row-actions.merge-next",
         ],
-        ROW_ACTION_HOTKEYS,
     ),
     helper_descriptor(
         "helper.text-move",
@@ -360,30 +115,18 @@ const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
             "helper.text-move.before-caret",
             "helper.text-move.after-caret",
         ],
-        TEXT_MOVE_HOTKEYS,
     ),
     helper_descriptor(
         "helper.focus-toggle",
         "Focus Toggle",
         "Pause, blur, resume, and restore transcript focus.",
         &["helper.focus-toggle"],
-        &[
-            CapabilityHotkey {
-                keys: &["Escape", "Or", "Space"],
-                description: "Pause and blur / resume and restore cursor",
-            },
-            CapabilityHotkey {
-                keys: &["Tab"],
-                description: "Switch ghost cursor lane",
-            },
-        ],
     ),
     helper_descriptor(
         "helper.quick-region-autocomplete",
         "Quick Region Autocomplete",
         "Reuse tag autocomplete in quick region and row editors.",
         &["helper.quick-region-autocomplete.accept"],
-        &[],
     ),
     helper_descriptor(
         "helper.selected-number-to-skaz",
@@ -393,10 +136,6 @@ const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
             "helper.selected-number-to-skaz.inline",
             "helper.selected-number-to-skaz.selection",
         ],
-        &[CapabilityHotkey {
-            keys: &["Alt", "A"],
-            description: "Auto-convert selected digits into SKAZ notation",
-        }],
     ),
     helper_descriptor(
         "helper.timeline-selection",
@@ -406,13 +145,11 @@ const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
             "helper.timeline-selection.cut-preview",
             "helper.timeline-selection.trim",
         ],
-        TIMELINE_SELECTION_HOTKEYS,
     ),
     helper_descriptor(
         "helper.timeline-defaults",
         "Timeline Defaults",
         "Persist timeline zoom, lane visibility, and workflow defaults.",
-        &[],
         &[],
     ),
     helper_descriptor(
@@ -423,7 +160,6 @@ const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
             "helper.waveform-tools.magnifier",
             "helper.waveform-tools.minimap",
         ],
-        &[],
     ),
     helper_descriptor(
         "helper.custom-linter",
@@ -433,13 +169,11 @@ const CAPABILITY_DESCRIPTORS: &[CapabilityDescriptor] = &[
             "helper.custom-linter.fix-row",
             "helper.custom-linter.fix-all",
         ],
-        CUSTOM_LINTER_HOTKEYS,
     ),
     helper_descriptor(
         "helper.extended-diff",
         "Extended Diff",
         "Surface recovered diff details in native diff toolbar and rows.",
-        &[],
         &[],
     ),
     reviewer_descriptor(
@@ -522,7 +256,6 @@ const fn helper_descriptor(
     label: &'static str,
     description: &'static str,
     commands: &'static [&'static str],
-    hotkeys: &'static [CapabilityHotkey],
 ) -> CapabilityDescriptor {
     CapabilityDescriptor {
         id: CapabilityId::new(id),
@@ -531,7 +264,6 @@ const fn helper_descriptor(
         description,
         default_enabled: true,
         commands,
-        hotkeys,
         service_family: None,
     }
 }
@@ -549,7 +281,6 @@ const fn reviewer_descriptor(
         description,
         default_enabled: true,
         commands,
-        hotkeys: &[],
         service_family: Some(CapabilityServiceFamily::Reviewer),
     }
 }
@@ -568,7 +299,6 @@ const fn drafting_descriptor(
         description,
         default_enabled,
         commands,
-        hotkeys: &[],
         service_family: Some(CapabilityServiceFamily::Drafting),
     }
 }
@@ -581,7 +311,7 @@ mod tests {
     fn registry_exposes_helper_reviewer_and_drafting_packs() {
         let registry = CapabilityRegistry::default();
 
-        assert_eq!(registry.descriptors().len(), 21);
+        assert_eq!(registry.descriptors().len(), 20);
         assert!(registry.is_enabled(CapabilityId::new("helper.custom-linter")));
         assert!(registry.is_enabled(CapabilityId::new("reviewer.generate")));
         assert!(!registry.is_enabled(CapabilityId::new("drafting.transcribe-segment")));
@@ -603,7 +333,6 @@ mod tests {
                 "helper.text-move.after-caret",
             ]
         );
-        assert_eq!(descriptor.hotkeys.len(), 2);
     }
 
     #[test]

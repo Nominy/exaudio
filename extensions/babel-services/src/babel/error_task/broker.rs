@@ -21,7 +21,6 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use bytes::Bytes;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sha2::{Digest, Sha256};
 use tokio::sync::watch;
 
 use super::choices::ErrorLabelDraft;
@@ -31,6 +30,7 @@ use super::clef::{
 use super::diff_align::{AudioInterval, TimedWord};
 use super::{ErrorTaskError, ErrorTaskIdentity};
 use exaudio_gold::prefs::ExecutionLocation;
+use exaudio_gold::sha256_hex;
 use exaudio_inference::{AlignRequest, InferenceBackend, InferenceErrorKind, ProgressSink};
 
 /// Provider timeout of one ASR or decisions request (body read included).
@@ -106,13 +106,6 @@ pub struct Receipt {
 
 fn cancelled(message: &str) -> ErrorTaskError {
     ErrorTaskError::new("cancelled", message)
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 fn safe_token(value: &str, secret: &str) -> bool {

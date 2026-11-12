@@ -15,15 +15,17 @@ use axum::{
     routing::{get, post},
 };
 use bytes::Bytes;
-use exaudio_gold::remote::{
-    GOLD_E2E_RELEASE, GOLD_ENHANCEMENT_MODEL, RemoteBackend, RemoteConfig, TimingTokenStore,
+use exaudio_gold::{
+    remote::{
+        GOLD_E2E_RELEASE, GOLD_ENHANCEMENT_MODEL, RemoteBackend, RemoteConfig, TimingTokenStore,
+    },
+    sha256_hex,
 };
 use exaudio_inference::{
     AlignRequest, BackendStatus, InferenceBackend, InferenceErrorKind, InferenceProgress,
     LaneAudio, PreservedRow, ProgressSink,
 };
 use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone)]
 struct Seen {
@@ -294,13 +296,6 @@ fn wav(sample_rate: u32, frames: u32) -> Bytes {
     bytes.extend_from_slice(&data.to_le_bytes());
     bytes.extend((0..frames).flat_map(|index| ((index % 200) as i16 * 50).to_le_bytes()));
     Bytes::from(bytes)
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    Sha256::digest(bytes)
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect()
 }
 
 async fn enhance(State(fake): State<Shared>, headers: HeaderMap, multipart: Multipart) -> Response {
