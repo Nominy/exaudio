@@ -556,6 +556,150 @@ impl EditorAction {
     }
 }
 
+/// One input of a [`GestureDef`], shown as part of its keycap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GestureInput {
+    /// The platform modifier (Cmd on macOS, Ctrl elsewhere).
+    Secondary,
+    Shift,
+    Alt,
+    /// A key held while the pointer acts.
+    Key(&'static str),
+    /// What the pointer or wheel does.
+    Pointer(Text),
+}
+
+/// A pointer gesture listed in the shortcuts dialog. Gestures are not actions: they have no
+/// id and cannot be rebound.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct GestureDef {
+    pub input: &'static [GestureInput],
+    pub description: Text,
+}
+
+/// Heading of [`GESTURES`] in the shortcuts dialog.
+pub const GESTURES_SECTION: Text = t("Mouse", "Мышь");
+
+const CLICK: GestureInput = GestureInput::Pointer(t("Click", "Щелчок"));
+const DRAG: GestureInput = GestureInput::Pointer(t("Drag", "Перетаскивание"));
+const WHEEL: GestureInput = GestureInput::Pointer(t("Wheel", "Колесо"));
+const MIDDLE_BUTTON: GestureInput = GestureInput::Pointer(t("Middle button", "Средняя кнопка"));
+
+const fn gesture(input: &'static [GestureInput], description: Text) -> GestureDef {
+    GestureDef { input, description }
+}
+
+/// Pointer gestures of the timeline and the transcript, in dialog order
+/// (see `EditorDoc::press_waveform`, `timeline_wheel`, `press_autoscroll`, `seek_to_word`).
+pub const GESTURES: &[GestureDef] = &[
+    gesture(
+        &[DRAG],
+        t(
+            "On empty waveform: create a segment",
+            "На пустом месте дорожки: создать сегмент",
+        ),
+    ),
+    gesture(
+        &[DRAG],
+        t(
+            "On a segment edge: move the boundary",
+            "За край сегмента: сдвинуть границу",
+        ),
+    ),
+    gesture(
+        &[CLICK],
+        t(
+            "Select the segment and move the playhead to the pointer",
+            "Выбрать сегмент и перенести курсор воспроизведения",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Secondary, CLICK],
+        t(
+            "Split the segment at the pointer",
+            "Разрезать сегмент в этой точке",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Secondary, GestureInput::Shift, CLICK],
+        t(
+            "Split the segment and divide its text by word timings",
+            "Разрезать сегмент и разделить текст по таймингам слов",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Shift, CLICK],
+        t("Play the segment", "Проиграть сегмент"),
+    ),
+    gesture(
+        &[GestureInput::Key("Q"), CLICK],
+        t(
+            "Play 0.5 s before the segment start",
+            "Проиграть 0,5 с перед началом сегмента",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Key("W"), CLICK],
+        t(
+            "Play the first 0.5 s of the segment",
+            "Проиграть первые 0,5 с сегмента",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Key("E"), CLICK],
+        t(
+            "Play the last 0.5 s of the segment",
+            "Проиграть последние 0,5 с сегмента",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Key("R"), CLICK],
+        t(
+            "Play 0.5 s after the segment end",
+            "Проиграть 0,5 с после конца сегмента",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Alt, DRAG],
+        t("Draw a cut selection", "Нарисовать выделение для разреза"),
+    ),
+    gesture(
+        &[GestureInput::Secondary, DRAG],
+        t(
+            "Inside the cut selection: move it",
+            "Внутри выделения для разреза: передвинуть его",
+        ),
+    ),
+    gesture(
+        &[MIDDLE_BUTTON],
+        t(
+            "Scroll the timeline: hold and move, or click to keep scrolling",
+            "Прокрутка таймлайна: удерживать и двигать или щёлкнуть для непрерывной прокрутки",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Secondary, WHEEL],
+        t(
+            "Zoom the timeline around the pointer",
+            "Масштабировать таймлайн вокруг указателя",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Shift, WHEEL],
+        t(
+            "Scroll the timeline sideways",
+            "Прокрутить таймлайн по горизонтали",
+        ),
+    ),
+    gesture(
+        &[GestureInput::Alt, CLICK],
+        t(
+            "On a word in a segment's text: move the playhead to that word",
+            "По слову в тексте сегмента: перейти к этому слову",
+        ),
+    ),
+];
+
 /// Held boundary-audition key for an unmodified Q/W/E/R press outside text inputs.
 pub fn audition_key_for(keystroke: &str) -> Option<AuditionKey> {
     let chord = KeyChord::parse(keystroke)?;

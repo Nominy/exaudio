@@ -253,12 +253,17 @@ impl Render for Toolbar {
                     .update(cx, |model, cx| model.run(cx, |doc| doc.step_speed(1)));
             }));
 
+        let wheel_zoom = format!(
+            "{}+{}",
+            if actions::IS_MAC { "Cmd" } else { "Ctrl" },
+            localized(cx, "wheel", "колесо")
+        );
         let zoom_out = Button::new("toolbar-zoom-out")
             .ghost()
             .small()
             .icon(IconName::ZoomOut)
             .tooltip(format!(
-                "{} (Ctrl+wheel)",
+                "{} ({wheel_zoom})",
                 localized(cx, "Zoom out", "Уменьшить")
             ))
             .on_click(cx.listener(|this, _, _, cx| this.step_zoom(1.0 / ZOOM_STEP, cx)));
@@ -267,7 +272,7 @@ impl Render for Toolbar {
             .small()
             .icon(IconName::ZoomIn)
             .tooltip(format!(
-                "{} (Ctrl+wheel)",
+                "{} ({wheel_zoom})",
                 localized(cx, "Zoom in", "Увеличить")
             ))
             .on_click(cx.listener(|this, _, _, cx| this.step_zoom(ZOOM_STEP, cx)));

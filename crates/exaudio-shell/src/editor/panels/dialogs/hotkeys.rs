@@ -1,8 +1,11 @@
 //! Keyboard shortcuts dialog: every registered action by category (core first, then the
 //! extensions by name), with rebinding (key capture), conflict warnings and reset per
-//! action or for all. Overrides persist through [`actions::update`].
+//! action or for all, followed by the editor's fixed mouse gestures. Overrides persist
+//! through [`actions::update`].
 
-use exaudio_editor::edit::keymap::ACTION_DEFS;
+use exaudio_editor::edit::keymap::{
+    ACTION_DEFS, GESTURES, GESTURES_SECTION, GestureDef, GestureInput,
+};
 use exaudio_extension::actions::{CORE_OWNER, Entry, KeyChord, Priority};
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::scroll::ScrollableElement;
@@ -304,6 +307,24 @@ fn keycap(label: String, cx: &App) -> Div {
         .child(label)
 }
 
+/// `Ctrl+Shift+Click`-style label of a gesture in language `lang`.
+fn gesture_label(gesture: &GestureDef, lang: &str) -> String {
+    gesture
+        .input
+        .iter()
+        .map(|input| match *input {
+            GestureInput::Secondary if IS_MAC => "Cmd",
+            GestureInput::Secondary => "Ctrl",
+            GestureInput::Shift => "Shift",
+            GestureInput::Alt => "Alt",
+            GestureInput::Key(key) => key,
+            GestureInput::Pointer(text) if lang == "ru" => text.ru,
+            GestureInput::Pointer(text) => text.en,
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
+
 impl Render for HotkeysDialog {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // The list keeps its height unless the window is too short for it and the dialog
@@ -355,6 +376,35 @@ impl Render for HotkeysDialog {
             }
             list = list.child(group);
         }
+        let in_lang = |text: exaudio_editor::i18n::Text| {
+            if lang == "ru" { text.ru } else { text.en }
+        };
+        let mut gestures = v_flex()
+            .gap_0p5()
+            .child(div().px_3().child(caption(in_lang(GESTURES_SECTION), cx)));
+        for gesture in GESTURES {
+            gestures = gestures.child(
+                h_flex()
+                    .px_3()
+                    .py_1p5()
+                    .gap_3()
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_sm()
+                            .child(in_lang(gesture.description)),
+                    )
+                    .child(
+                        div()
+                            .w(rems(13.75))
+                            .flex_none()
+                            .child(h_flex().child(keycap(gesture_label(gesture, lang), cx))),
+                    )
+                    .child(div().w(rems(9.375)).flex_none()),
+            );
+        }
+        list = list.child(gestures);
 
         let theme = cx.theme();
         let notice = self.notice.clone().map(|notice| {
