@@ -41,10 +41,6 @@ impl PeakCache {
         }
     }
 
-    pub fn source(&self) -> &WaveformSource {
-        &self.source
-    }
-
     pub fn cached_resolution_count(&self) -> usize {
         self.resolutions.len()
     }

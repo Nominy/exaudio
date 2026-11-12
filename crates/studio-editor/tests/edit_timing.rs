@@ -1,5 +1,5 @@
 //! Word-timing consumers on `EditorDoc`: smart split (Ctrl+Shift+Click, cut preview S),
-//! Alt+Click word seek, the timed ghost cursor, Gold Draft row replacement / Apply draft /
+//! Alt+Click word seek, the timed ghost cursor, drafted-row replacement / Apply draft /
 //! Restore original and the empty-row-only segment transcription guards.
 #![allow(unused_must_use)]
 
@@ -277,7 +277,7 @@ fn an_applied_draft_shows_in_its_rows_and_a_later_commit_keeps_it() {
     assert_eq!(doc.draft("a").unwrap().text(), "polished one");
     // An unapplied edit of another row survives the outside edit.
     assert_eq!(doc.draft("b").unwrap().text(), "typed two");
-    ok(doc.commit_pending_drafts("Gold Draft"));
+    ok(doc.commit_pending_drafts("Apply draft"));
     assert_eq!(text_of(&doc, "a"), "polished one");
     assert_eq!(text_of(&doc, "b"), "typed two");
 }
@@ -318,7 +318,7 @@ fn segment_transcription_only_fills_a_still_current_still_empty_row() {
     );
 }
 
-/// Gold's rule for CTC draft rows and refined rows: an ellipsis glued to the end of a word is
+/// The rule for drafted and refined rows: an ellipsis glued to the end of a word is
 /// dropped; a leading one (before the next word) or a free-standing one stays.
 #[test]
 fn word_final_ellipsis_is_removed_only_after_a_word() {

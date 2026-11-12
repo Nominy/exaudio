@@ -9,27 +9,6 @@ use std::time::Instant;
 pub const MIN_LOOP_DURATION_SECONDS: f64 = 0.01;
 /// Slowest supported playback rate; slower requests are clamped.
 pub const MIN_PLAYBACK_SPEED: f32 = 0.1;
-/// Speed steps offered by the toolbar and the speed hotkeys.
-pub const PLAYBACK_SPEED_STEPS: [f32; 6] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0];
-
-/// Next speed step above (`direction >= 0`) or below `current_speed`,
-/// saturating at the first/last step.
-pub fn adjacent_playback_speed(current_speed: f32, direction: i32) -> f32 {
-    if direction >= 0 {
-        PLAYBACK_SPEED_STEPS
-            .iter()
-            .copied()
-            .find(|speed| *speed > current_speed + 0.001)
-            .unwrap_or(PLAYBACK_SPEED_STEPS[PLAYBACK_SPEED_STEPS.len() - 1])
-    } else {
-        PLAYBACK_SPEED_STEPS
-            .iter()
-            .rev()
-            .copied()
-            .find(|speed| *speed < current_speed - 0.001)
-            .unwrap_or(PLAYBACK_SPEED_STEPS[0])
-    }
-}
 
 /// Loop region in timeline seconds.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -248,16 +227,6 @@ mod tests {
         transport.set_timeline_end(now, end);
         transport.set_state(now, PlaybackState::Playing, start);
         transport
-    }
-
-    #[test]
-    fn speed_steps_move_to_adjacent_values_and_saturate() {
-        assert_eq!(adjacent_playback_speed(1.0, 1), 1.5);
-        assert_eq!(adjacent_playback_speed(1.0, -1), 0.75);
-        assert_eq!(adjacent_playback_speed(2.0, 1), 2.0);
-        assert_eq!(adjacent_playback_speed(0.25, -1), 0.25);
-        assert_eq!(adjacent_playback_speed(1.2, 1), 1.5);
-        assert_eq!(adjacent_playback_speed(1.2, -1), 1.0);
     }
 
     #[test]

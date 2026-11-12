@@ -1,6 +1,6 @@
-//! Timeline / transport / helper-focus behaviour of `EditorDoc`: decoded-audio trim,
+//! Timeline / transport / text-focus behaviour of `EditorDoc`: decoded-audio trim,
 //! auto-insert and auto-segmentation, cut preview commit/loop, transport ticks and playback
-//! follow, helper focus + ghost cursor (Space/Escape/Tab), row and problem navigation, find,
+//! follow, caret restore + ghost cursor (Space/Escape/Tab), row and problem navigation, find,
 //! speed/rewind/speaker workflow, timeline-default persistence, window unfocus and Escape
 //! precedence.
 #![allow(unused_must_use)]
@@ -32,7 +32,7 @@ fn selected(doc: &EditorDoc) -> Option<&str> {
 }
 
 fn pending_segment(doc: &EditorDoc) -> Option<&str> {
-    doc.helper()
+    doc.text_focus()
         .pending
         .as_ref()
         .map(|restore| restore.segment_id.as_str())
@@ -88,7 +88,7 @@ fn large_two_lane_doc(segment_count: usize) -> EditorDoc {
     doc(segments)
 }
 
-// ---- helper focus navigation (Shift+Left/Right) ------------------------------------------
+// ---- focus navigation (Shift+Left/Right) -------------------------------------------------
 
 #[test]
 fn focus_adjacent_segment_focuses_next_row_from_start_without_seeking() {
@@ -101,7 +101,7 @@ fn focus_adjacent_segment_focuses_next_row_from_start_without_seeking() {
     assert_eq!(selected(&doc), Some("annotation-2"));
     assert_eq!(doc.session().playhead_seconds, 42.0);
     assert_eq!(
-        doc.helper()
+        doc.text_focus()
             .last
             .as_ref()
             .map(|restore| (restore.segment_id.as_str(), restore.restore_offset)),
@@ -470,8 +470,8 @@ fn lane_words(doc: &EditorDoc, lane: &str) -> Vec<String> {
 
 #[test]
 fn auto_segment_merges_close_same_speaker_rows_before_splitting_on_silence() {
-    // Two rows 0.3s apart whose shared speech has its pause inside the second row: Helper
-    // merges them first, so the pause (not the old row boundary) decides the rows.
+    // Two rows 0.3s apart whose shared speech has its pause inside the second row: they
+    // merge first, so the pause (not the old row boundary) decides the rows.
     let mut doc = doc(vec![
         seg("a", "lane-1", 1.0, 2.0, "Раз два."),
         seg("b", "lane-1", 2.3, 6.0, "Три четыре. Пять шесть."),
@@ -946,10 +946,10 @@ fn playback_follow_reveals_row_under_playhead_once_per_row() {
     );
 }
 
-// ---- helper focus: Escape / Space / ghost cursor ------------------------------------------
+// ---- caret restore: Escape / Space / ghost cursor -----------------------------------------
 
 #[test]
-fn helper_focus_escape_workflow_matches_four_state_toggle() {
+fn escape_workflow_matches_four_state_toggle() {
     let mut doc = stable_sample_doc();
     let _ = doc.select_segment_without_seek("annotation-1");
     set_playhead(&mut doc, 0.30);
@@ -980,7 +980,7 @@ fn helper_focus_escape_workflow_matches_four_state_toggle() {
     }));
     assert_eq!(selected(&doc), Some("annotation-2"));
     assert_eq!(
-        doc.helper()
+        doc.text_focus()
             .last
             .as_ref()
             .map(|restore| (restore.segment_id.as_str(), restore.restore_offset)),
@@ -997,7 +997,7 @@ fn helper_focus_escape_workflow_matches_four_state_toggle() {
     assert!(outcome.has_effect(&Effect::StartPlayback));
     assert_eq!(selected(&doc), Some("annotation-2"));
     assert_eq!(
-        doc.helper()
+        doc.text_focus()
             .pending
             .as_ref()
             .map(|restore| restore.synthetic),
@@ -1006,7 +1006,7 @@ fn helper_focus_escape_workflow_matches_four_state_toggle() {
 }
 
 #[test]
-fn space_toggles_helper_playback_and_ghost_cursor_like_escape() {
+fn space_toggles_playback_and_ghost_cursor_like_escape() {
     let mut doc = stable_sample_doc();
     let _ = doc.select_segment_without_seek("annotation-1");
     set_playhead(&mut doc, 2.0);
@@ -1031,10 +1031,10 @@ fn space_toggles_helper_playback_and_ghost_cursor_like_escape() {
         caret: 2,
     }));
     assert_eq!(
-        doc.helper().focused_segment_id.as_deref(),
+        doc.text_focus().focused_segment_id.as_deref(),
         Some("annotation-2")
     );
-    assert!(doc.helper().pending.is_none());
+    assert!(doc.text_focus().pending.is_none());
 }
 
 #[test]
@@ -1079,7 +1079,7 @@ fn space_keeps_the_playhead_when_it_is_inside_the_selected_segment() {
 }
 
 #[test]
-fn helper_ghost_cursor_renders_only_on_pending_row_at_restore_offset_while_paused() {
+fn ghost_cursor_renders_only_on_pending_row_at_restore_offset_while_paused() {
     let mut doc = stable_sample_doc();
     set_draft_with_caret_at_end(&mut doc, "annotation-2", "abcdefghij");
     let _ = doc.select_segment_without_seek("annotation-2");
@@ -1088,10 +1088,10 @@ fn helper_ghost_cursor_renders_only_on_pending_row_at_restore_offset_while_pause
     let _ = doc.toggle_playback();
     assert!(!doc.session().is_playing);
 
-    let restore_offset = doc.helper().pending.as_ref().unwrap().restore_offset;
+    let restore_offset = doc.text_focus().pending.as_ref().unwrap().restore_offset;
     let ghost = doc
         .ghost_cursor("annotation-2")
-        .expect("pending helper restore exposes a ghost cursor");
+        .expect("pending caret restore exposes a ghost cursor");
 
     assert_eq!(ghost.segment_id, "annotation-2");
     assert_eq!(ghost.char_offset, restore_offset);
@@ -1102,7 +1102,7 @@ fn helper_ghost_cursor_renders_only_on_pending_row_at_restore_offset_while_pause
 }
 
 #[test]
-fn helper_ghost_cursor_is_hidden_on_the_focused_row() {
+fn ghost_cursor_is_hidden_on_the_focused_row() {
     let mut doc = stable_sample_doc();
     let _ = doc.select_segment_without_seek("annotation-2");
     set_playhead(&mut doc, 3.75);
@@ -1115,7 +1115,7 @@ fn helper_ghost_cursor_is_hidden_on_the_focused_row() {
 }
 
 #[test]
-fn helper_ghost_cursor_tracks_playhead_while_playing() {
+fn ghost_cursor_tracks_playhead_while_playing() {
     let mut doc = stable_sample_doc();
     set_draft_with_caret_at_end(&mut doc, "annotation-2", "abcdefghij");
     let segment = doc.project().segment("annotation-2").unwrap().clone();
@@ -1141,7 +1141,7 @@ fn helper_ghost_cursor_tracks_playhead_while_playing() {
 }
 
 #[test]
-fn helper_ghost_cursor_snaps_playback_offset_to_word_boundary() {
+fn ghost_cursor_snaps_playback_offset_to_word_boundary() {
     let mut doc = stable_sample_doc();
     set_draft_with_caret_at_end(&mut doc, "annotation-2", "alpha beta gamma");
     let segment = doc.project().segment("annotation-2").unwrap().clone();
@@ -1163,7 +1163,7 @@ fn helper_ghost_cursor_snaps_playback_offset_to_word_boundary() {
 }
 
 #[test]
-fn helper_ghost_cursor_advances_to_active_row_during_playback() {
+fn ghost_cursor_advances_to_active_row_during_playback() {
     let mut doc = stable_sample_doc();
     let start = segment_start(&doc, "annotation-1");
     let _ = doc.select_segment_without_seek("annotation-1");
@@ -1185,7 +1185,7 @@ fn helper_ghost_cursor_advances_to_active_row_during_playback() {
 }
 
 #[test]
-fn helper_ghost_cursor_parks_on_latest_lane_row_during_playback_gaps() {
+fn ghost_cursor_parks_on_latest_lane_row_during_playback_gaps() {
     let mut doc = stable_sample_doc();
     let start = segment_start(&doc, "annotation-1");
     let _ = doc.select_segment_without_seek("annotation-1");
@@ -1211,10 +1211,10 @@ fn helper_ghost_cursor_parks_on_latest_lane_row_during_playback_gaps() {
 }
 
 #[test]
-fn helper_ghost_cursor_pending_target_follows_segment_navigation() {
+fn ghost_cursor_pending_target_follows_segment_navigation() {
     let mut doc = stable_sample_doc();
     let _ = doc.select_segment("annotation-1");
-    let _ = doc.helper_toggle_playback();
+    let _ = doc.toggle_playback_keeping_caret();
     let _ = doc.toggle_playback();
     assert!(!doc.session().is_playing);
     assert_eq!(pending_segment(&doc), Some("annotation-1"));
@@ -1233,7 +1233,7 @@ fn helper_ghost_cursor_pending_target_follows_segment_navigation() {
 fn play_ghost_from(doc: &mut EditorDoc, segment_id: &str, playhead: f64) {
     let _ = doc.select_segment_without_seek(segment_id);
     set_playhead(doc, playhead);
-    let _ = doc.helper_toggle_playback();
+    let _ = doc.toggle_playback_keeping_caret();
     assert!(doc.session().is_playing);
     assert_eq!(pending_segment(doc), Some(segment_id));
 }
@@ -1244,7 +1244,7 @@ fn play_to(doc: &mut EditorDoc, seconds: f64) {
 }
 
 #[test]
-fn helper_ghost_cursor_tab_switches_lane_and_playback_keeps_it_there() {
+fn ghost_cursor_tab_switches_lane_and_playback_keeps_it_there() {
     let mut doc = stable_sample_doc();
     play_ghost_from(&mut doc, "annotation-1", 2.0);
 
@@ -1280,11 +1280,11 @@ fn helper_ghost_cursor_tab_switches_lane_and_playback_keeps_it_there() {
 }
 
 #[test]
-fn helper_ghost_cursor_follows_the_speaking_lane_again_after_a_new_ghost() {
+fn ghost_cursor_follows_the_speaking_lane_again_after_a_new_ghost() {
     let mut doc = stable_sample_doc();
     play_ghost_from(&mut doc, "annotation-1", 2.0);
     let _ = perform(&mut doc, EditorAction::SwitchGhostCursorLane);
-    let _ = doc.helper_toggle_playback();
+    let _ = doc.toggle_playback_keeping_caret();
     assert!(!doc.session().is_playing);
 
     ok(doc.transcript_escape("annotation-2"));
@@ -1298,7 +1298,7 @@ fn helper_ghost_cursor_follows_the_speaking_lane_again_after_a_new_ghost() {
 }
 
 #[test]
-fn helper_ghost_cursor_lane_switch_needs_another_visible_lane() {
+fn ghost_cursor_lane_switch_needs_another_visible_lane() {
     let mut doc = stable_sample_doc();
     ok(doc.switch_speaker_workflow_lane("Speaker 1"));
     play_ghost_from(&mut doc, "annotation-1", 2.0);
@@ -1350,7 +1350,7 @@ fn tab_while_stopped_moves_the_writing_cursor_to_the_other_lane_at_the_playhead(
         "the caret lands mid-row, where 65.2 s is spoken (got {caret} of {text_len})"
     );
     assert_eq!(
-        doc.helper().focused_segment_id.as_deref(),
+        doc.text_focus().focused_segment_id.as_deref(),
         Some("annotation-4")
     );
     assert_eq!(selected(&doc), Some("annotation-4"));
@@ -1386,7 +1386,7 @@ fn tab_in_a_row_away_from_the_playhead_uses_that_row_s_time() {
 }
 
 #[test]
-fn helper_playhead_row_deduction_only_considers_visible_lanes() {
+fn playhead_row_deduction_only_considers_visible_lanes() {
     let mut doc = stable_sample_doc();
     let _ = doc.select_segment_without_seek("annotation-3");
     set_playhead(&mut doc, 4.0);
@@ -1402,7 +1402,7 @@ fn helper_playhead_row_deduction_only_considers_visible_lanes() {
     assert!(!doc.session().is_playing);
     ok(doc.switch_speaker_workflow_lane("Speaker 1"));
     assert!(
-        doc.helper().pending.is_none(),
+        doc.text_focus().pending.is_none(),
         "hiding the pending row's lane drops its ghost cursor"
     );
     let _ = doc.select_segment_without_seek("annotation-3");

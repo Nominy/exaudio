@@ -7,6 +7,13 @@ pub struct TimeRange {
 }
 
 impl TimeRange {
+    pub fn new(start_seconds: f64, end_seconds: f64) -> Self {
+        Self {
+            start_seconds,
+            end_seconds,
+        }
+    }
+
     pub fn for_project(project: &Project) -> Self {
         let max_end = project
             .segments

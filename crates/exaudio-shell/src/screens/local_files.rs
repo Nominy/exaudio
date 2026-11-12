@@ -9,7 +9,7 @@ use std::path::PathBuf;
 pub type Saved = Box<dyn FnOnce(&mut Window, &mut App)>;
 
 /// Local wall-clock time as `HH:MM`, for "Saved {time}".
-pub fn clock_now() -> String {
+fn clock_now() -> String {
     let now = time::OffsetDateTime::now_local().unwrap_or_else(|_| time::OffsetDateTime::now_utc());
     format!("{:02}:{:02}", now.hour(), now.minute())
 }
@@ -234,7 +234,7 @@ fn save_to(
     let first_save = model.read(cx).origin().native_path.is_none();
     let open_files: Vec<PathBuf> = model
         .read(cx)
-        .inference_lane_sources()
+        .loaded_lane_sources()
         .into_iter()
         .map(|source| source.path)
         .collect();

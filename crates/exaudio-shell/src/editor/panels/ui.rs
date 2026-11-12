@@ -60,13 +60,7 @@ pub fn error_text(message: impl Into<SharedString>, cx: &App) -> Div {
         .child(message.into())
 }
 
-/// Secondary text.
-pub fn muted(text: impl Into<SharedString>, cx: &App) -> Div {
-    div()
-        .text_xs()
-        .text_color(cx.theme().muted_foreground)
-        .child(text.into())
-}
+pub use crate::screens::ui::muted;
 
 /// Uppercase caption above a group of controls.
 pub fn caption(text: impl Into<SharedString>, cx: &App) -> Div {

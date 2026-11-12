@@ -17,14 +17,13 @@ pub const MIN_CREATE_DRAG_DISTANCE_FRACTION: f32 = 0.006;
 pub const AUDITION_BUFFER_SECONDS: f64 = 0.5;
 /// Splits must leave at least this much of the segment after the split point.
 pub const SPLIT_TAIL_GUARD_SECONDS: f64 = 0.1;
-/// Grab distance of a cut-preview edge, in CSS px on either side of it (Helper's
-/// `CUT_PREVIEW_HANDLE_HIT_WIDTH`); screen px scale with the interface zoom.
+/// Grab distance of a cut-preview edge, in CSS px on either side of it; screen px scale
+/// with the interface zoom.
 pub const CUT_PREVIEW_HANDLE_HIT_PX: f64 = 12.0;
-/// Pointer travel (CSS px) before an Alt-press draws a cut preview (Helper's
-/// `CUT_PREVIEW_DRAG_THRESHOLD`).
+/// Pointer travel (CSS px) before an Alt-press draws a cut preview.
 pub const CUT_PREVIEW_DRAG_THRESHOLD_PX: f64 = 5.0;
-/// Minimum cut-preview overlay length (Helper's `CUT_PREVIEW_SAFETY_MIN_SECONDS`), so
-/// selections well under a second can be drawn, resized and looped.
+/// Minimum cut-preview overlay length, so selections well under a second can be drawn,
+/// resized and looped.
 pub const CUT_PREVIEW_MIN_DURATION_SECONDS: f64 = 0.008;
 /// Pointer travel that turns a held middle-click autoscroll into "drag" mode.
 pub const TIMELINE_AUTOSCROLL_HOLD_MOVE_THRESHOLD_FRACTION: f32 = 0.004;

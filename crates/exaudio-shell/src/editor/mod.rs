@@ -100,9 +100,6 @@ impl EditorScreen {
             _subscriptions: subscriptions,
         }
     }
-    pub fn model(&self) -> &Entity<EditorModel> {
-        &self.model
-    }
     fn sync_contributions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let generation = cx.global::<ContributionRegistry>().generation();
         if generation == self.registry_generation {
@@ -266,7 +263,7 @@ struct TranscriptPane {
     transport: Entity<TransportStrip>,
     find_bar: Entity<FindBar>,
     grids: Vec<TranscriptGrid>,
-    /// Split layouts show the lane grids in reverse order (Helper `split.swapPanes`, Ctrl+I).
+    /// Split layouts show the lane grids in reverse order (Swap the speaker panes, Ctrl+I).
     swapped: bool,
     _subscription: Subscription,
 }

@@ -78,12 +78,6 @@ pub fn run(register: impl FnOnce(&mut App) -> anyhow::Result<()> + 'static) {
             crate::screens::extensions::startup(ShellHandle::from_root(root.downgrade()), cx);
             let shell = ShellHandle::from_root(root.downgrade());
             let _ = window.update(cx, |_, window, cx| {
-                let callbacks = cx
-                    .global_mut::<ContributionRegistry>()
-                    .take_ready_callbacks();
-                for callback in callbacks {
-                    callback(shell.clone(), window, cx);
-                }
                 if std::env::var_os("STUDIO_OPEN_DEMO_ON_START").is_some()
                     && let Err(error) = crate::root::open_demo(&shell, window, cx)
                 {

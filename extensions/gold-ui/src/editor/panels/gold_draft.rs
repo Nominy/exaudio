@@ -352,7 +352,7 @@ impl GoldDraftPanel {
             return;
         }
         self.saved_checked = true;
-        let sources = model.inference_lane_sources();
+        let sources = model.loaded_lane_sources();
         let task_id = self.task_id(cx);
         let cache = self.cache.clone();
         cx.spawn(async move |this, cx| {
@@ -459,7 +459,7 @@ impl GoldDraftPanel {
         let doc = model.doc();
         let task_id = doc.project().id.clone();
         let load = model.audio_load();
-        let sources = model.inference_lane_sources();
+        let sources = model.loaded_lane_sources();
         let refusal = if doc.is_read_only() {
             Some(localized(
                 cx,
@@ -1134,7 +1134,7 @@ impl GoldDraftPanel {
             .transcription_target(focused.as_deref())
             .map_err(|refusal| refusal.to_string())
             .and_then(|target| {
-                let sources = model.inference_lane_sources();
+                let sources = model.loaded_lane_sources();
                 if sources
                     .iter()
                     .any(|source| source.lane.id == target.lane_id)

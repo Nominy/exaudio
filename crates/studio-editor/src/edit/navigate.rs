@@ -1,4 +1,4 @@
-//! Transcript navigation helpers: visible-row ordering, the "helper" focus/ghost-cursor model
+//! Transcript navigation helpers: visible-row ordering, the caret-restore/ghost-cursor model
 //! (where the caret returns when playback pauses), and speaker-workflow lane switching.
 
 use studio_core::{Project, Segment};
@@ -6,9 +6,9 @@ use studio_core::{Project, Segment};
 use crate::editor_model::EditorSession;
 use crate::track_filter::TrackFilter;
 
-/// Pending/last helper focus restore: which row gets the caret back, and where.
+/// Pending/last caret restore: which row gets the caret back, and where.
 #[derive(Clone, Debug, PartialEq)]
-pub struct HelperFocusRestore {
+pub struct CaretRestore {
     pub segment_id: String,
     /// Playhead when the editor lost focus (playback started).
     pub blur_playhead_seconds: f64,
@@ -19,7 +19,7 @@ pub struct HelperFocusRestore {
     /// Created without a focused editor (space/escape from the timeline).
     pub synthetic: bool,
     /// Tab switched the ghost cursor to this row's lane: playback keeps it on that lane
-    /// (Helper's manual ghost projection) instead of following whichever lane speaks.
+    /// instead of following whichever lane speaks.
     pub lane_locked: bool,
 }
 
@@ -129,12 +129,12 @@ pub fn snap_to_word_boundary(text: &str, offset: usize) -> usize {
 
 /// Row the pending ghost cursor should follow during playback: keep the tracked lane while it
 /// has active speech, else follow any active lane, else park at the latest started row
-/// (tracked lane first). A [`HelperFocusRestore::lane_locked`] ghost stays on its lane (see
+/// (tracked lane first). A [`CaretRestore::lane_locked`] ghost stays on its lane (see
 /// [`lane_row_at`]). `None` when the pending row is still under the playhead.
 pub fn playback_follow_target(
     project: &Project,
     session: &EditorSession,
-    pending: &HelperFocusRestore,
+    pending: &CaretRestore,
 ) -> Option<String> {
     let pending_segment = project.segment(&pending.segment_id)?;
     let playhead = session.playhead_seconds;
@@ -169,7 +169,7 @@ pub fn playback_follow_target(
 }
 
 /// Visible transcription row of `lane_id` for `seconds`: the one under it, else the latest
-/// one already started (Helper `findLaneEntryByPlaybackTime`), else the lane's first row.
+/// one already started, else the lane's first row.
 pub fn lane_row_at<'a>(
     project: &'a Project,
     session: &EditorSession,

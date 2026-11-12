@@ -161,7 +161,7 @@ const GLOBAL: Text = t("General", "Общие");
 const TIMELINE: Text = t("Timeline", "Таймлайн");
 const NAV: Text = t("Transcript navigation", "Навигация по расшифровке");
 const DIALOG: Text = t("Dialogs", "Диалоги");
-const HELPER: Text = t("Helper editing", "Редактирование Helper");
+const SPEAKERS: Text = t("Speaker tracks", "Дорожки спикеров");
 const TIMELINE_EDITING: Text = t("Timeline editing", "Редактирование таймлайна");
 const CUT: Text = t("Cut selection", "Выделение для разреза");
 const TEXT_EDITING: Text = t("Text editing", "Редактирование текста");
@@ -311,14 +311,14 @@ pub const ACTION_DEFS: &[ActionDef] = &[
     ),
     def(
         A::ResetSpeakerWorkflow,
-        HELPER,
+        SPEAKERS,
         t("Reset the speaker tracks", "Сбросить дорожки спикеров"),
         Global,
         &["alt-`"],
     ),
     def(
         A::SwitchSpeakerWorkflowLane1,
-        HELPER,
+        SPEAKERS,
         t(
             "Switch to speaker track 1",
             "Переключиться на дорожку спикера 1",
@@ -328,7 +328,7 @@ pub const ACTION_DEFS: &[ActionDef] = &[
     ),
     def(
         A::SwitchSpeakerWorkflowLane2,
-        HELPER,
+        SPEAKERS,
         t(
             "Switch to speaker track 2",
             "Переключиться на дорожку спикера 2",
@@ -336,25 +336,25 @@ pub const ACTION_DEFS: &[ActionDef] = &[
         Global,
         &["alt-2"],
     ),
-    // Helper `split.swapPanes`: works from the row being edited too (Helper claims Ctrl+I
-    // before the rich-text italic handler).
+    // Global so it works from the row being edited too: the binding wins over the text
+    // input's own handling of the same keys.
     def(
         A::SwapSplitPanes,
-        HELPER,
+        SPEAKERS,
         t("Swap the speaker panes", "Поменять панели спикеров местами"),
         Global,
         &["secondary-i"],
     ),
     def(
         A::RewindPlaybackOneSecond,
-        HELPER,
+        GLOBAL,
         t("Rewind 1 second", "Назад на 1 секунду"),
         Global,
         &["alt-x"],
     ),
     def(
         A::MoveTextBeforeCaretToPreviousSegment,
-        HELPER,
+        TEXT_EDITING,
         t(
             "Move text before the cursor to the previous segment",
             "Перенести текст до курсора в предыдущий сегмент",
@@ -364,7 +364,7 @@ pub const ACTION_DEFS: &[ActionDef] = &[
     ),
     def(
         A::MoveTextAfterCaretToNextSegment,
-        HELPER,
+        TEXT_EDITING,
         t(
             "Move text after the cursor to the next segment",
             "Перенести текст после курсора в следующий сегмент",

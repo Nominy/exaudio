@@ -5,6 +5,7 @@ use serde_json::Value;
 use studio_core::{EditorCommand, Segment, SegmentUpdate};
 
 use super::{StudioWorkflow, compare_seconds};
+use crate::edit::structure::split_text_by_word_ratio;
 
 const INSERT_DEFAULT_DURATION_SECONDS: f64 = 0.8;
 
@@ -395,28 +396,4 @@ impl StudioWorkflow {
 
 fn uses_table_boundary(seconds: f64) -> bool {
     seconds != 0.0 && !seconds.is_nan()
-}
-
-fn split_text_by_word_ratio(text: &str, ratio: f64) -> (String, String) {
-    let words = text.split_whitespace().collect::<Vec<_>>();
-    if words.is_empty() {
-        return (String::new(), String::new());
-    }
-
-    let clamped_ratio = if ratio.is_finite() {
-        ratio.clamp(0.0, 1.0)
-    } else {
-        0.0
-    };
-    let mut split_count = (words.len() as f64 * clamped_ratio).round() as usize;
-    if clamped_ratio > 0.0 && clamped_ratio < 1.0 && words.len() > 1 {
-        split_count = split_count.clamp(1, words.len() - 1);
-    } else {
-        split_count = split_count.min(words.len());
-    }
-
-    (
-        words[..split_count].join(" "),
-        words[split_count..].join(" "),
-    )
 }

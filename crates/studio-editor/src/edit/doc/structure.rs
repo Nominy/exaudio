@@ -17,10 +17,10 @@ use crate::edit::text_placement::{baseline_groups, place_group_text};
 use crate::timing::{SplitSource, TimeRange, smart_split_text};
 use studio_core::SegmentUpdate;
 
-/// Smart splits must leave this much of the row on either side (Helper's split edge guard).
+/// Smart splits must leave this much of the row on either side.
 pub const SMART_SPLIT_EDGE_GUARD_SECONDS: f64 = 0.05;
 
-/// Helper's cap on merge attempts in one auto-segmentation run.
+/// Cap on merge attempts in one auto-segmentation run.
 const AUTO_SEGMENT_MERGE_ATTEMPTS: usize = 200;
 
 /// What the silent-row phase of auto-segmentation did.
@@ -56,7 +56,7 @@ impl EditorDoc {
 
     /// Shift+Ctrl+Click: splits a row and allocates its (draft) text with the lane's word
     /// timings — the exact completed-word boundary, else the interpolated timing offset, else
-    /// the word ratio (Helper smart split).
+    /// the word ratio.
     pub fn smart_split_segment_at(&mut self, segment_id: &str, at_seconds: f64) -> EditResult {
         self.guard("Smart split")?;
         let segment = self.segment(segment_id)?;
@@ -401,8 +401,8 @@ impl EditorDoc {
         )))
     }
 
-    /// Plans rows in time order against the bounds already planned for earlier rows (Helper
-    /// trims one row at a time): two same-lane neighbours never both grow into the gap
+    /// Plans rows in time order against the bounds already planned for earlier rows (one
+    /// row is trimmed at a time): two same-lane neighbours never both grow into the gap
     /// between them.
     fn visible_trim_plans(&self) -> Vec<AudioTrimPlan> {
         let mut working = self.workflow.project().clone();
@@ -502,7 +502,7 @@ impl EditorDoc {
         )
     }
 
-    /// Alt+Shift+S, in Helper's phase order (`autoSegmentVisibleSilences`): trims the visible
+    /// Alt+Shift+S, in this phase order: trims the visible
     /// rows to audio; merges same-lane rows at most 1s apart; captures the rows' text; splits
     /// rows in the middle of decoded silences of 1s or more; trims again; removes rows with no
     /// audio, stitching their text onto the nearest same-lane row; then places each captured
@@ -631,7 +631,7 @@ impl EditorDoc {
         })
     }
 
-    /// Helper `mergeAutoSegmentCloseRows`: merges visible same-lane rows at most 1s apart one
+    /// Merges visible same-lane rows at most 1s apart one
     /// pair at a time (merges cascade), skipping pairs the project refuses. Returns the ids of
     /// the rows that absorbed a neighbour.
     fn merge_close_visible_rows(&mut self) -> Result<Vec<String>, EditError> {
@@ -676,7 +676,7 @@ impl EditorDoc {
         Ok(merged)
     }
 
-    /// Helper `cleanupAutoSegmentSilentRows`: removes visible rows with no decoded audio above
+    /// Removes visible rows with no decoded audio above
     /// the trim threshold, latest first. A silent row's text is first stitched onto the nearest
     /// same-lane row (in time order); a silent row with text and no such row is kept.
     fn remove_silent_visible_rows(&mut self) -> Result<SilentCleanup, EditError> {

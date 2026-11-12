@@ -1267,7 +1267,7 @@ impl FastRow {
                             let byte = text_wrap
                                 .to_source(text.index_for_position(origin, event.position));
                             let modifiers = event.modifiers;
-                            // Helper word seek: a plain Alt+Click (no Ctrl/Shift/Meta).
+                            // Word seek: a plain Alt+Click (no Ctrl/Shift/Meta).
                             let seek = modifiers.alt
                                 && !modifiers.control
                                 && !modifiers.shift

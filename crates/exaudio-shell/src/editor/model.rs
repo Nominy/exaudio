@@ -207,8 +207,8 @@ impl EditorModel {
     }
 
     /// Project lanes whose original audio is loaded, in project order, with the files they
-    /// were decoded from (the bytes inference backends receive).
-    pub fn inference_lane_sources(&self) -> Vec<LaneSource> {
+    /// were decoded from.
+    pub fn loaded_lane_sources(&self) -> Vec<LaneSource> {
         self.doc
             .project()
             .lanes

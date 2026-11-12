@@ -13,9 +13,8 @@ pub(crate) use builder::{
 };
 pub use range::TimeRange;
 pub use ruler::{
-    TimelineRulerIntervals, TimelineRulerNotchKind, TimelineRulerNotchView, TimelineRulerView,
-    build_babel_timeline_ruler, build_babel_timeline_ruler_for_viewport,
-    build_timeline_ruler_for_viewport, format_babel_timeline_time,
+    TimelineRulerNotchKind, TimelineRulerNotchView, TimelineRulerView,
+    build_timeline_ruler_for_viewport,
 };
 pub use waveform::{
     LaneWaveform, OverviewLaneWaveformView, OverviewWaveformBlock, OverviewWaveformView,

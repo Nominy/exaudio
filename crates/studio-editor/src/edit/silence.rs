@@ -285,7 +285,7 @@ pub struct AutoSegmentMergePlan {
     right_start_ms: i64,
 }
 
-/// Helper `collectAutoSegmentMergePlans`: lanes in order of their first row, each lane's rows
+/// Merge plans for auto-segmentation: lanes in order of their first row, each lane's rows
 /// by start, and every neighbour pair at most [`AUTO_SEGMENT_MERGE_GAP_SECONDS`] apart, the
 /// latest pair first.
 pub fn auto_segment_merge_plans(rows: &[&Segment]) -> Vec<AutoSegmentMergePlan> {
@@ -319,8 +319,8 @@ pub fn auto_segment_merge_plans(rows: &[&Segment]) -> Vec<AutoSegmentMergePlan> 
     plans
 }
 
-/// Whether a row's decoded lane audio has nothing above the trim threshold inside it (Helper's
-/// silent-row probe). Rows whose lane audio is not decoded are never silent.
+/// Whether a row's decoded lane audio has nothing above the trim threshold inside it. Rows
+/// whose lane audio is not decoded are never silent.
 pub fn segment_is_silent(editor: &EditorSession, segment: &Segment) -> bool {
     editor
         .lane_waveforms
@@ -331,8 +331,8 @@ pub fn segment_is_silent(editor: &EditorSession, segment: &Segment) -> bool {
         })
 }
 
-/// Helper `findNearestSameSpeakerAutoSegmentRow`: the closest other row of `rows` on `silent`'s
-/// lane (overlapping rows are at distance 0); on a tie a row before `silent` wins over one after.
+/// The closest other row of `rows` on `silent`'s lane (overlapping rows are at distance 0);
+/// on a tie a row before `silent` wins over one after.
 pub fn nearest_same_lane_segment<'a>(
     rows: &[&'a Segment],
     silent: &Segment,

@@ -429,7 +429,7 @@ impl DenoiseControl {
         let model = self.model.read(cx);
         let load = model.audio_load();
         let lane_count = model.doc().project().lanes.len();
-        let sources = model.inference_lane_sources();
+        let sources = model.loaded_lane_sources();
         let unusable = if load.pending > 0 {
             Some(Failure::AudioLoading)
         } else if lane_count != ENHANCED_LANE_COUNT || sources.len() != ENHANCED_LANE_COUNT {

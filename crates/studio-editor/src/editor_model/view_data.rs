@@ -92,20 +92,6 @@ impl EditorSession {
         )
     }
 
-    pub fn timeline_lanes_with_segment_index(
-        &self,
-        project: &Project,
-        segment_index: &TimelineSegmentIndex,
-    ) -> Vec<TimelineLaneView> {
-        self.timeline_lanes_with_segment_index_bounds_and_preview(
-            project,
-            segment_index,
-            self.timeline_bounds(project),
-            None,
-            None,
-        )
-    }
-
     /// Lane models for the visible viewport. `strip_blocks` overrides the per-lane block strip
     /// (e.g. blocks cached before a drag); `segment_preview` renders a segment at a dragged time.
     pub fn timeline_lanes_with_segment_index_bounds_and_preview(
@@ -202,10 +188,6 @@ impl EditorSession {
             },
             self.environment.policy.read_only,
         )
-    }
-
-    pub fn all_transcript_rows(&self, project: &Project) -> Vec<TranscriptRowView> {
-        self.transcript_rows_for_filter(project, &TrackFilter::All)
     }
 
     pub fn transcript_visible_cells(&self, project: &Project) -> TranscriptRowVisibleCells {

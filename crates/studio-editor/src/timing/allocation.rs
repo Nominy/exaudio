@@ -1,6 +1,5 @@
-//! Text allocation for splits and auto-segmentation (Babel Helper `smart-split.ts`
-//! `getSmartSplitTextParts` and `auto-segmentation/text-allocation.ts`). Allocations never
-//! rewrite, add or drop words: every result is checked for exact text conservation.
+//! Text allocation for splits and auto-segmentation. Allocations never rewrite, add or drop
+//! words: every result is checked for exact text conservation.
 
 use super::align::{PreparedLane, TimeRange, cut_boundary_offset, offset_at_time};
 use super::text::{

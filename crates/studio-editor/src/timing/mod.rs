@@ -1,8 +1,8 @@
-//! Per-task word-timing store and its consumers' algorithms (Babel Helper parity): smart split
+//! Per-task word-timing store and its consumers' algorithms: smart split
 //! allocation, Alt+Click word seek, ghost-cursor interpolation and auto-segmentation text
 //! placement.
 //!
-//! Invalidation follows Helper: timings belong to the task's lane audio. Text edits, splits,
+//! Invalidation: timings belong to the task's lane audio. Text edits, splits,
 //! merges and boundary moves never invalidate them — every lookup aligns the row's *current*
 //! text against the clocks inside the row's *current* range. They are replaced by a newer
 //! timing run and dropped with the task's document.

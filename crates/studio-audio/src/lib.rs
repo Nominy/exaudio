@@ -33,6 +33,5 @@ pub use enhancement_cache::{EnhancedAudioCache, MAX_CACHED_ENHANCEMENT_TASKS, sh
 pub use error::{AudioDecodeError, AudioError};
 pub use studio_waveform::DecodedAudio;
 pub use transport::{
-    LoopRange, MIN_LOOP_DURATION_SECONDS, MIN_PLAYBACK_SPEED, PLAYBACK_SPEED_STEPS, PlaybackEvent,
-    PlaybackState, adjacent_playback_speed,
+    LoopRange, MIN_LOOP_DURATION_SECONDS, MIN_PLAYBACK_SPEED, PlaybackEvent, PlaybackState,
 };

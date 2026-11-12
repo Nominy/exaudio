@@ -1,14 +1,14 @@
-//! Word-level timestamps for one audio lane (L0 "timing" in Babel Helper / Gold Drafting).
+//! Word-level timestamps for one audio lane.
 //!
-//! Producers: the Gold inference backends (local WebView2 host or the remote coordinator),
-//! converted from their `TimingResponse` tracks. Consumers (in `studio-editor::timing`): smart
-//! split text allocation, auto-segmentation text placement, the ghost cursor and Alt+Click word
-//! seek. Times are seconds on the lane's own source clock (the same clock as
+//! Producers: alignment and transcription providers (extensions), converted from their own
+//! timing responses. Consumers (in `studio-editor::timing`): smart split text allocation,
+//! auto-segmentation text placement, the ghost cursor and Alt+Click word seek. Times are
+//! seconds on the lane's own source clock (the same clock as
 //! `Segment::start_seconds`/`end_seconds`).
 
 use serde::{Deserialize, Serialize};
 
-/// One recognized token (Gold `L0WordTimingToken`).
+/// One recognized token.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TimingToken {
@@ -22,7 +22,7 @@ pub struct TimingToken {
 #[serde(rename_all = "camelCase")]
 pub struct LaneTimings {
     pub lane_id: String,
-    /// Identity of the audio the tokens were computed from (Gold's `pcmSha256`). Timings are
+    /// Identity of the audio the tokens were computed from (a hash of its PCM). Timings are
     /// dropped when the lane's audio changes.
     pub source_id: String,
     pub tokens: Vec<TimingToken>,

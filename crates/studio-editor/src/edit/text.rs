@@ -2,7 +2,7 @@
 
 use studio_core::{Project, Segment};
 
-use super::draft::{Drafts, TextSelection, byte_offset, push_bounded_history};
+use super::draft::{Drafts, TextSelection, push_bounded_history};
 
 /// Cross-row moves duplicate snapshots from two segments, so each direction keeps at most this
 /// many moves (and [`CROSS_ROW_HISTORY_MAX_RETAINED_BYTES`]); one newest oversized move is kept.
@@ -289,9 +289,4 @@ impl Drafts {
         }
         Some((history.source_segment_id, history.target_segment_id))
     }
-}
-
-/// Splits `text` at a `char` offset.
-pub fn split_text_at_char_offset(text: &str, char_offset: usize) -> (&str, &str) {
-    text.split_at(byte_offset(text, char_offset))
 }

@@ -1,6 +1,6 @@
 //! Persistent UI settings: one flat string key/value JSON file
-//! (`<app support>/ui-local-storage.json`) holding the preferences record,
-//! hotkey bindings and context-panel collapse flags.
+//! (`<app support>/ui-local-storage.json`) holding the preferences record and whatever
+//! the shell and extensions store under their own keys.
 
 use std::{
     collections::BTreeMap,
@@ -15,8 +15,6 @@ use crate::paths::app_support_dir;
 
 /// Key of the serialized [`Preferences`] record.
 pub const PREFERENCES_KEY: &str = "studio.preferences.v1";
-/// Key of the serialized hotkey bindings (format owned by the UI's keybind model).
-pub const HOTKEY_BINDINGS_KEY: &str = "studio.native.hotkeyBindings.v1";
 
 const STORAGE_FILE_NAME: &str = "ui-local-storage.json";
 

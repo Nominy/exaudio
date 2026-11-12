@@ -89,10 +89,6 @@ impl WaveViewport {
             * width
     }
 
-    pub fn seconds_to_viewport_px(&self, seconds: f64) -> f64 {
-        self.seconds_to_content_px(seconds) - self.scroll_px
-    }
-
     pub fn viewport_px_to_seconds(&self, viewport_px: f64) -> f64 {
         let width = self.layout().wrapper_width_px;
         if width <= 0.0 {

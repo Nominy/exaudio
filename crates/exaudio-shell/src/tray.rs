@@ -86,8 +86,8 @@ mod windows_tray {
 
     use super::TrayCommand;
 
-    const RESTORE_ID: &str = "transcription-studio.restore";
-    const EXIT_ID: &str = "transcription-studio.exit";
+    const RESTORE_ID: &str = "exaudio.tray.restore";
+    const EXIT_ID: &str = "exaudio.tray.exit";
 
     /// Localized labels of the fixed menu items.
     pub struct Labels {

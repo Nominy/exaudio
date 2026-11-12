@@ -10,10 +10,10 @@ anyhow.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-studio-core.workspace = true
 studio-project.workspace = true
-tokio = { workspace = true, features = ["time"] }
+tokio.workspace = true
 velopack.workspace = true
 
 [dev-dependencies]
+studio-core.workspace = true
 tempfile.workspace = true

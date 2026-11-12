@@ -1,19 +1,4 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RendererOptions {
-    pub parent_width_px: f64,
-    pub pixel_ratio: f64,
-}
-
-impl Default for RendererOptions {
-    fn default() -> Self {
-        Self {
-            parent_width_px: 1.0,
-            pixel_ratio: 1.0,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RendererLayout {
     pub scroll_width_px: f64,
     pub wrapper_width_px: f64,

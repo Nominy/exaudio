@@ -1,6 +1,5 @@
-//! Transcript tokenizer (Babel Helper `tokenizeTranscriptText`) and the whitespace-floored text
-//! splits shared by smart split and auto-segmentation. Offsets are `char` offsets (Helper's
-//! UTF-16 offsets for BMP text).
+//! Transcript tokenizer and the whitespace-floored text splits shared by smart split and
+//! auto-segmentation. Offsets are `char` offsets.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TokenKind {
@@ -102,7 +101,7 @@ pub fn tokenize(chars: &[char]) -> Vec<TextToken> {
     tokens
 }
 
-/// Lower-cases and folds `ё` to `е` (Helper `foldWord`).
+/// Lower-cases and folds `ё` to `е`.
 pub fn fold_word(chars: &[char]) -> String {
     chars
         .iter()

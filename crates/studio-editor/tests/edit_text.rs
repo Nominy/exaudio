@@ -109,7 +109,7 @@ fn cross_row_bytes(entries: &[CrossRowTextEdit]) -> usize {
 // ---- drafts -------------------------------------------------------------------------------
 
 #[test]
-fn segment_drafts_use_babel_timestamp_format() {
+fn segment_drafts_use_mm_ss_timestamp_format() {
     let doc = stable_sample_doc();
     let first = doc.draft("annotation-1").unwrap();
     let long = doc.draft("annotation-5").unwrap();
@@ -120,7 +120,7 @@ fn segment_drafts_use_babel_timestamp_format() {
 }
 
 #[test]
-fn segment_drafts_initialize_from_multiline_babel_text() {
+fn segment_drafts_initialize_from_multiline_text() {
     let doc = stable_sample_doc();
     assert_eq!(
         draft_text(&doc, "annotation-4"),
@@ -319,7 +319,7 @@ fn cross_row_history_keeps_one_newest_oversized_move() {
 // ---- cross-row text moves -----------------------------------------------------------------
 
 #[test]
-fn helper_text_move_before_caret_targets_previous_same_lane_segment() {
+fn text_move_before_caret_targets_previous_same_lane_segment() {
     let mut doc = stable_sample_doc();
     doc.select_segment("annotation-3");
     set_text_with_caret_at_end(&mut doc, "annotation-1", "previous");
@@ -337,7 +337,7 @@ fn helper_text_move_before_caret_targets_previous_same_lane_segment() {
 }
 
 #[test]
-fn helper_text_move_after_caret_targets_next_same_lane_segment() {
+fn text_move_after_caret_targets_next_same_lane_segment() {
     let mut doc = stable_sample_doc();
     doc.select_segment("annotation-1");
     set_text_with_caret_at_end(&mut doc, "annotation-3", "next");
@@ -353,7 +353,7 @@ fn helper_text_move_after_caret_targets_next_same_lane_segment() {
 }
 
 #[test]
-fn helper_text_move_uses_timeline_order_for_visual_first_row() {
+fn text_move_uses_timeline_order_for_visual_first_row() {
     // `later` is first in project order but last on the timeline.
     let mut doc = doc(vec![
         seg("later", "lane-1", 5.0, 6.0, "later row"),
@@ -374,7 +374,7 @@ fn helper_text_move_uses_timeline_order_for_visual_first_row() {
 }
 
 #[test]
-fn helper_text_move_refuses_to_empty_source_in_either_direction() {
+fn text_move_refuses_to_empty_source_in_either_direction() {
     let mut before = stable_sample_doc();
     before.select_segment("annotation-3");
     set_text_with_caret_at_end(&mut before, "annotation-1", "previous");
@@ -409,7 +409,7 @@ fn helper_text_move_refuses_to_empty_source_in_either_direction() {
 }
 
 #[test]
-fn helper_text_move_undo_redo_restores_both_rows_atomically() {
+fn text_move_undo_redo_restores_both_rows_atomically() {
     let mut doc = stable_sample_doc();
     doc.select_segment("annotation-3");
     set_text_with_caret_at_end(&mut doc, "annotation-1", "previous");
@@ -434,7 +434,7 @@ fn helper_text_move_undo_redo_restores_both_rows_atomically() {
 // ---- time cells ---------------------------------------------------------------------------
 
 #[test]
-fn time_cell_commit_rules_match_babel_submit_and_blur() {
+fn time_cell_commit_rules_differ_for_submit_and_blur() {
     let invalid_submit = commit_time_cell_edit(CommitTimeCellEdit {
         active_field: Some(TimeField::Start),
         field: TimeField::Start,
@@ -549,7 +549,7 @@ fn submitting_time_cell_edit_preserves_timeline_viewport() {
 }
 
 #[test]
-fn invalid_time_cell_submit_stays_local_and_reports_babel_error() {
+fn invalid_time_cell_submit_stays_local_and_reports_the_error() {
     let mut doc = stable_sample_doc();
 
     ok(doc.set_time_draft("annotation-1", TimeField::Start, "00:03.40".to_string()));
@@ -840,7 +840,7 @@ fn enter_commits_the_typed_text_as_one_undo_step_and_drops_the_local_history() {
     assert_eq!(text_of(&doc, "annotation-1"), "Typed then committed.");
     assert!(has_draft_changed(&outcome.effects, "annotation-1"));
     assert!(!doc.has_pending_drafts());
-    assert_eq!(doc.helper().focused_segment_id, None);
+    assert_eq!(doc.text_focus().focused_segment_id, None);
     assert!(!doc.draft("annotation-1").unwrap().can_undo());
     assert_eq!(ok(doc.commit_pending_drafts("Save")), Outcome::none());
 
@@ -861,7 +861,7 @@ fn blurring_an_unchanged_row_adds_no_undo_step() {
     assert_eq!(outcome, Outcome::none());
     assert!(!doc.can_undo());
     assert!(!is_dirty(&doc));
-    assert_eq!(doc.helper().focused_segment_id, None);
+    assert_eq!(doc.text_focus().focused_segment_id, None);
 }
 
 #[test]
@@ -874,14 +874,14 @@ fn focusing_another_row_commits_the_row_left_behind() {
 
     assert_eq!(text_of(&doc, "annotation-1"), "Left behind.");
     assert_eq!(
-        doc.helper().focused_segment_id.as_deref(),
+        doc.text_focus().focused_segment_id.as_deref(),
         Some("annotation-2")
     );
     assert!(!doc.has_pending_drafts());
 }
 
 #[test]
-fn helper_focus_moves_commit_the_row_left_behind() {
+fn text_focus_moves_commit_the_row_left_behind() {
     let mut doc = doc(vec![
         seg("a", "lane-1", 0.0, 2.0, "one"),
         seg("b", "lane-1", 3.0, 5.0, "two"),
@@ -894,13 +894,13 @@ fn helper_focus_moves_commit_the_row_left_behind() {
 
     assert_eq!(text_of(&doc, "a"), "one more");
     assert!(has_draft_changed(&outcome.effects, "a"));
-    assert_eq!(doc.helper().focused_segment_id.as_deref(), Some("b"));
+    assert_eq!(doc.text_focus().focused_segment_id.as_deref(), Some("b"));
 
     set_text_with_caret_at_end(&mut doc, "b", "two more");
     ok(doc.edit_segment_text("a"));
 
     assert_eq!(text_of(&doc, "b"), "two more");
-    assert_eq!(doc.helper().focused_segment_id.as_deref(), Some("a"));
+    assert_eq!(doc.text_focus().focused_segment_id.as_deref(), Some("a"));
 }
 
 #[test]
@@ -918,7 +918,7 @@ fn escape_blur_commits_the_typed_text_before_playing() {
 }
 
 #[test]
-fn blur_commits_a_row_that_lost_the_helper_focus_while_hidden() {
+fn blur_commits_a_row_that_lost_the_text_focus_while_hidden() {
     let mut doc = doc(vec![
         seg("a", "lane-1", 0.0, 2.0, "one"),
         seg("b", "lane-2", 3.0, 5.0, "two"),
@@ -926,7 +926,7 @@ fn blur_commits_a_row_that_lost_the_helper_focus_while_hidden() {
     ok(doc.set_text_focus(Some("a")));
     set_text_with_caret_at_end(&mut doc, "a", "one hidden");
     doc.set_track_filter(TrackFilter::lane("lane-2", "Speaker 2"));
-    assert_eq!(doc.helper().focused_segment_id, None);
+    assert_eq!(doc.text_focus().focused_segment_id, None);
 
     ok(doc.blur_text("a"));
 
@@ -962,7 +962,7 @@ fn edit_segment_text_selects_row_without_seeking_and_focuses_draft_end() {
 
     assert_eq!(doc.session().selected_segment_id.as_deref(), Some("b"));
     assert_eq!(doc.session().playhead_seconds, 1.0);
-    assert_eq!(doc.helper().focused_segment_id.as_deref(), Some("b"));
+    assert_eq!(doc.text_focus().focused_segment_id.as_deref(), Some("b"));
     assert_eq!(
         doc.draft("b").expect("draft").selection(),
         TextSelection::caret(11)
@@ -992,12 +992,12 @@ fn edit_segment_text_refuses_read_only_tasks_and_missing_rows() {
         read_only.session().selected_segment_id.as_deref(),
         Some("a")
     );
-    assert_eq!(read_only.helper().focused_segment_id, None);
+    assert_eq!(read_only.text_focus().focused_segment_id, None);
 
     let mut doc = doc(vec![seg("a", "lane-1", 0.0, 2.0, "one")]);
     assert!(matches!(
         doc.edit_segment_text("gone"),
         Err(EditError::NoDraft(id)) if id == "gone"
     ));
-    assert_eq!(doc.helper().focused_segment_id, None);
+    assert_eq!(doc.text_focus().focused_segment_id, None);
 }

@@ -89,7 +89,7 @@ impl EditorDoc {
         rows
     }
 
-    /// Gold Draft "Writing N segments": replaces every transcription row on `lane_ids` with
+    /// Writes a drafted transcript: replaces every transcription row on `lane_ids` with
     /// `rows` (one undo step; other lanes and non-speech annotations are untouched). Returns
     /// the created row ids in `rows` order.
     pub fn replace_lane_rows(
@@ -126,7 +126,7 @@ impl EditorDoc {
         Ok(created)
     }
 
-    /// Gold Draft "Restore original": writes the captured texts back when the transcript still
+    /// Restores captured texts: writes them back when the transcript still
     /// has exactly the captured rows (same ids, tracks and bounds); any structural change is
     /// refused. One undo step.
     pub fn restore_row_texts(&mut self, snapshot: &[RowSnapshot]) -> EditResult {
@@ -264,7 +264,7 @@ impl EditorDoc {
 }
 
 /// Upper-cases the first Unicode letter (`/\p{L}/u`), leaving everything else as is.
-pub fn capitalize_first_letter(text: &str) -> String {
+fn capitalize_first_letter(text: &str) -> String {
     match text.char_indices().find(|(_, c)| c.is_alphabetic()) {
         Some((index, letter)) => {
             let mut out = String::with_capacity(text.len());
@@ -277,9 +277,9 @@ pub fn capitalize_first_letter(text: &str) -> String {
     }
 }
 
-/// Gold `removeWordFinalEllipsis` (`/(?<=[\p{L}\p{N}])(?:\.\.\.|…)(?![\p{L}\p{N}])/gu` → ""):
-/// a model may never attach "..." or "…" to the end of a word; it only prefixes a following
-/// word. The lookbehind reads the original text, as the global regex does.
+/// Removes an ellipsis glued to the end of a word
+/// (`/(?<=[\p{L}\p{N}])(?:\.\.\.|…)(?![\p{L}\p{N}])/gu` → ""): a drafting model may only
+/// prefix a following word with "..." or "…". The lookbehind reads the original text.
 pub fn remove_word_final_ellipsis(text: &str) -> String {
     let is_word = |c: Option<char>| c.is_some_and(|c| c.is_alphabetic() || c.is_numeric());
     let mut out = String::with_capacity(text.len());

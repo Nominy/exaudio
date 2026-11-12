@@ -1,4 +1,3 @@
-pub mod buffered_playback;
 mod diagnostics;
 mod selection;
 mod transport;
@@ -12,7 +11,6 @@ use crate::transcript_model::{TranscriptRowView, build_transcript_rows};
 use exaudio_extension::document::{DiagnosticCollection, DocumentEnvironment, Severity};
 use studio_core::Project;
 
-pub use transport::PLAYBACK_SPEED_STEPS;
 pub use view_data::{ProblemCounts, SaveStatus};
 
 const DEFAULT_SPEED: f32 = 1.0;
@@ -23,11 +21,11 @@ const DEFAULT_TIMELINE_WIDTH_PX: f64 = 1_000.0;
 const DEFAULT_MIN_PX_PER_SEC: f64 = 200.0;
 /// Seconds a timeline opens on when its first audio gives it an extent (a project without
 /// segments); the whole file when shorter. Segments give an extent up front, so projects with
-/// them open at [`DEFAULT_ZOOM`] like Babel.
+/// them open at [`DEFAULT_ZOOM`].
 const INITIAL_VIEW_SECONDS: f64 = 30.0;
 const MIN_LOOP_DURATION_SECONDS: f64 = 0.01;
 
-/// Cut-preview selection (Helper's cut preview): a time range drawn on one lane; S / Shift+S
+/// Cut-preview selection: a time range drawn on one lane; S / Shift+S
 /// cut it out of that lane, L loops playback over it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct CutOverlay {

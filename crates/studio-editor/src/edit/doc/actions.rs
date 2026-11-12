@@ -18,7 +18,7 @@ impl EditorDoc {
         use EditorAction as A;
         let ok = |outcome: Outcome| Some(Ok(outcome));
         match action {
-            A::PlayPause => ok(self.helper_toggle_playback()),
+            A::PlayPause => ok(self.toggle_playback_keeping_caret()),
             A::PreviousSegment => ok(self.select_adjacent_segment(-1)),
             A::NextSegment => ok(self.select_adjacent_segment(1)),
             A::FocusPreviousSegment => Some(self.focus_adjacent_segment(-1)),

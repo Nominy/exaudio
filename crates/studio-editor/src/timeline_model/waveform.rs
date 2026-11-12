@@ -5,7 +5,6 @@ use std::{
 };
 
 use crate::timeline_model::{LaneColor, TimeRange};
-use exaudio_extension::document::DocumentEnvironment;
 use studio_core::Segment;
 use studio_waveform::{
     DISPLAY_SAMPLE_RATE, DecodedAudio, DisplaySignal, LineWaveform, PeakCache, WaveViewport,
@@ -163,40 +162,6 @@ impl LaneWaveform {
         WaveformBlock::from_static_block(segment, viewport, static_block, is_transcription)
     }
 
-    pub fn prewarm_blocks_for_segments<'a>(
-        &self,
-        segments: impl IntoIterator<Item = &'a Segment>,
-    ) -> usize {
-        let mut block_cache = self.block_static_cache.borrow_mut();
-        let mut peak_cache = self.segment_peak_cache.borrow_mut();
-        segments
-            .into_iter()
-            .filter(|segment| {
-                block_cache.prewarm_static_block_for_segment(&self.source, &mut peak_cache, segment)
-            })
-            .count()
-    }
-
-    pub fn blocks_for_segments<'a>(
-        &self,
-        segments: impl IntoIterator<Item = &'a Segment>,
-        viewport: TimeRange,
-        environment: &DocumentEnvironment,
-    ) -> Arc<[WaveformBlock]> {
-        segments
-            .into_iter()
-            .map(|segment| {
-                self.block_for_segment_with_static_source(
-                    segment,
-                    segment,
-                    viewport,
-                    environment.is_text_segment(segment),
-                )
-            })
-            .collect::<Vec<_>>()
-            .into()
-    }
-
     pub fn overview_render_model(&self, playhead_seconds: f64) -> Option<WaveformRenderModel> {
         if let Some(model) = self.render_cache.borrow_mut().overview_model() {
             return Some(model.with_playhead_cursor(playhead_seconds, 2.0));
@@ -215,14 +180,12 @@ impl LaneWaveform {
             WaveformRenderModel::from_peak_cache(
                 &mut peak_cache,
                 viewport,
-                &[],
                 playhead_seconds,
                 WaveformRenderOptions {
                     channels: 1,
                     peak_count: OVERVIEW_RENDER_PEAK_COUNT,
                     precision: 10_000.0,
                     cursor_width_px: 2.0,
-                    ..WaveformRenderOptions::default()
                 },
             )
             .ok()?
@@ -239,18 +202,6 @@ impl LaneWaveform {
 
     pub fn segment_peak_cache_stats(&self) -> WaveformRenderCacheStats {
         self.segment_peak_cache.borrow().stats
-    }
-
-    pub fn cached_segment_peak_count(&self) -> usize {
-        self.segment_peak_cache.borrow().entries.len()
-    }
-
-    pub fn cached_static_block_count(&self) -> usize {
-        self.block_static_cache.borrow().entries.len()
-    }
-
-    pub fn cached_peak_resolution_count(&self) -> usize {
-        self.peak_cache.borrow().cached_resolution_count()
     }
 }
 
@@ -689,15 +640,19 @@ mod tests {
     }
 
     #[test]
-    fn waveform_block_geometry_matches_region_clamping_without_visible_change() {
+    fn waveform_block_geometry_clamps_to_the_viewport() {
+        let viewport = TimeRange {
+            start_seconds: 0.0,
+            end_seconds: 10.0,
+        };
         let cases = [
-            (-1.0, 4.0, 0.0, 10.0),
-            (1.0, 5.0, 0.0, 10.0),
-            (7.0, 12.0, 0.0, 10.0),
-            (12.0, 7.0, 0.0, 10.0),
+            (-1.0, 4.0, 0.0, 40.0),
+            (1.0, 5.0, 10.0, 40.0),
+            (7.0, 12.0, 70.0, 30.0),
+            (12.0, 7.0, 70.0, 30.0),
         ];
 
-        for (start_seconds, end_seconds, viewport_start, viewport_end) in cases {
+        for (start_seconds, end_seconds, expected_left, expected_width) in cases {
             let segment = Segment {
                 id: format!("annotation-{start_seconds}-{end_seconds}"),
                 source_annotation_id: None,
@@ -708,27 +663,10 @@ mod tests {
                 text: "Geometry parity".to_string(),
                 metadata: Default::default(),
             };
-            let viewport = TimeRange {
-                start_seconds: viewport_start,
-                end_seconds: viewport_end,
-            };
 
             let block = WaveformBlock::for_segment_with_static_source(
                 &segment, &segment, viewport, None, true,
             );
-            let region = studio_waveform::Region::new(
-                &segment.id,
-                segment.start_seconds - viewport.start_seconds,
-                segment.end_seconds - viewport.start_seconds,
-                viewport.duration_seconds(),
-            )
-            .expect("viewport duration should be valid");
-            let geometry = region.geometry();
-            let expected_left = (geometry.left_percent as f32).clamp(0.0, 100.0);
-            let expected_width =
-                (100.0 - geometry.left_percent as f32 - geometry.right_percent as f32)
-                    .max(0.0)
-                    .clamp(0.5, 100.0);
 
             assert_eq!(block.left_percent, expected_left);
             assert_eq!(block.width_percent, expected_width);

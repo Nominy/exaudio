@@ -19,7 +19,7 @@ pub struct TimelineLaneView {
     pub is_muted: bool,
     pub vertical_zoom: f32,
     pub track_height: f32,
-    /// Babel's line waveform of the lane's (display) audio, once decoded.
+    /// Line waveform of the lane's (display) audio, once decoded.
     pub waveform: Option<Arc<LineWaveform>>,
     pub blocks: Arc<[WaveformBlock]>,
     pub strip_blocks: Arc<[WaveformBlock]>,

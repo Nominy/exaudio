@@ -541,7 +541,7 @@ impl TranscriptView {
                             Ok(index) | Err(index) => index,
                         });
                     let modifiers = event.modifiers;
-                    // Helper word seek: a plain Alt+Click (no Ctrl/Shift/Meta).
+                    // Word seek: a plain Alt+Click (no Ctrl/Shift/Meta).
                     if modifiers.alt
                         && !modifiers.control
                         && !modifiers.shift

@@ -102,8 +102,8 @@ pub enum EditorCommand {
         end_seconds: f64,
         split_texts: Option<(String, String)>,
     },
-    /// Removes `remove_segment_ids` and adds `segments` as one undo step (Gold Draft writing
-    /// drafted rows over a lane's transcript). Validated before any change.
+    /// Removes `remove_segment_ids` and adds `segments` as one undo step (a drafted
+    /// transcript written over a lane's rows). Validated before any change.
     ReplaceSegments {
         remove_segment_ids: Vec<String>,
         segments: Vec<Segment>,

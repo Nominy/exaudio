@@ -143,21 +143,9 @@ impl SegmentDraft {
         self.undo_stack.len()
     }
 
-    pub fn redo_depth(&self) -> usize {
-        self.redo_stack.len()
-    }
-
     /// Moves the caret/selection (clamped to the text).
     pub fn set_selection(&mut self, selection: TextSelection) {
         self.selection = selection.clamped(self.text.chars().count());
-    }
-
-    /// Replaces the text without recording history (and clears history).
-    pub fn replace_text(&mut self, text: String) {
-        self.text = text;
-        self.selection = self.selection.clamped(self.text.chars().count());
-        self.undo_stack.clear();
-        self.redo_stack.clear();
     }
 
     /// Applies an edit reported by the text input. Records one undo step when the text changed.
@@ -177,23 +165,6 @@ impl SegmentDraft {
         self.redo_stack.clear();
         self.selection = self.selection.clamped(self.text.chars().count());
         true
-    }
-
-    /// Replaces the selection (or inserts at the caret) with `replacement` as one user edit.
-    /// The caret lands after the inserted text, moved back by `caret_back_chars`.
-    pub fn replace_selection(&mut self, replacement: &str, caret_back_chars: usize) -> bool {
-        let range = self.selection.range();
-        let start = byte_offset(&self.text, range.start);
-        let end = byte_offset(&self.text, range.end);
-        let mut updated =
-            String::with_capacity(self.text.len() - (end - start) + replacement.len());
-        updated.push_str(&self.text[..start]);
-        updated.push_str(replacement);
-        updated.push_str(&self.text[end..]);
-        let caret = range.start + replacement.chars().count().saturating_sub(caret_back_chars);
-        let changed = self.replace_text_from_user_edit(updated);
-        self.set_selection(TextSelection::caret(caret));
-        changed
     }
 
     /// Restores the previous text snapshot. Caret moves to the end of the restored text.

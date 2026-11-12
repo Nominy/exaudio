@@ -17,8 +17,8 @@ pub mod time;
 
 pub use doc::{CompletionKey, CompletionList};
 pub use doc::{
-    DraftedRow, EditError, EditResult, EditorDoc, Effect, HelperFocus, Outcome, PointerModifiers,
-    PointerState, RowSnapshot, TranscriptionRefusal, TranscriptionTarget, WaveformHover,
+    DraftedRow, EditError, EditResult, EditorDoc, Effect, Outcome, PointerModifiers, PointerState,
+    RowSnapshot, TextFocus, TranscriptionRefusal, TranscriptionTarget, WaveformHover,
     remove_word_final_ellipsis,
 };
 pub use draft::{SegmentDraft, TextSelection};

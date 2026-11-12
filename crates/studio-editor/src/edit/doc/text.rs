@@ -1,4 +1,4 @@
-//! Draft text editing, local/project undo, time and track cells, helper text tools, autofix,
+//! Draft text editing, local/project undo, time and track cells, cross-row text moves, autofix,
 //! tag suggestions, find, low-confidence review and warning assertions.
 
 use super::{EditError, EditResult, EditorDoc, Effect, Outcome, TagSuggestionUi};
@@ -366,8 +366,7 @@ impl EditorDoc {
         )))
     }
 
-    /// Escape in a time cell: leaves it without applying, showing the stored time again
-    /// (Babel's time cell cancel).
+    /// Escape in a time cell: leaves it without applying, showing the stored time again.
     pub fn cancel_time_edit(&mut self, segment_id: &str, field: TimeField) {
         let Some(stored) = self
             .workflow
@@ -496,7 +495,7 @@ impl EditorDoc {
         Ok(Outcome::status(format!("Renamed speaker to {label}.")))
     }
 
-    // ---- helper text tools ------------------------------------------------------------
+    // ---- cross-row text moves ---------------------------------------------------------
 
     /// Moves the text before the caret to the previous same-lane row (Alt+[).
     pub fn move_text_to_previous_row(&mut self, segment_id: &str) -> EditResult {

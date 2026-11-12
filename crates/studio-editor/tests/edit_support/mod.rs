@@ -69,13 +69,6 @@ pub fn stable_sample_doc() -> EditorDoc {
     )
 }
 
-pub fn sample_doc() -> EditorDoc {
-    EditorDoc::from_project(
-        studio_editor::load_sample_project().expect("sample project"),
-        exaudio_extension::document::DocumentEnvironment::local("test"),
-    )
-}
-
 /// Mono audio: amplitude 0.1 inside `ranges`, silence elsewhere.
 pub fn audio_with_speech(duration: f64, sample_rate: u32, ranges: &[(f64, f64)]) -> DecodedAudio {
     let frames = (duration * sample_rate as f64).ceil() as usize;

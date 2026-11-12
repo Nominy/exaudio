@@ -1,5 +1,4 @@
-//! Editor action definitions, audition keys and `EditorDoc::perform` dispatch (ported from
-//! the iced app's keybinds.rs / hotkeys.rs tests).
+//! Editor action definitions, audition keys and `EditorDoc::perform` dispatch.
 #![allow(unused_must_use)]
 
 mod edit_support;

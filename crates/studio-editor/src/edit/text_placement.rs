@@ -1,7 +1,7 @@
-//! Auto-segmentation text placement (Babel Helper `auto-segmentation.ts`): the visible rows'
-//! text is captured in groups before any structural change, then each group's *original* text
-//! is redistributed over the rows that now cover it — through the lane's word timings when
-//! present, else by whole sentences and duration. Never ASR text, never added or dropped words.
+//! Auto-segmentation text placement: the visible rows' text is captured in groups before
+//! any structural change, then each group's *original* text is redistributed over the rows
+//! that now cover it — through the lane's word timings when present, else by whole
+//! sentences and duration. Never ASR text, never added or dropped words.
 
 use studio_core::{Segment, SegmentUpdate};
 
@@ -91,7 +91,7 @@ pub struct TextPlacement {
 }
 
 /// Redistributes each baseline group's text over `current` rows (sorted by start) of its lane
-/// inside its range. A group with no rows left is skipped (Helper); so is a group whose rows no
+/// inside its range. A group with no rows left is skipped; so is a group whose rows no
 /// longer hold exactly its text — a removed silent row's text was stitched into them — since
 /// placing the captured text there would drop the stitched words.
 pub fn place_group_text(

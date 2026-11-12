@@ -35,43 +35,14 @@ pub enum TimelineRulerNotchKind {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct TimelineRulerIntervals {
-    pub time_interval_seconds: f64,
-    pub primary_label_interval_seconds: f64,
-    pub secondary_label_interval_seconds: f64,
+struct RulerIntervals {
+    time_interval_seconds: f64,
+    primary_label_interval_seconds: f64,
+    secondary_label_interval_seconds: f64,
 }
 
-impl TimelineRulerIntervals {
-    pub fn from_babel_min_px_per_sec(min_px_per_sec: f64) -> Self {
-        let min_px_per_sec = finite_non_negative(min_px_per_sec);
-        if min_px_per_sec >= 200.0 {
-            Self {
-                time_interval_seconds: 0.1,
-                primary_label_interval_seconds: 1.0,
-                secondary_label_interval_seconds: 0.5,
-            }
-        } else if min_px_per_sec >= 100.0 {
-            Self {
-                time_interval_seconds: 0.25,
-                primary_label_interval_seconds: 2.0,
-                secondary_label_interval_seconds: 1.0,
-            }
-        } else if min_px_per_sec >= 50.0 {
-            Self {
-                time_interval_seconds: 0.5,
-                primary_label_interval_seconds: 5.0,
-                secondary_label_interval_seconds: 2.5,
-            }
-        } else {
-            Self {
-                time_interval_seconds: 1.0,
-                primary_label_interval_seconds: 10.0,
-                secondary_label_interval_seconds: 5.0,
-            }
-        }
-    }
-
-    pub fn from_wavesurfer_defaults(pixels_per_second: f64) -> Self {
+impl RulerIntervals {
+    fn for_pixels_per_second(pixels_per_second: f64) -> Self {
         let pixels_per_second = finite_non_negative(pixels_per_second);
         Self {
             time_interval_seconds: default_time_interval(pixels_per_second),
@@ -79,22 +50,6 @@ impl TimelineRulerIntervals {
             secondary_label_interval_seconds: default_secondary_label_interval(pixels_per_second),
         }
     }
-}
-
-pub fn build_babel_timeline_ruler(
-    duration_seconds: f64,
-    scroll_left_px: f64,
-    viewport_width_px: f64,
-    min_px_per_sec: f64,
-) -> TimelineRulerView {
-    build_timeline_ruler(
-        duration_seconds,
-        scroll_left_px,
-        viewport_width_px,
-        min_px_per_sec,
-        TimelineRulerIntervals::from_babel_min_px_per_sec(min_px_per_sec),
-        0.0,
-    )
 }
 
 pub fn build_timeline_ruler_for_viewport(
@@ -109,30 +64,12 @@ pub fn build_timeline_ruler_for_viewport(
         viewport.start_seconds * pixels_per_second,
         viewport_width_px,
         pixels_per_second,
-        TimelineRulerIntervals::from_wavesurfer_defaults(pixels_per_second),
-        0.0,
+        RulerIntervals::for_pixels_per_second(pixels_per_second),
     )
 }
 
-pub fn build_babel_timeline_ruler_for_viewport(
-    viewport: TimeRange,
-    viewport_width_px: f64,
-    min_px_per_sec: f64,
-) -> TimelineRulerView {
-    let visible_duration = viewport.duration_seconds().max(EPSILON);
-    let viewport_width_px = finite_positive(viewport_width_px, DEFAULT_RULER_WIDTH_PX);
-    let pixels_per_second = viewport_width_px / visible_duration;
-    build_timeline_ruler(
-        viewport.end_seconds.max(visible_duration),
-        viewport.start_seconds * pixels_per_second,
-        viewport_width_px,
-        pixels_per_second,
-        TimelineRulerIntervals::from_babel_min_px_per_sec(min_px_per_sec),
-        0.0,
-    )
-}
-
-pub fn format_babel_timeline_time(seconds: f64) -> String {
+/// Ruler label: `S.cc s` below a minute, `M:SS m` from a minute on.
+fn format_ruler_label(seconds: f64) -> String {
     let millis = (finite_non_negative(seconds) * 1_000.0).round() as u64;
     let minutes = millis / 60_000;
     let remaining_seconds = (millis % 60_000) / 1_000;
@@ -149,8 +86,7 @@ fn build_timeline_ruler(
     scroll_left_px: f64,
     viewport_width_px: f64,
     pixels_per_second: f64,
-    intervals: TimelineRulerIntervals,
-    time_offset_seconds: f64,
+    intervals: RulerIntervals,
 ) -> TimelineRulerView {
     let duration_seconds = finite_non_negative(duration_seconds);
     let viewport_width_px = finite_positive(viewport_width_px, DEFAULT_RULER_WIDTH_PX);
@@ -173,11 +109,9 @@ fn build_timeline_ruler(
         let label = if kind == TimelineRulerNotchKind::Tick {
             None
         } else {
-            Some(format_babel_timeline_time(time_seconds))
+            Some(format_ruler_label(time_seconds))
         };
-        let left_px = (round_to_two_decimals(time_seconds + time_offset_seconds)
-            * pixels_per_second)
-            - scroll_left_px;
+        let left_px = (round_to_two_decimals(time_seconds) * pixels_per_second) - scroll_left_px;
         let left_percent = ((time_seconds - visible_start_seconds) / visible_duration * 100.0)
             .clamp(0.0, 100.0) as f32;
         notches.push(TimelineRulerNotchView {
@@ -198,7 +132,7 @@ fn build_timeline_ruler(
     }
 }
 
-fn notch_kind(time_seconds: f64, intervals: TimelineRulerIntervals) -> TimelineRulerNotchKind {
+fn notch_kind(time_seconds: f64, intervals: RulerIntervals) -> TimelineRulerNotchKind {
     if is_rounded_multiple(time_seconds, intervals.primary_label_interval_seconds) {
         TimelineRulerNotchKind::Primary
     } else if is_rounded_multiple(time_seconds, intervals.secondary_label_interval_seconds) {
@@ -270,55 +204,44 @@ fn finite_positive(value: f64, fallback: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        TimelineRulerIntervals, TimelineRulerNotchKind, build_babel_timeline_ruler,
-        build_babel_timeline_ruler_for_viewport, build_timeline_ruler_for_viewport,
-        format_babel_timeline_time,
+        RulerIntervals, TimelineRulerNotchKind, build_timeline_ruler,
+        build_timeline_ruler_for_viewport, format_ruler_label,
     };
     use crate::timeline_model::TimeRange;
 
     #[test]
-    fn babel_interval_overrides_match_editor_wrapper() {
+    fn intervals_follow_pixels_per_second_rules() {
         assert_eq!(
-            TimelineRulerIntervals::from_babel_min_px_per_sec(200.0),
-            TimelineRulerIntervals {
-                time_interval_seconds: 0.1,
-                primary_label_interval_seconds: 1.0,
-                secondary_label_interval_seconds: 0.5,
-            }
-        );
-        assert_eq!(
-            TimelineRulerIntervals::from_babel_min_px_per_sec(100.0),
-            TimelineRulerIntervals {
-                time_interval_seconds: 0.25,
-                primary_label_interval_seconds: 2.0,
-                secondary_label_interval_seconds: 1.0,
-            }
-        );
-    }
-
-    #[test]
-    fn wavesurfer_default_intervals_follow_pixels_per_second_rules() {
-        assert_eq!(
-            TimelineRulerIntervals::from_wavesurfer_defaults(25.0).time_interval_seconds,
+            RulerIntervals::for_pixels_per_second(25.0).time_interval_seconds,
             1.0
         );
         assert_eq!(
-            TimelineRulerIntervals::from_wavesurfer_defaults(5.0).time_interval_seconds,
+            RulerIntervals::for_pixels_per_second(5.0).time_interval_seconds,
             5.0
         );
         assert_eq!(
-            TimelineRulerIntervals::from_wavesurfer_defaults(2.0).time_interval_seconds,
+            RulerIntervals::for_pixels_per_second(2.0).time_interval_seconds,
             15.0
         );
         assert_eq!(
-            TimelineRulerIntervals::from_wavesurfer_defaults(0.1).time_interval_seconds,
+            RulerIntervals::for_pixels_per_second(0.1).time_interval_seconds,
             300.0
         );
     }
 
     #[test]
-    fn babel_timeline_ruler_emits_visible_primary_secondary_and_tick_notches() {
-        let ruler = build_babel_timeline_ruler(10.0, 240.0, 200.0, 200.0);
+    fn ruler_emits_visible_primary_secondary_and_tick_notches() {
+        let ruler = build_timeline_ruler(
+            10.0,
+            240.0,
+            200.0,
+            200.0,
+            RulerIntervals {
+                time_interval_seconds: 0.1,
+                primary_label_interval_seconds: 1.0,
+                secondary_label_interval_seconds: 0.5,
+            },
+        );
 
         assert_eq!(ruler.visible_start_seconds, 1.2);
         assert_eq!(ruler.visible_end_seconds, 2.2);
@@ -342,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn viewport_adapter_uses_visible_width_as_wavesurfer_scroll_window() {
+    fn viewport_ruler_spans_the_visible_range() {
         let ruler = build_timeline_ruler_for_viewport(
             TimeRange {
                 start_seconds: 60.0,
@@ -358,32 +281,9 @@ mod tests {
     }
 
     #[test]
-    fn viewport_adapter_can_use_babel_interval_tiers() {
-        let ruler = build_babel_timeline_ruler_for_viewport(
-            TimeRange {
-                start_seconds: 1.2,
-                end_seconds: 2.2,
-            },
-            200.0,
-            200.0,
-        );
-
-        assert!(ruler.notches.iter().any(|notch| {
-            notch.time_seconds == 1.5
-                && notch.kind == TimelineRulerNotchKind::Secondary
-                && notch.label.as_deref() == Some("1.500s")
-        }));
-        assert!(ruler.notches.iter().any(|notch| {
-            notch.time_seconds == 2.0
-                && notch.kind == TimelineRulerNotchKind::Primary
-                && notch.label.as_deref() == Some("2.00s")
-        }));
-    }
-
-    #[test]
-    fn babel_timeline_time_formatter_matches_callback_shape() {
-        assert_eq!(format_babel_timeline_time(2.0), "2.00s");
-        assert_eq!(format_babel_timeline_time(1.5), "1.500s");
-        assert_eq!(format_babel_timeline_time(74.25), "1:14m");
+    fn ruler_labels_switch_units_at_one_minute() {
+        assert_eq!(format_ruler_label(2.0), "2.00s");
+        assert_eq!(format_ruler_label(1.5), "1.500s");
+        assert_eq!(format_ruler_label(74.25), "1:14m");
     }
 }

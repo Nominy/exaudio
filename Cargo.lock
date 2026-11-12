@@ -2196,7 +2196,6 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-channel",
- "bytes",
  "exaudio-extension",
  "exaudio-marketplace",
  "exaudio-wasm",
@@ -7603,7 +7602,6 @@ dependencies = [
  "studio-core",
  "studio-project",
  "studio-waveform",
- "tempfile",
  "thiserror 2.0.18",
 ]
 

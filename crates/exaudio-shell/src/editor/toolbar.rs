@@ -21,7 +21,7 @@ use studio_editor::editor_model::SaveStatus;
 use crate::actions;
 use crate::editor::RequestLeave;
 use crate::editor::model::EditorModel;
-use crate::editor::panels::ui::{stable_text, tabular_figures};
+use crate::editor::panels::ui::{stable_text, tabular_figures, vertical_rule};
 use crate::editor::timeline::overview::OverviewView;
 use crate::editor::timeline::shortcut_hint;
 use crate::screens::ui::localized;
@@ -137,14 +137,6 @@ impl Toolbar {
             .child(stable_text(label, labels))
             .into_any_element()
     }
-}
-
-fn separator(cx: &App) -> Div {
-    div()
-        .w(px(1.))
-        .h(rems(1.25))
-        .flex_none()
-        .bg(cx.theme().border)
 }
 
 impl Render for Toolbar {
@@ -346,7 +338,7 @@ impl Render for Toolbar {
             .bg(theme.background)
             .child(measure)
             .child(div().flex_none().child(back))
-            .child(separator(cx))
+            .child(vertical_rule(cx))
             .child(div().flex_none().child(play))
             .child(
                 h_flex()
@@ -356,7 +348,7 @@ impl Render for Toolbar {
                     .child(speed_menu)
                     .when(!narrow, |group| group.child(faster)),
             )
-            .child(separator(cx))
+            .child(vertical_rule(cx))
             .child(
                 h_flex()
                     .flex_none()
@@ -371,7 +363,7 @@ impl Render for Toolbar {
                     })
                     .child(zoom_in),
             )
-            .child(separator(cx))
+            .child(vertical_rule(cx))
             .child(
                 div()
                     .flex_1()
@@ -385,7 +377,7 @@ impl Render for Toolbar {
                             .cached(StyleRefinement::default().size_full()),
                     ),
             )
-            .child(separator(cx))
+            .child(vertical_rule(cx))
             .child(
                 h_flex()
                     .flex_none()

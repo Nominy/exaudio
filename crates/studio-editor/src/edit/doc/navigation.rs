@@ -1,12 +1,12 @@
 //! Selection and transcript navigation, track filter / lane visibility, speaker workflow, and
-//! the helper focus workflow (Space/Escape toggles with caret restore and ghost cursor).
+//! the caret-restore workflow (Space/Escape toggles with caret restore and ghost cursor).
 
 use studio_core::Segment;
 
 use super::{EditError, EditResult, EditorDoc, Effect, Outcome};
 use crate::edit::draft::TextSelection;
 use crate::edit::navigate::{
-    self, GhostCursor, HelperFocusRestore, proportional_restore_offset, segment_id_at_playhead,
+    self, CaretRestore, GhostCursor, proportional_restore_offset, segment_id_at_playhead,
     speaker_workflow_lane, speaker_workflow_lane_ids, visible_transcription_rows,
 };
 use crate::track_filter::TrackFilter;
@@ -38,7 +38,7 @@ impl EditorDoc {
         })
     }
 
-    /// Alt+Click on a row's text (Helper word seek): moves the playhead to the start of the
+    /// Alt+Click on a row's text (word seek): moves the playhead to the start of the
     /// clicked word through the lane's word timings, selecting the row without scrolling.
     /// Playback state is unchanged (a playing transport continues from the word). Without a
     /// timestamp for the word nothing moves: there is no ratio estimate.
@@ -46,7 +46,7 @@ impl EditorDoc {
         let segment = self.segment(segment_id)?;
         let Some(lane) = self.word_timings.lane(&segment.lane_id) else {
             return Ok(Outcome::status(
-                "Word seek: no word timestamps for this track yet. Run Gold Draft to create them.",
+                "Word seek: this track has no word timestamps yet.",
             ));
         };
         let Some(time) = crate::timing::timestamp_at_offset(
@@ -105,7 +105,7 @@ impl EditorDoc {
         let rows = visible_transcription_rows(self.workflow.project(), &self.session);
         if rows.is_empty() {
             return Err(EditError::Unavailable(
-                "Helper focus navigation unavailable: no visible segments.".into(),
+                "No visible segments to move to.".into(),
             ));
         }
         let playhead = self.session.playhead_seconds;
@@ -119,7 +119,7 @@ impl EditorDoc {
                 let next = step_index(index, direction, rows.len());
                 if next == index {
                     return Err(EditError::Unavailable(
-                        "Helper focus navigation reached transcript edge.".into(),
+                        "No further segment in that direction.".into(),
                     ));
                 }
                 next
@@ -136,7 +136,7 @@ impl EditorDoc {
         let segment_id = rows[next].0.clone();
         self.session
             .select_segment_without_seek(self.workflow.project(), &segment_id);
-        let restore = HelperFocusRestore {
+        let restore = CaretRestore {
             segment_id: segment_id.clone(),
             blur_playhead_seconds: playhead,
             restore_playhead_seconds: playhead,
@@ -145,13 +145,13 @@ impl EditorDoc {
             lane_locked: false,
         };
         let left = self.set_text_focus(Some(&segment_id))?;
-        self.helper.pending = Some(restore.clone());
+        self.text_focus.pending = Some(restore.clone());
         let focus = self.apply_restore(restore);
         self.touch();
         Ok(Outcome::status(if direction < 0 {
-            "Helper focus moved to previous segment from start."
+            "Moved to the previous segment."
         } else {
-            "Helper focus moved to next segment from start."
+            "Moved to the next segment."
         })
         .extend(left.effects)
         .with(Effect::RevealSegment {
@@ -186,18 +186,18 @@ impl EditorDoc {
             }))
     }
 
-    /// Tab (Helper `toggleGhostCursorLane`): moves the cursor to the next speaker lane with
-    /// visible rows, onto that lane's row for the cursor's time ([`navigate::lane_row_at`]).
+    /// Tab: moves the cursor to the next speaker lane with visible rows, onto that lane's
+    /// row for the cursor's time ([`navigate::lane_row_at`]).
     /// While a row's text editor has focus (`focused_segment`), focus moves there with the
     /// caret at the text spoken at that time (the playhead, clamped into the focused row).
     /// Otherwise the pending ghost cursor moves (at the playhead) and playback keeps it on
     /// that lane.
     pub fn switch_ghost_cursor_lane(&mut self, focused_segment: Option<&str>) -> EditResult {
         let ghost = self
-            .helper
+            .text_focus
             .pending
             .as_ref()
-            .filter(|_| self.helper.focused_segment_id.is_none())
+            .filter(|_| self.text_focus.focused_segment_id.is_none())
             .map(|pending| pending.segment_id.as_str());
         let source_id = focused_segment
             .or(ghost)
@@ -242,8 +242,8 @@ impl EditorDoc {
         });
         if let Some(caret) = caret {
             outcome = outcome.extend(self.set_text_focus(Some(&segment_id))?.effects);
-            self.helper.pending = None;
-            outcome = outcome.with(self.apply_restore(HelperFocusRestore {
+            self.text_focus.pending = None;
+            outcome = outcome.with(self.apply_restore(CaretRestore {
                 segment_id,
                 blur_playhead_seconds: playhead,
                 restore_playhead_seconds: playhead,
@@ -253,7 +253,7 @@ impl EditorDoc {
             }));
         } else {
             self.sync_pending_restore_to_segment(&segment_id);
-            if let Some(pending) = self.helper.pending.as_mut() {
+            if let Some(pending) = self.text_focus.pending.as_mut() {
                 pending.lane_locked = true;
             }
         }
@@ -341,14 +341,14 @@ impl EditorDoc {
         Outcome::status("Speaker workflow reset: showing all tracks and unmuting speakers.")
     }
 
-    // ---- helper focus workflow --------------------------------------------------------
+    // ---- caret restore around playback ------------------------------------------------
 
     /// Space outside text inputs: pausing restores the caret into the row under the playhead
     /// (focus effect); starting plays and leaves a ghost cursor in the row at the playhead or
     /// the selected row. A selected row the playhead is outside of plays from its start.
     /// Falls back to a plain toggle when there is no row.
-    pub fn helper_toggle_playback(&mut self) -> Outcome {
-        self.try_helper_unfocused_toggle()
+    pub fn toggle_playback_keeping_caret(&mut self) -> Outcome {
+        self.try_toggle_keeping_caret()
             .unwrap_or_else(|| self.toggle_playback())
     }
 
@@ -367,10 +367,10 @@ impl EditorDoc {
             return Ok(self
                 .set_paused(true)
                 .extend(focused.effects)
-                .with_status("Helper focus toggle paused playback from focused transcript row."));
+                .with_status("Playback paused."));
         }
         let committed = self.set_text_focus(None)?;
-        self.helper.pending = self.restore_for_segment(segment_id, false, None);
+        self.text_focus.pending = self.restore_for_segment(segment_id, false, None);
         Ok(Outcome::none()
             .with(Effect::BlurText)
             .extend(focused.effects)
@@ -382,9 +382,9 @@ impl EditorDoc {
     /// playing it tracks the playhead through the lane's word timings when available, else
     /// proportionally (snapped to word starts); never before the restore baseline.
     pub fn ghost_cursor(&self, segment_id: &str) -> Option<GhostCursor> {
-        let restore = self.helper.pending.as_ref()?;
+        let restore = self.text_focus.pending.as_ref()?;
         if restore.segment_id != segment_id
-            || self.helper.focused_segment_id.as_deref() == Some(segment_id)
+            || self.text_focus.focused_segment_id.as_deref() == Some(segment_id)
         {
             return None;
         }
@@ -431,8 +431,8 @@ impl EditorDoc {
     /// Marks a row's text editor as focused/unfocused by the user (click into/out of a row).
     /// The row that loses focus commits its typed text ([`Self::commit_text_draft`]).
     pub fn set_text_focus(&mut self, segment_id: Option<&str>) -> EditResult {
-        let previous = self.helper.focused_segment_id.take();
-        self.helper.focused_segment_id = segment_id.map(str::to_string);
+        let previous = self.text_focus.focused_segment_id.take();
+        self.text_focus.focused_segment_id = segment_id.map(str::to_string);
         match previous {
             Some(previous) if segment_id != Some(previous.as_str()) => {
                 self.commit_text_draft(&previous)
@@ -442,24 +442,24 @@ impl EditorDoc {
     }
 
     /// A row's text editor lost keyboard focus (Enter, a click elsewhere): commits its typed
-    /// text and releases the helper focus when the row still held it (another grid's editor
+    /// text and releases the text focus when the row still held it (another grid's editor
     /// may already hold it).
     pub fn blur_text(&mut self, segment_id: &str) -> EditResult {
-        if self.helper.focused_segment_id.as_deref() == Some(segment_id) {
-            self.helper.focused_segment_id = None;
+        if self.text_focus.focused_segment_id.as_deref() == Some(segment_id) {
+            self.text_focus.focused_segment_id = None;
         }
         self.commit_text_draft(segment_id)
     }
 
-    /// Releases the helper focus where no `Result` flows: a refused commit becomes the status.
+    /// Releases the text focus where no `Result` flows: a refused commit becomes the status.
     fn release_text_focus(&mut self) -> Outcome {
         self.set_text_focus(None)
             .unwrap_or_else(|error| Outcome::status(error.to_string()))
     }
 
-    pub(super) fn try_helper_unfocused_toggle(&mut self) -> Option<Outcome> {
+    pub(super) fn try_toggle_keeping_caret(&mut self) -> Option<Outcome> {
         if self.session.is_playing {
-            let focus = self.restore_helper_focus_for_current_playhead();
+            let focus = self.restore_caret_at_playhead();
             let outcome = self.set_paused(true);
             return Some(match focus {
                 Ok(focus) => outcome.extend(focus.effects),
@@ -478,7 +478,7 @@ impl EditorDoc {
                 segment_id
             }
         };
-        self.helper.pending = self.restore_for_segment(&segment_id, true, None);
+        self.text_focus.pending = self.restore_for_segment(&segment_id, true, None);
         let released = self.release_text_focus();
         Some(released.extend(self.set_paused(false).effects))
     }
@@ -503,9 +503,9 @@ impl EditorDoc {
 
     /// Pausing focuses where the ghost cursor is shown — its row (synced to the playhead first,
     /// as the next playback tick would) and offset, timed through word timings when the lane
-    /// has them (Helper `getGhostCursorTarget`). Without a shown ghost, the row under the
-    /// playhead gets the spoken offset at the playhead.
-    fn restore_helper_focus_for_current_playhead(&mut self) -> Result<Outcome, String> {
+    /// has them. Without a shown ghost, the row under the playhead gets the spoken offset
+    /// at the playhead.
+    fn restore_caret_at_playhead(&mut self) -> Result<Outcome, String> {
         self.sync_pending_restore_to_playback();
         let project = self.workflow.project();
         let session = &self.session;
@@ -514,7 +514,7 @@ impl EditorDoc {
                 .segment(id)
                 .is_some_and(|segment| navigate::segment_is_visible(session, segment))
         };
-        let pending = self.helper.pending.clone();
+        let pending = self.text_focus.pending.clone();
         let ghost = pending
             .as_ref()
             .filter(|restore| visible(&restore.segment_id))
@@ -530,7 +530,7 @@ impl EditorDoc {
                 })
                 .or_else(|| session.selected_segment_id.clone().filter(visible))
                 .ok_or_else(|| {
-                    "Helper focus restore failed: no segment at playback position.".to_string()
+                    "No segment at the playback position to put the cursor in.".to_string()
                 })?,
         };
         let blur = pending
@@ -540,9 +540,7 @@ impl EditorDoc {
         let synthetic = pending.as_ref().is_some_and(|restore| restore.synthetic);
         let mut restore = self
             .restore_for_segment(&segment_id, synthetic, Some(blur))
-            .ok_or_else(|| {
-                "Helper focus restore failed: that segment no longer exists.".to_string()
-            })?;
+            .ok_or_else(|| "The segment the cursor was in no longer exists.".to_string())?;
         if let Some(ghost) = ghost {
             restore.restore_offset = ghost.char_offset;
         }
@@ -551,12 +549,12 @@ impl EditorDoc {
         let left = self
             .set_text_focus(Some(&segment_id))
             .map_err(|error| error.to_string())?;
-        self.helper.pending = None;
+        self.text_focus.pending = None;
         self.touch();
         Ok(left.with(self.apply_restore(restore)))
     }
 
-    fn apply_restore(&mut self, restore: HelperFocusRestore) -> Effect {
+    fn apply_restore(&mut self, restore: CaretRestore) -> Effect {
         if let Some(draft) = self.drafts.get_mut(&restore.segment_id) {
             draft.set_selection(TextSelection::caret(restore.restore_offset));
         }
@@ -564,12 +562,12 @@ impl EditorDoc {
             segment_id: restore.segment_id.clone(),
             caret: restore.restore_offset,
         };
-        self.helper.last = Some(restore);
+        self.text_focus.last = Some(restore);
         effect
     }
 
     pub(super) fn sync_pending_restore_to_segment(&mut self, segment_id: &str) {
-        let Some(previous) = self.helper.pending.clone() else {
+        let Some(previous) = self.text_focus.pending.clone() else {
             return;
         };
         if previous.segment_id == segment_id {
@@ -580,20 +578,20 @@ impl EditorDoc {
             previous.synthetic,
             Some(previous.blur_playhead_seconds),
         ) {
-            self.helper.pending = Some(HelperFocusRestore {
+            self.text_focus.pending = Some(CaretRestore {
                 lane_locked: previous.lane_locked,
                 ..restore
             });
-            self.helper.focused_segment_id = None;
+            self.text_focus.focused_segment_id = None;
         }
     }
 
     /// During playback, moves the pending ghost cursor to the row that should own it.
     pub(super) fn sync_pending_restore_to_playback(&mut self) {
-        if !self.session.is_playing || self.helper.focused_segment_id.is_some() {
+        if !self.session.is_playing || self.text_focus.focused_segment_id.is_some() {
             return;
         }
-        let Some(pending) = self.helper.pending.as_ref() else {
+        let Some(pending) = self.text_focus.pending.as_ref() else {
             return;
         };
         let Some(target) =
@@ -612,10 +610,10 @@ impl EditorDoc {
         segment_id: &str,
         synthetic: bool,
         blur_playhead_seconds: Option<f64>,
-    ) -> Option<HelperFocusRestore> {
+    ) -> Option<CaretRestore> {
         let segment = self.workflow.project().segment(segment_id)?;
         let playhead = self.session.playhead_seconds;
-        Some(HelperFocusRestore {
+        Some(CaretRestore {
             segment_id: segment_id.to_string(),
             blur_playhead_seconds: blur_playhead_seconds.unwrap_or(playhead),
             restore_playhead_seconds: playhead,

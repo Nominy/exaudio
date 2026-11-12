@@ -611,7 +611,7 @@ fn merge_segments_preserves_right_source_annotation_when_left_has_none() {
 }
 
 #[test]
-fn merge_segments_keeping_right_preserves_active_babel_annotation_id() {
+fn merge_segments_keeping_right_preserves_the_right_segment_id() {
     let mut project = sample_project();
     project.segments[1].speaker_id = "speaker-1".to_string();
     project.segments[1].lane_id = "track-1".to_string();
@@ -980,7 +980,7 @@ fn redo_reapplies_undone_change() {
 }
 
 #[test]
-fn command_history_reports_undo_redo_availability_like_babel_action_state() {
+fn command_history_reports_undo_redo_availability() {
     let mut project = sample_project();
     let mut history = CommandHistory::default();
 

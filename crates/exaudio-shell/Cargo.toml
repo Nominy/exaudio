@@ -8,7 +8,6 @@ repository.workspace = true
 [dependencies]
 anyhow.workspace = true
 async-channel = "2.5"
-bytes.workspace = true
 gpui-kit.workspace = true
 serde.workspace = true
 serde_json.workspace = true

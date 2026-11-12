@@ -2,9 +2,9 @@
 
 use crate::transcript_model::format_mm_ss;
 
-/// Lowest zoom-slider value (Babel slider units).
+/// Lowest zoom-slider value (slider units: [`ZOOM_DISPLAY_DIVISOR`] per zoom factor).
 pub const ZOOM_SLIDER_MIN: f32 = 10.0;
-/// Highest zoom-slider value (Babel slider units).
+/// Highest zoom-slider value.
 pub const ZOOM_SLIDER_MAX: f32 = 2000.0;
 /// Slider units per zoom factor of `1.0`.
 pub const ZOOM_DISPLAY_DIVISOR: f32 = 200.0;
@@ -48,16 +48,6 @@ pub fn parse_time(value: &str) -> Option<f64> {
     Some(minutes as f64 * 60.0 + seconds as f64 + centiseconds as f64 / 100.0)
 }
 
-/// Parses a speed label such as `1.5x` or `0.75`.
-pub fn parse_speed(value: &str) -> Option<f32> {
-    value
-        .trim()
-        .trim_end_matches('x')
-        .parse::<f32>()
-        .ok()
-        .filter(|speed| speed.is_finite() && *speed > 0.0)
-}
-
 /// Formats a speed for the speed picker (`1x`, `0.75x`, `1.5x`).
 pub fn format_speed(speed: f32) -> String {
     if (speed - 1.0).abs() < f32::EPSILON {
@@ -71,14 +61,6 @@ pub fn format_speed(speed: f32) -> String {
         label.pop();
     }
     format!("{label}x")
-}
-
-/// Labels for [`SPEED_OPTIONS`], in order.
-pub fn speed_labels() -> Vec<String> {
-    SPEED_OPTIONS
-        .iter()
-        .map(|speed| format_speed(*speed))
-        .collect()
 }
 
 /// Converts a zoom-slider value into the editor zoom factor.

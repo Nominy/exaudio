@@ -13,7 +13,7 @@ Outputs (generated, committed; never hand-edit):
   assets/brand/header-dark.svg            icon tile + paper wordmark, 580x184
   assets/brand/social-preview.svg/.png    1280x640 ink card: icon, wordmark, tagline
   assets/app/exaudio.ico                  16/24/32/48/256 frames of the icon tile
-  assets/app/exaudio-256.png, exaudio-512.png, exaudio-mark.png (224 px)
+  assets/app/exaudio-512.png             source of the macOS .icns and the AppImage icon
   site/assets/header-*.svg, exaudio-icon.svg  copies the site serves locally
 
 Requirements: Python 3 with fontTools (varLib instancer), ImageMagick `magick` on PATH
@@ -253,9 +253,8 @@ def main() -> int:
             frames.append(str(frame))
         magick(*frames, str(APP / "exaudio.ico"))
     print("wrote assets/app/exaudio.ico")
-    for size, name in ((256, "exaudio-256.png"), (512, "exaudio-512.png"), (224, "exaudio-mark.png")):
-        render_svg_png(icon, APP / name, size=size)
-        print(f"wrote assets/app/{name}")
+    render_svg_png(icon, APP / "exaudio-512.png", size=512)
+    print("wrote assets/app/exaudio-512.png")
 
     # Site copies (pages.yml copies the same files into _site/assets on deploy).
     for name in ("header-light.svg", "header-dark.svg", "exaudio-icon.svg"):

@@ -65,30 +65,6 @@ impl ShellHandle {
             })
             .ok();
     }
-    /// Runs a provider type's setup in a dialog over the current screen. `on_done` gets
-    /// `Some(instance)` once the instance is stored in the [`ProviderRegistry`], `None`
-    /// when the user cancels or the provider type is not installed. Called exactly once.
-    pub fn request_provider_setup(
-        &self,
-        provider_id: &str,
-        instance: Option<ProviderInstance>,
-        on_done: crate::providers::ProviderSetupOutcome,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        accounts::open_setup_dialog(
-            self.clone(),
-            provider_id,
-            None,
-            accounts::SetupRequest {
-                instance,
-                cancel_label: screens::ui::localized(cx, "Cancel", "Отмена"),
-                on_done,
-            },
-            window,
-            cx,
-        );
-    }
     /// Status of a configured instance as reported by its provider type.
     pub fn provider_status(&self, instance: &ProviderInstance, cx: &App) -> ProviderStatus {
         match cx

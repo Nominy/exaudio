@@ -149,7 +149,7 @@ struct RenderKey {
 impl RenderKey {
     fn of(doc: &EditorDoc) -> Self {
         let session = doc.session();
-        let ghost = doc.helper().pending.as_ref().and_then(|pending| {
+        let ghost = doc.text_focus().pending.as_ref().and_then(|pending| {
             doc.ghost_cursor(&pending.segment_id)
                 .map(|ghost| (ghost.segment_id, ghost.char_offset))
         });

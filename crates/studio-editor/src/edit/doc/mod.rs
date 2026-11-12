@@ -1,6 +1,6 @@
 //! [`EditorDoc`]: the per-task editing facade the UI owns. It wraps the workflow (project +
 //! undo history), the editor session (selection, transport, loop, zoom, viewport), per-row
-//! drafts, find state, dialogs, helper focus, pointer drags and a transcript-row cache.
+//! drafts, find state, dialogs, text focus, pointer drags and a transcript-row cache.
 //!
 //! Every operation is synchronous and returns an [`EditResult`]: `Ok(Outcome)` carries a status
 //! line and [`Effect`]s the UI must perform (audio, scrolling, focus); `Err(EditError)` explains a
@@ -17,7 +17,7 @@ mod timeline;
 
 pub use drafting::{
     DraftedRow, RowSnapshot, SEGMENT_BOUNDARY_TOLERANCE_SECONDS, TranscriptionRefusal,
-    TranscriptionTarget, capitalize_first_letter, remove_word_final_ellipsis,
+    TranscriptionTarget, remove_word_final_ellipsis,
 };
 pub use text::{CompletionKey, CompletionList};
 
@@ -32,7 +32,7 @@ use super::create_region::{CreateRegionDialog, CreateRegionError};
 use super::draft::{DraftError, Drafts, SegmentDraft, TextSelection};
 use super::find::FindState;
 use super::format::format_time;
-use super::navigate::{self, HelperFocusRestore};
+use super::navigate::{self, CaretRestore};
 use super::structure::{
     AuditionKey, OverlayDrag, SplitError, TimelineAutoscroll, WaveformCreateDrag, WaveformDrag,
 };
@@ -188,15 +188,15 @@ pub struct PointerState {
     pub autoscroll: Option<TimelineAutoscroll>,
 }
 
-/// Helper-mode focus tracking (which row owns the caret around playback toggles).
+/// Which row's text editor holds the caret, and where the caret returns after playback.
 #[derive(Debug, Clone, Default, PartialEq)]
-pub struct HelperFocus {
-    /// Row whose text editor currently holds focus via the helper workflow.
+pub struct TextFocus {
+    /// Row whose text editor currently holds focus.
     pub focused_segment_id: Option<String>,
     /// Where the caret returns when playback pauses (ghost cursor while playing).
-    pub pending: Option<HelperFocusRestore>,
+    pub pending: Option<CaretRestore>,
     /// Last applied restore (its row is the one to focus).
-    pub last: Option<HelperFocusRestore>,
+    pub last: Option<CaretRestore>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -239,7 +239,7 @@ pub struct EditorDoc {
     tag_ui: Option<TagSuggestionUi>,
     find: FindState,
     create_region: Option<CreateRegionDialog>,
-    helper: HelperFocus,
+    text_focus: TextFocus,
     pointer: PointerState,
     playback_followed_segment_id: Option<String>,
     generation: u64,
@@ -268,7 +268,7 @@ impl EditorDoc {
             tag_ui: None,
             find: FindState::default(),
             create_region: None,
-            helper: HelperFocus::default(),
+            text_focus: TextFocus::default(),
             pointer: PointerState::default(),
             playback_followed_segment_id: None,
             generation: 0,
@@ -336,8 +336,8 @@ impl EditorDoc {
         &self.find
     }
 
-    pub fn helper(&self) -> &HelperFocus {
-        &self.helper
+    pub fn text_focus(&self) -> &TextFocus {
+        &self.text_focus
     }
 
     pub fn pointer(&self) -> &PointerState {
@@ -348,8 +348,8 @@ impl EditorDoc {
         self.create_region.as_ref()
     }
 
-    /// Word timings of this task (Gold timestamps), used by smart split, Alt+Click seek, the
-    /// ghost cursor and auto-segmentation.
+    /// Word timings of this task (from an alignment provider), used by smart split,
+    /// Alt+Click seek, the ghost cursor and auto-segmentation.
     pub fn word_timings(&self) -> &WordTimings {
         &self.word_timings
     }
@@ -516,18 +516,18 @@ impl EditorDoc {
         } else {
             self.session.reconcile_project(project);
         }
-        self.reconcile_helper_focus_to_visible();
+        self.reconcile_text_focus_to_visible();
         self.touch();
     }
 
     fn reconcile_selection_to_visible(&mut self) {
         self.session
             .reconcile_selection_to_visible(self.workflow.project());
-        self.reconcile_helper_focus_to_visible();
+        self.reconcile_text_focus_to_visible();
         self.touch();
     }
 
-    fn reconcile_helper_focus_to_visible(&mut self) {
+    fn reconcile_text_focus_to_visible(&mut self) {
         let project = self.workflow.project();
         let session = &self.session;
         let visible = |segment_id: &str| {
@@ -536,28 +536,28 @@ impl EditorDoc {
                 .is_some_and(|segment| navigate::segment_is_visible(session, segment))
         };
         if self
-            .helper
+            .text_focus
             .focused_segment_id
             .as_deref()
             .is_some_and(|id| !visible(id))
         {
-            self.helper.focused_segment_id = None;
+            self.text_focus.focused_segment_id = None;
         }
         if self
-            .helper
+            .text_focus
             .pending
             .as_ref()
             .is_some_and(|restore| !visible(&restore.segment_id))
         {
-            self.helper.pending = None;
+            self.text_focus.pending = None;
         }
         if self
-            .helper
+            .text_focus
             .last
             .as_ref()
             .is_some_and(|restore| !visible(&restore.segment_id))
         {
-            self.helper.last = None;
+            self.text_focus.last = None;
         }
     }
 

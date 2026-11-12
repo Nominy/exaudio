@@ -208,7 +208,7 @@ impl EditorDoc {
 
     /// Escape outside text inputs: cancels autoscroll, else closes the find bar / edit
     /// annotation / add region dialog, else cancels the cut selection (ending its loop), else
-    /// performs the helper play/pause toggle (pausing focuses the restored row). App-level
+    /// performs the play/pause toggle (pausing focuses the restored row). App-level
     /// dialogs are the UI's.
     pub fn escape(&mut self) -> Outcome {
         if self.cancel_autoscroll() {
@@ -229,9 +229,8 @@ impl EditorDoc {
                 Outcome::none()
             };
         }
-        self.try_helper_unfocused_toggle().unwrap_or_else(|| {
-            Outcome::status("Helper focus toggle unavailable: no selected segment.")
-        })
+        self.try_toggle_keeping_caret()
+            .unwrap_or_else(|| Outcome::status("No segment selected."))
     }
 
     // ---- pointer ----------------------------------------------------------------------

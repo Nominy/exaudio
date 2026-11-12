@@ -1,32 +1,19 @@
-//! Exact-word alignment between a row's current text and its lane's timing tokens (Babel
-//! Helper `l0-word-timing-alignment.ts`). Words are compared lower-cased with `ё`→`е`; a
-//! longest common subsequence gives monotonic anchors; time↔character mapping pins matched
-//! word boundaries and interpolates only between neighbouring anchors.
+//! Exact-word alignment between a row's current text and its lane's timing tokens. Words
+//! are compared lower-cased with `ё`→`е`; a longest common subsequence gives monotonic
+//! anchors; time↔character mapping pins matched word boundaries and interpolates only
+//! between neighbouring anchors.
 
 use super::text::{
     TextToken, TokenKind, fold_word, normalize_timing_word, round_half_up, tokenize,
 };
 
-/// `[start, end)` seconds of a row.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct TimeRange {
-    pub start_seconds: f64,
-    pub end_seconds: f64,
-}
+pub use crate::timeline_model::TimeRange;
 
-impl TimeRange {
-    pub fn new(start_seconds: f64, end_seconds: f64) -> Self {
-        Self {
-            start_seconds,
-            end_seconds,
-        }
-    }
-
-    fn is_valid(self) -> bool {
-        self.start_seconds.is_finite()
-            && self.end_seconds.is_finite()
-            && self.end_seconds > self.start_seconds
-    }
+/// Whether `range` is a finite, non-empty `[start, end)` span of a row.
+fn is_valid(range: TimeRange) -> bool {
+    range.start_seconds.is_finite()
+        && range.end_seconds.is_finite()
+        && range.end_seconds > range.start_seconds
 }
 
 /// A timing token with its comparable word (empty when unrecognized).
@@ -191,7 +178,7 @@ pub struct Alignment {
 impl Alignment {
     /// `None` when the text is empty, the range invalid, or no word matches.
     pub fn new(text: &str, lane: &PreparedLane, range: TimeRange) -> Option<Self> {
-        if text.is_empty() || !range.is_valid() {
+        if text.is_empty() || !is_valid(range) {
             return None;
         }
         let chars: Vec<char> = text.chars().collect();
@@ -317,7 +304,7 @@ pub fn cut_boundary_offset(
 ) -> Option<usize> {
     if text.is_empty()
         || !cut_seconds.is_finite()
-        || !range.is_valid()
+        || !is_valid(range)
         || cut_seconds < range.start_seconds
         || cut_seconds > range.end_seconds
     {

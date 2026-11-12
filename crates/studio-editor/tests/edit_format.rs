@@ -1,9 +1,9 @@
-//! Time, playback-speed and zoom conversions (ported from the iced app's formatting.rs).
+//! Time, playback-speed and zoom conversions.
 
 use studio_editor::edit::format::{
     MAX_ZOOM_FACTOR, MIN_ZOOM_FACTOR, SPEED_OPTIONS, ZOOM_SLIDER_MAX, ZOOM_SLIDER_MIN,
-    format_speed, format_time, parse_speed, parse_time, slider_from_zoom_factor, speed_labels,
-    zoom_after_wheel_pixels, zoom_factor_from_slider,
+    format_speed, format_time, parse_time, slider_from_zoom_factor, zoom_after_wheel_pixels,
+    zoom_factor_from_slider,
 };
 
 fn assert_close(actual: f32, expected: f32) {
@@ -105,14 +105,12 @@ fn format_of_parsed_time_normalizes_to_two_digit_minutes() {
 // ---- speed ------------------------------------------------------------------------------
 
 #[test]
-fn speed_options_are_the_babel_steps() {
-    assert_eq!(SPEED_OPTIONS, &[0.25, 0.5, 0.75, 1.0, 1.5, 2.0]);
-}
-
-#[test]
-fn speed_labels_drop_trailing_zeros() {
+fn speed_options_format_without_trailing_zeros() {
     assert_eq!(
-        speed_labels(),
+        SPEED_OPTIONS
+            .iter()
+            .map(|speed| format_speed(*speed))
+            .collect::<Vec<_>>(),
         vec!["0.25x", "0.5x", "0.75x", "1x", "1.5x", "2x"]
     );
 }
@@ -123,28 +121,6 @@ fn format_speed_handles_values_outside_the_options() {
     assert_eq!(format_speed(1.25), "1.25x");
     assert_eq!(format_speed(3.0), "3x");
     assert_eq!(format_speed(0.1), "0.1x");
-}
-
-#[test]
-fn parse_speed_accepts_labels_and_bare_numbers() {
-    assert_eq!(parse_speed("1.5x"), Some(1.5));
-    assert_eq!(parse_speed("0.75"), Some(0.75));
-    assert_eq!(parse_speed(" 2x "), Some(2.0));
-    assert_eq!(parse_speed("1x"), Some(1.0));
-}
-
-#[test]
-fn parse_speed_rejects_non_positive_and_non_finite_values() {
-    for value in ["", "x", "abc", "0x", "0", "-1x", "inf", "NaNx"] {
-        assert_eq!(parse_speed(value), None, "`{value}` must be rejected");
-    }
-}
-
-#[test]
-fn speed_labels_round_trip_through_parse_speed() {
-    for (speed, label) in SPEED_OPTIONS.iter().zip(speed_labels()) {
-        assert_eq!(parse_speed(&label), Some(*speed));
-    }
 }
 
 // ---- zoom slider ------------------------------------------------------------------------

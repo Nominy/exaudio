@@ -68,7 +68,7 @@ impl EditorDoc {
             })?;
         let segment_id = segment_id
             .map(str::to_owned)
-            .or_else(|| self.helper.focused_segment_id.clone())
+            .or_else(|| self.text_focus.focused_segment_id.clone())
             .or_else(|| self.session.selected_segment_id.clone());
         let draft = segment_id.as_deref().and_then(|id| self.drafts.get(id));
         let selection = draft.map(|draft| {

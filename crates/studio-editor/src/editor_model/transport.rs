@@ -1,30 +1,29 @@
 use super::{CutOverlay, EditorSession, MIN_LOOP_DURATION_SECONDS};
+use crate::edit::format::SPEED_OPTIONS;
 use crate::timeline_model::{MAX_VERTICAL_ZOOM, MIN_VERTICAL_ZOOM, TimeRange};
 use studio_core::Project;
 
-/// Playback speeds offered by the speed control, ascending.
-pub const PLAYBACK_SPEED_STEPS: [f32; 6] = [0.25, 0.5, 0.75, 1.0, 1.5, 2.0];
 const OVERLAY_DURATION_SECONDS: f64 = 1.0;
 const TIMELINE_WHEEL_PAN_VIEWPORT_PIXELS: f64 = 1_000.0;
 
 impl EditorSession {
-    /// Moves to the next faster (`direction >= 0`) or slower step of [`PLAYBACK_SPEED_STEPS`],
+    /// Moves to the next faster (`direction >= 0`) or slower step of [`SPEED_OPTIONS`],
     /// saturating at the ends.
     pub fn step_speed(&mut self, direction: i32) {
         let current = self.speed;
         self.speed = if direction >= 0 {
-            PLAYBACK_SPEED_STEPS
+            SPEED_OPTIONS
                 .iter()
                 .copied()
                 .find(|speed| *speed > current + 0.001)
-                .unwrap_or(PLAYBACK_SPEED_STEPS[PLAYBACK_SPEED_STEPS.len() - 1])
+                .unwrap_or(SPEED_OPTIONS[SPEED_OPTIONS.len() - 1])
         } else {
-            PLAYBACK_SPEED_STEPS
+            SPEED_OPTIONS
                 .iter()
                 .rev()
                 .copied()
                 .find(|speed| *speed < current - 0.001)
-                .unwrap_or(PLAYBACK_SPEED_STEPS[0])
+                .unwrap_or(SPEED_OPTIONS[0])
         };
     }
 }
@@ -181,11 +180,6 @@ impl EditorSession {
         };
     }
 
-    pub fn pan_viewport_by_time_delta(&mut self, project: &Project, delta_seconds: f64) {
-        let bounds = self.timeline_bounds(project);
-        self.pan_viewport_by_time_delta_with_bounds(bounds, delta_seconds);
-    }
-
     pub fn pan_viewport_by_time_delta_with_bounds(
         &mut self,
         bounds: TimeRange,
@@ -210,18 +204,6 @@ impl EditorSession {
             start_seconds,
             end_seconds: start_seconds + duration,
         };
-    }
-
-    pub fn seek_overview_fraction(&mut self, project: &Project, fraction: f32) {
-        let bounds = self.timeline_bounds(project);
-        let fraction = if fraction.is_finite() {
-            fraction.clamp(0.0, 1.0)
-        } else {
-            0.0
-        };
-        self.playhead_seconds = bounds.start_seconds + bounds.duration_seconds() * fraction as f64;
-        self.select_segment_at_playhead(project);
-        self.recenter_viewport(bounds);
     }
 
     pub fn set_overview_viewport_start_fraction(&mut self, project: &Project, fraction: f32) {

@@ -3,7 +3,7 @@
 //! lifecycle in step with the extension's.
 use crate::ShellHandle;
 use anyhow::{Result, bail};
-use exaudio_extension::document::{DiagnosticProvider, DocumentProviders};
+use exaudio_extension::document::DocumentProviders;
 use exaudio_extension::{ExtensionManifest, Permission};
 use gpui_kit::*;
 use std::sync::Arc;
@@ -13,7 +13,6 @@ use std::{
 };
 
 pub type ViewFactory = Rc<dyn Fn(ShellHandle, &mut Window, &mut App) -> AnyView>;
-pub type ReadyHandler = Rc<dyn Fn(ShellHandle, &mut Window, &mut App)>;
 pub type SaveHandler = Rc<
     dyn Fn(
         Entity<crate::editor::model::EditorModel>,
@@ -110,7 +109,6 @@ pub struct ContributionRegistry {
     contexts: BTreeMap<String, Vec<String>>,
     active_mode: Option<String>,
     teardown: BTreeMap<String, Vec<TeardownHandler>>,
-    ready: Vec<Owned<ReadyHandler>>,
     save_handlers: BTreeMap<String, (String, SaveHandler)>,
     leave_handlers: BTreeMap<String, (String, LeaveHandler)>,
     pub formats: exaudio_extension::format::FormatRegistry,
@@ -213,20 +211,6 @@ impl ContributionRegistry {
             .or_default()
             .push(callback);
     }
-    pub fn on_shell_ready(&mut self, owner: &str, callback: ReadyHandler) {
-        self.ready.push(Owned {
-            owner: owner.into(),
-            contribution: callback,
-        });
-    }
-    pub fn take_ready_callbacks(&mut self) -> Vec<ReadyHandler> {
-        let ready = std::mem::take(&mut self.ready);
-        ready
-            .into_iter()
-            .filter(|entry| self.is_enabled(&entry.owner))
-            .map(|entry| entry.contribution)
-            .collect()
-    }
     pub fn register_save_handler(&mut self, owner: &str, provider: &str, handler: SaveHandler) {
         self.save_handlers
             .insert(provider.into(), (owner.into(), handler));
@@ -246,23 +230,6 @@ impl ContributionRegistry {
             .get(provider)
             .filter(|(owner, _)| self.is_enabled(owner))
             .map(|(_, handler)| handler.clone())
-    }
-    pub fn register_diagnostics(
-        &mut self,
-        owner: &str,
-        mode: Option<String>,
-        provider: Arc<dyn DiagnosticProvider>,
-    ) -> Result<()> {
-        let id = format!("{owner}.diagnostics");
-        self.register_document_providers(
-            owner,
-            &id,
-            mode.into_iter().collect(),
-            DocumentProviders {
-                diagnostics: vec![provider],
-                ..Default::default()
-            },
-        )
     }
     pub fn register_document_providers(
         &mut self,
@@ -549,7 +516,6 @@ impl ContributionRegistry {
         self.live_factory_providers.remove(owner);
         self.save_handlers.retain(|_, (id, _)| id != owner);
         self.leave_handlers.retain(|_, (id, _)| id != owner);
-        self.ready.retain(|entry| entry.owner != owner);
         self.formats.unregister_extension(owner);
         self.lifetimes.remove(owner);
         self.generation += 1;
