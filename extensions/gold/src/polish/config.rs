@@ -2,10 +2,10 @@
 
 use anyhow::{Result, bail};
 use serde_json::{Value, json};
-pub const DRAFT_OPENROUTER_API_KEY_ENV: &str = "STUDIO_DRAFT_OPENROUTER_API_KEY";
+pub const DRAFT_OPENROUTER_API_KEY_ENV: &str = "EXAUDIO_DRAFT_OPENROUTER_API_KEY";
 pub const OPENROUTER_API_KEY_ENV: &str = "OPENROUTER_API_KEY";
 /// Drafting inputs from the Gold Drafting tab. Empty `openrouter_api_key` falls back to
-/// `STUDIO_DRAFT_OPENROUTER_API_KEY`, then `OPENROUTER_API_KEY`.
+/// `EXAUDIO_DRAFT_OPENROUTER_API_KEY`, then `OPENROUTER_API_KEY`.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DraftingConfig {
     pub openrouter_api_key: String,

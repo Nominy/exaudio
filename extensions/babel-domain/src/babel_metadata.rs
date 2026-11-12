@@ -1,4 +1,4 @@
-use studio_core::Project;
+use exaudio_core::Project;
 
 use serde_json::Value;
 

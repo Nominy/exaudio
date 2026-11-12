@@ -190,7 +190,7 @@ fn analytics_payload_snapshots_generated_feedback_and_comments() {
             { "scope": "card", "cardId": "card-1", "comment": "card note" },
         ])
     );
-    assert_eq!(payload["metadata"]["client"], "transcription-studio-native");
+    assert_eq!(payload["metadata"]["client"], "exaudio-native");
     assert_eq!(payload["metadata"]["source"], "native-capability-panel");
     assert_eq!(payload["metadata"]["sessionId"], "session-1");
     assert_eq!(payload["metadata"]["reviewActionId"], "review-action-1");

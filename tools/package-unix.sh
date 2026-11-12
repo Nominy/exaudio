@@ -8,10 +8,10 @@
 # (Exaudio-linux-<arch>.AppImage). UPDATE_CHANNEL=alpha packs channel `alpha` for the VPS
 # alpha feed (macOS: the portable zip, as macos-alpha.yml publishes it).
 #
-# Env: UPDATE_CHANNEL (stable | alpha, required), VERSION (default: crates/studio-app version;
-# baked into the binary as STUDIO_BUILD_VERSION), RUNTIME (osx-arm64 | osx-x64 | linux-x64 |
+# Env: UPDATE_CHANNEL (stable | alpha, required), VERSION (default: crates/exaudio-app version;
+# baked into the binary as EXAUDIO_BUILD_VERSION), RUNTIME (osx-arm64 | osx-x64 | linux-x64 |
 # linux-arm64, default: host), RELEASE_NOTES (markdown file embedded by vpk), STAGE_DIR,
-# OUTPUT_DIR, PUBLISH_DIR, STUDIO_ALPHA_FEED_URL (alpha feed the build updates from, default:
+# OUTPUT_DIR, PUBLISH_DIR, EXAUDIO_ALPHA_FEED_URL (alpha feed the build updates from, default:
 # the platform feed), MACOSX_DEPLOYMENT_TARGET (default 14.0), optional APPLE_* signing
 # inputs below. Outputs: the full local feed in OUTPUT_DIR (default target/velopack/Releases)
 # and, for publication, the current release's assets + feed metadata + publish-manifest.json
@@ -63,7 +63,7 @@ case "$update_channel" in
 esac
 
 if [[ -z "$version" ]]; then
-  version="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' "$repo_root/crates/studio-app/Cargo.toml")"
+  version="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' "$repo_root/crates/exaudio-app/Cargo.toml")"
 fi
 if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
   echo "VERSION must be SemVer (major.minor.patch[-prerelease]): '$version'" >&2
@@ -127,22 +127,22 @@ for left_index, left in enumerate(paths):
 PY
 
 # Baked into the binary: the version it reports and the update channel it follows.
-export STUDIO_BUILD_VERSION="$version"
-export STUDIO_UPDATE_CHANNEL="$update_channel"
+export EXAUDIO_BUILD_VERSION="$version"
+export EXAUDIO_UPDATE_CHANNEL="$update_channel"
 
 echo "Packaging Exaudio $version for $runtime ($update_channel, Velopack channel $channel)."
 if [[ "$host_os" == "osx" ]]; then
   export MACOSX_DEPLOYMENT_TARGET="$deployment_target"
   echo "MACOSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET"
 fi
-if [[ "$update_channel" == "alpha" && -n "${STUDIO_ALPHA_FEED_URL:-}" ]]; then
-  echo "STUDIO_ALPHA_FEED_URL=$STUDIO_ALPHA_FEED_URL"
+if [[ "$update_channel" == "alpha" && -n "${EXAUDIO_ALPHA_FEED_URL:-}" ]]; then
+  echo "EXAUDIO_ALPHA_FEED_URL=$EXAUDIO_ALPHA_FEED_URL"
 fi
 
 # Build the app, relay and isolated compiler together so shared dependency features stay unified.
-(cd "$repo_root" && cargo build -p studio-app -p studio-relay -p exaudio-wasm --release --locked)
+(cd "$repo_root" && cargo build -p exaudio-app -p exaudio-babel-relay -p exaudio-wasm --release --locked)
 
-for binary in studio-app studio-relay exaudio-wasm-worker; do
+for binary in exaudio-app exaudio-relay exaudio-wasm-worker; do
   if [[ ! -f "$source_dir/$binary" ]]; then
     echo "Missing release executable: $source_dir/$binary" >&2
     exit 1
@@ -151,14 +151,14 @@ done
 
 rm -rf "$stage_dir"
 mkdir -p "$stage_dir" "$output_dir"
-cp "$source_dir/studio-app" "$stage_dir/$main_exe"
-cp "$source_dir/studio-relay" "$stage_dir/studio-relay"
+cp "$source_dir/exaudio-app" "$stage_dir/$main_exe"
+cp "$source_dir/exaudio-relay" "$stage_dir/exaudio-relay"
 # Isolated compiler child for untrusted extension .wasm; the app resolves it as its sibling.
 cp "$source_dir/exaudio-wasm-worker" "$stage_dir/exaudio-wasm-worker"
-chmod +x "$stage_dir/$main_exe" "$stage_dir/studio-relay" "$stage_dir/exaudio-wasm-worker"
+chmod +x "$stage_dir/$main_exe" "$stage_dir/exaudio-relay" "$stage_dir/exaudio-wasm-worker"
 mkdir -p "$stage_dir/assets/demo"
-cp "$repo_root/crates/studio-editor/assets/demo/speaker_1.wav" "$stage_dir/assets/demo/"
-cp "$repo_root/crates/studio-editor/assets/demo/speaker_2.wav" "$stage_dir/assets/demo/"
+cp "$repo_root/crates/exaudio-editor/assets/demo/speaker_1.wav" "$stage_dir/assets/demo/"
+cp "$repo_root/crates/exaudio-editor/assets/demo/speaker_2.wav" "$stage_dir/assets/demo/"
 
 for file in README.md LICENSE; do
   if [[ -f "$repo_root/$file" ]]; then

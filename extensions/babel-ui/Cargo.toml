@@ -12,13 +12,13 @@ bytes.workspace = true
 gpui-kit.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-studio-audio.workspace = true
-studio-babel.workspace = true
-studio-core.workspace = true
-studio-editor.workspace = true
-studio-inference.workspace = true
-studio-services.workspace = true
-studio-waveform.workspace = true
+exaudio-audio.workspace = true
+exaudio-babel-format.workspace = true
+exaudio-core.workspace = true
+exaudio-editor.workspace = true
+exaudio-inference.workspace = true
+exaudio-services.workspace = true
+exaudio-waveform.workspace = true
 exaudio-shell = { path = "../../crates/exaudio-shell" }
 exaudio-extension = { path = "../../crates/exaudio-extension" }
 exaudio-babel-domain = { path = "../babel-domain" }

@@ -6,8 +6,8 @@ use std::task::Poll;
 
 use anyhow::Context as _;
 use bytes::Bytes;
+use exaudio_inference::LaneAudio;
 use exaudio_shell::editor::model::LaneSource;
-use studio_inference::LaneAudio;
 
 /// The headline of a failed read: the track's name only; the path and OS error follow in
 /// the chain.

@@ -7,6 +7,7 @@ use std::{collections::BTreeMap, path::PathBuf, rc::Rc};
 use exaudio_babel_domain::route::StartupRoute;
 use exaudio_babel_services::account::{AccountStatus, AccountStore};
 use exaudio_babel_services::babel::{BabelClient, LoadedTask};
+use exaudio_editor::workflow::StudioWorkflow;
 use exaudio_shell::editor::model::EditorModel;
 use exaudio_shell::screens::ui;
 use exaudio_shell::{
@@ -16,7 +17,6 @@ use exaudio_shell::{
 use gpui_kit::component::notification::Notification;
 use gpui_kit::component::{ActiveTheme, WindowExt as _};
 use gpui_kit::*;
-use studio_editor::workflow::StudioWorkflow;
 
 use crate::screens::error_task::{ErrorTaskEvent, ErrorTaskOpen, ErrorTaskScreen};
 use crate::screens::relay::RelayEvent;

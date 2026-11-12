@@ -20,14 +20,14 @@ use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use gpui_kit::component::{ActiveTheme, Theme};
-use gpui_kit::*;
-use studio_editor::edit::EditorDoc;
-use studio_editor::edit::draft::byte_offset;
-use studio_editor::edit::time::TimeField;
-use studio_editor::transcript_model::{
+use exaudio_editor::edit::EditorDoc;
+use exaudio_editor::edit::draft::byte_offset;
+use exaudio_editor::edit::time::TimeField;
+use exaudio_editor::transcript_model::{
     TranscriptRowKind, TranscriptRowView, TranscriptRowVisibleCells,
 };
+use gpui_kit::component::{ActiveTheme, Theme};
+use gpui_kit::*;
 
 use super::TranscriptView;
 use super::layout::{

@@ -89,7 +89,7 @@ impl LocalHome {
                         let recent = recent
                             .into_iter()
                             .map(|path| {
-                                let name = studio_project::read_project_name(&path)
+                                let name = exaudio_project::read_project_name(&path)
                                     .unwrap_or_else(|_| folder_name(&path));
                                 (path, name)
                             })

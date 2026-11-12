@@ -5,6 +5,7 @@ pub mod project_lint_tag_config;
 
 use std::sync::Arc;
 
+use exaudio_core::Project;
 use exaudio_extension::document::{
     Diagnostic, DiagnosticCollection, DiagnosticProvider, DocumentProviders, Severity,
 };
@@ -12,7 +13,6 @@ use linter::{
     LintKind, LintSeverity, ProjectLintAnalysis, ServerLintSnapshot,
     combine_server_and_local_issues, server_lint_issues_for_segment,
 };
-use studio_core::Project;
 
 pub const ID: &str = "exaudio.babel-lint";
 pub const MANIFEST_JSON: &str = include_str!("../manifest.json");

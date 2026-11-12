@@ -32,7 +32,7 @@ pub struct AuthCli {
 pub fn run_from_args(args: impl IntoIterator<Item = impl AsRef<str>>) -> Option<ExitCode> {
     let result = match parse_args(args) {
         Ok(None) => return None,
-        Ok(Some(cli)) => studio_services::runtime::block_on(run_command(cli)),
+        Ok(Some(cli)) => exaudio_services::runtime::block_on(run_command(cli)),
         Err(error) => Err(error),
     };
     Some(match result {

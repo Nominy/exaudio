@@ -1,8 +1,8 @@
 //! UI-independent, document-scoped extension contracts. Ranges are UTF-8 byte offsets.
 use std::sync::Arc;
 
+use exaudio_core::{Project, Segment};
 use serde::{Deserialize, Serialize};
-use studio_core::{Project, Segment};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentOrigin {
@@ -195,7 +195,7 @@ pub struct DocumentProviders {
     pub commands: Vec<Arc<dyn CommandProvider>>,
     pub segment_kinds: Vec<Arc<dyn SegmentKindProvider>>,
     /// Domain mutation side effects; absence selects native, metadata-opaque edits.
-    pub mutation_policy: Option<Arc<dyn studio_core::SegmentMutationPolicy>>,
+    pub mutation_policy: Option<Arc<dyn exaudio_core::SegmentMutationPolicy>>,
 }
 
 impl PartialEq for DocumentProviders {

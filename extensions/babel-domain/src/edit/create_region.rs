@@ -3,12 +3,12 @@
 
 use std::collections::BTreeMap;
 
+use exaudio_core::Project;
 use serde_json::{Value, json};
-use studio_core::Project;
 
 use crate::i18n::{is_russian, localized};
-use studio_editor::edit::format::{format_time, parse_time};
-use studio_editor::edit::time::TimeEditError;
+use exaudio_editor::edit::format::{format_time, parse_time};
+use exaudio_editor::edit::time::TimeEditError;
 
 const BABEL_TRANSCRIPTION_TYPE: &str = "transcription";
 

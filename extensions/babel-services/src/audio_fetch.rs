@@ -13,7 +13,7 @@ use anyhow::{Context, Result, anyhow, bail};
 use serde_json::Value;
 
 use crate::babel::{BabelConfig, presigned_chunk_urls_payload};
-use studio_services::http;
+use exaudio_services::http;
 
 /// A Babel payload whose audio sources are local files.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -293,7 +293,7 @@ async fn download_audio_file(
             http::body_snippet(&String::from_utf8_lossy(&bytes))
         );
     }
-    studio_waveform::decode_pcm16_wav(&bytes).map_err(|error| {
+    exaudio_waveform::decode_pcm16_wav(&bytes).map_err(|error| {
         anyhow!("downloaded Babel audio is not a supported PCM16 WAV: {error:?}")
     })?;
     if let Some(parent) = local_path.parent() {
@@ -305,7 +305,7 @@ async fn download_audio_file(
 }
 
 fn local_audio_file_is_usable(path: &Path) -> bool {
-    fs::read(path).is_ok_and(|bytes| studio_waveform::decode_pcm16_wav(&bytes).is_ok())
+    fs::read(path).is_ok_and(|bytes| exaudio_waveform::decode_pcm16_wav(&bytes).is_ok())
 }
 
 fn is_remote_audio_source(source: &str) -> bool {

@@ -31,7 +31,7 @@ use super::clef::{
 use super::diff_align::{AudioInterval, TimedWord};
 use super::{ErrorTaskError, ErrorTaskIdentity};
 use exaudio_gold::prefs::ExecutionLocation;
-use studio_inference::{AlignRequest, InferenceBackend, InferenceErrorKind, ProgressSink};
+use exaudio_inference::{AlignRequest, InferenceBackend, InferenceErrorKind, ProgressSink};
 
 /// Provider timeout of one ASR or decisions request (body read included).
 pub const PROVIDER_TIMEOUT: Duration = Duration::from_millis(240_000);
@@ -431,7 +431,7 @@ impl DecisionStore {
 
     /// `<app support>/error-task-decisions`.
     pub fn default_location() -> Self {
-        Self::new(studio_services::paths::app_support_dir().join("error-task-decisions"))
+        Self::new(exaudio_services::paths::app_support_dir().join("error-task-decisions"))
     }
 
     fn path(&self, key: &str) -> PathBuf {

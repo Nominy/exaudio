@@ -16,7 +16,7 @@ use crate::screens::ShellModels;
 use crate::text::{localized, localized_fmt};
 
 /// Env override of the providers root; a portable move is refused while it is set.
-const PROVIDER_DIR_ENV: &str = "STUDIO_PROVIDER_DIR";
+const PROVIDER_DIR_ENV: &str = "EXAUDIO_PROVIDER_DIR";
 
 pub struct SettingsView {
     shell: ShellHandle,

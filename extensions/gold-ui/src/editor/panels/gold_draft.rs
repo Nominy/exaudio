@@ -11,6 +11,10 @@
 use std::rc::Rc;
 use std::sync::Arc;
 
+use exaudio_core::Project;
+use exaudio_editor::edit::{
+    DraftedRow, RowSnapshot, TranscriptionTarget, remove_word_final_ellipsis,
+};
 use exaudio_extension::document::{DocumentEdit, DocumentTransaction};
 use exaudio_gold::number_markup::strip_number_markup;
 use exaudio_gold::polish::{
@@ -20,6 +24,11 @@ use exaudio_gold::polish::{
 };
 use exaudio_gold::prefs::ExecutionLocation;
 use exaudio_gold::protocol::lane_name;
+use exaudio_inference::{
+    DraftResponse, InferenceBackend, InferenceError, InferenceErrorKind, InferenceProgress,
+    InferenceResult, LaneAudio, PreservedRow, ProgressSink,
+};
+use exaudio_waveform::DecodedAudio;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::notification::Notification;
 use gpui_kit::component::progress::Progress;
@@ -29,15 +38,6 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_core::Project;
-use studio_editor::edit::{
-    DraftedRow, RowSnapshot, TranscriptionTarget, remove_word_final_ellipsis,
-};
-use studio_inference::{
-    DraftResponse, InferenceBackend, InferenceError, InferenceErrorKind, InferenceProgress,
-    InferenceResult, LaneAudio, PreservedRow, ProgressSink,
-};
-use studio_waveform::DecodedAudio;
 
 use super::gold_progress::{
     DraftProgress, DraftStage as Stage, DraftTextOverall, StageWeights, TimingOverall, label,
@@ -1971,7 +1971,7 @@ where
     let (_cancel, cancelled) = async_channel::bounded::<()>(1);
     let work = work(sink);
     let result =
-        studio_services::runtime::spawn(async move { until_cancelled(work, cancelled).await })
+        exaudio_services::runtime::spawn(async move { until_cancelled(work, cancelled).await })
             .await;
     // A backend may keep clones of the sink; stop forwarding instead of waiting for it.
     drop(pump);
@@ -2194,7 +2194,7 @@ async fn run_polish(
         })
     };
     let (_cancel, cancelled) = async_channel::bounded::<()>(1);
-    let result = studio_services::runtime::spawn(async move {
+    let result = exaudio_services::runtime::spawn(async move {
         until_cancelled(
             review.generate_drafts(
                 payload,

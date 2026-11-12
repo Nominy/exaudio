@@ -8,6 +8,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use exaudio_audio::{AudioEngine, PlaybackState, decode_audio_file};
 use exaudio_babel_services::babel::LoadedErrorTask;
 use exaudio_babel_services::babel::error_task::{
     AlignBackend, AlignedDiff, AssistantPhase, AssistantStatus, BoundaryNote, CATEGORY_GROUPS,
@@ -18,6 +19,7 @@ use exaudio_babel_services::babel::error_task::{
     group_name, grouped_label_categories, initial_fill_decision, label_rows, level_one_categories,
     picks_by_key, readiness, status_with_boundary_note, submission,
 };
+use exaudio_editor::edit::format::format_time;
 use gpui_kit::component::button::{Button, ButtonGroup, ButtonVariants};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::scroll::ScrollableElement as _;
@@ -26,8 +28,6 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_audio::{AudioEngine, PlaybackState, decode_audio_file};
-use studio_editor::edit::format::format_time;
 
 use exaudio_babel_services::babel::BabelClient;
 use exaudio_gold::prefs::AiPreferences;

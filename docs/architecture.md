@@ -12,7 +12,7 @@ WASM extensions reach through the WIT API.
 
 ```mermaid
 flowchart TD
-    App["studio-app: bundled composition"] --> Shell["exaudio-shell: editor UI, contribution and provider registries"]
+    App["exaudio-app: bundled composition"] --> Shell["exaudio-shell: editor UI, contribution and provider registries"]
     App --> Extensions["First-party Rust extensions"]
     Extensions -->|modes, providers, panels, checks, formats| Shell
     Shell --> Start["Start: one tile per mode → sign-in step (if provider) → launch window → editor"]
@@ -31,38 +31,38 @@ The core owns only what every transcript editor needs.
 
 | Crate | Owns |
 |---|---|
-| `studio-core` | `Project`, speakers, audio lanes, segments, opaque extension metadata, transactions and undo history. No platform rules. |
-| `studio-audio` | Common audio decoding, multi-lane playback, transport and processed-audio variants supplied by extensions. |
-| `studio-waveform` | Waveform peaks and rendering. |
-| `studio-project` | Versioned native project folders, copied audio, atomic save and recovery snapshots. |
-| `studio-editor` | Segment editing, boundaries, cut/loop selection, find, playback-follow, caret navigation, keymaps and view state. Consumes diagnostics and presentation providers; contains no checking rules. |
+| `exaudio-core` | `Project`, speakers, audio lanes, segments, opaque extension metadata, transactions and undo history. No platform rules. |
+| `exaudio-audio` | Common audio decoding, multi-lane playback, transport and processed-audio variants supplied by extensions. |
+| `exaudio-waveform` | Waveform peaks and rendering. |
+| `exaudio-project` | Versioned native project folders, copied audio, atomic save and recovery snapshots. |
+| `exaudio-editor` | Segment editing, boundaries, cut/loop selection, find, playback-follow, caret navigation, keymaps and view state. Consumes diagnostics and presentation providers; contains no checking rules. |
 | `exaudio-extension` | Versioned manifests, dependency resolution and UI-independent document/format/provider contracts. |
 | `exaudio-wasm` | Sandboxed component instances and isolated compiler worker. |
 | `exaudio-marketplace` | Reviewed GitHub catalog, package validation, installation, updates and rollback. |
 | `exaudio-shell` | GPUI surfaces, owner-scoped contribution lifecycle, native/WASM bridges and global settings. |
-| `studio-app` | Thin executable that selects and registers the bundled extensions. |
+| `exaudio-app` | Thin executable that selects and registers the bundled extensions. |
 
 The core has **no** linter, no AI, no import/export besides its native format, no platform
 logic, and no notion of "submit". "Read-only", "required checks" and "where Save goes" are
 policies a mode supplies for the documents it opens.
 
 **Directory rule.** `crates/` holds the editor and its platform; `extensions/` holds everything
-optional. No crate under `crates/` except `studio-app` (the composition root) depends on a
+optional. No crate under `crates/` except `exaudio-app` (the composition root) depends on a
 crate under `extensions/`, and the extensions of the editor-only build (`palette`, `local`,
 `formats`, `lint-basic`) depend on no other extension.
-`crates/studio-app/tests/crate_boundaries.rs` enforces both, and CI lints the editor-only
+`crates/exaudio-app/tests/crate_boundaries.rs` enforces both, and CI lints the editor-only
 build (`cargo editor`, see [development](development.md)).
 
-Implementation crates retain their `studio-*` names wherever they live. `studio-services`
+Every package is named `exaudio-*`. `exaudio-services`
 contains only native HTTP/runtime/path/storage/updater services and native recovery delegated
-to `studio-project` with an explicit audio source base. Optional crates:
+to `exaudio-project` with an explicit audio source base. Optional crates:
 
 | Directory | Package | Owns |
 |---|---|---|
-| `extensions/inference` | `studio-inference` | Audio, transcription and alignment provider contracts. No runtime. |
+| `extensions/inference` | `exaudio-inference` | Audio, transcription and alignment provider contracts. No runtime. |
 | `extensions/gold`, `gold-ui` | `exaudio-gold`, `exaudio-gold-ui` | Local AI runtime, remote coordinator, AI preferences, drafting/polish algorithms and their panels. |
-| `extensions/babel-format` | `studio-babel` | Babel task JSON ⇄ `Project`. |
-| `extensions/babel-relay` | `studio-relay` | Sub-account relay executable shipped beside the app. |
+| `extensions/babel-format` | `exaudio-babel-format` | Babel task JSON ⇄ `Project`. |
+| `extensions/babel-relay` | `exaudio-babel-relay` (binary `exaudio-relay`) | Sub-account relay executable shipped beside the app. |
 | `extensions/babel-domain`, `babel-lint`, `babel-tags` | `exaudio-babel-*` | Babel document rules, presentation, checks and tag conventions. |
 | `extensions/babel-services`, `babel-ui` | `exaudio-babel-*` | Authentication, task/review clients, relay hosting, Babel JSON recovery and the Babel screens. |
 
@@ -225,7 +225,7 @@ Credentials never go into the registry record. Every instance owns a directory
 <app support>/providers/<provider type>/<instance id>/
 ```
 
-(`providers::instance_dir`; the root is overridable with `STUDIO_PROVIDER_DIR`), one file per
+(`providers::instance_dir`; the root is overridable with `EXAUDIO_PROVIDER_DIR`), one file per
 concern; removing the instance removes the directory. There is no global "signed-in user":
 a document carries its `DocumentOrigin { mode_id, instance, read_only, native_path }`, and
 save, recovery, submit and the set of active document-scoped extensions are resolved from

@@ -1,7 +1,7 @@
 //! Writes known synthetic subtitle exports and reads them through the same public API.
+use exaudio_core::{Project, Segment, Speaker};
 use exaudio_extension::format::{ExportOptions, FormatProvider, ImportContent};
 use exaudio_formats::SubtitleFormat;
-use studio_core::{Project, Segment, Speaker};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let project = Project {

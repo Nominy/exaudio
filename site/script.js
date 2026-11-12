@@ -143,7 +143,7 @@
 
   const commands = {
     portable: offer.portable.cmd,
-    source: "git clone https://github.com/Nominy/exaudio.git; cd exaudio; cargo run -p studio-app",
+    source: "git clone https://github.com/Nominy/exaudio.git; cd exaudio; cargo run -p exaudio-app",
   };
   const cmdText = document.getElementById("cmd-text");
   const tabs = Array.from(document.querySelectorAll('[role="tab"]'));

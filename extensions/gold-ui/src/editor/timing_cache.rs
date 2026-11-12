@@ -7,12 +7,12 @@
 
 use std::path::PathBuf;
 
+use exaudio_audio::sha256_hex;
+use exaudio_core::timing::{LaneTimings, TimingToken as WordToken};
 use exaudio_gold::protocol::lane_name;
+use exaudio_inference::{LaneAudio, TimingResponse};
+use exaudio_services::paths::app_support_dir;
 use serde::{Deserialize, Serialize};
-use studio_audio::sha256_hex;
-use studio_core::timing::{LaneTimings, TimingToken as WordToken};
-use studio_inference::{LaneAudio, TimingResponse};
-use studio_services::paths::app_support_dir;
 
 /// Folder under the app support dir holding one file per task.
 const CACHE_DIR_NAME: &str = "word-timings";
@@ -125,8 +125,8 @@ impl TimingCache {
 #[cfg(test)]
 mod tests {
     use bytes::Bytes;
+    use exaudio_inference::{TimingToken, TimingTrack};
     use serde_json::json;
-    use studio_inference::{TimingToken, TimingTrack};
 
     use super::*;
 
@@ -171,7 +171,7 @@ mod tests {
 
     #[test]
     fn cache_round_trips_and_only_matches_the_same_audio() {
-        let dir = std::env::temp_dir().join(format!("studio-timing-cache-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("exaudio-timing-cache-{}", std::process::id()));
         let cache = TimingCache::new(dir.clone());
         let lanes = [lane("a", "spk-a", b"a"), lane("b", "spk-b", b"b")];
         let saved = SavedTiming {

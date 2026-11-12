@@ -30,12 +30,12 @@ use tokio::sync::Mutex;
 use url::Url;
 
 use crate::prefs::AiSettings;
-use studio_inference::{
+use exaudio_inference::{
     AlignRequest, AlignResponse, BackendStatus, DraftResponse, DraftRow, EnhancedLane,
     InferenceBackend, InferenceError, InferenceErrorKind, InferenceProgress, InferenceResult,
     LaneAudio, OperationAvailability, PreservedRow, ProgressSink, TimingResponse,
 };
-use studio_services::paths::app_support_dir;
+use exaudio_services::paths::app_support_dir;
 
 /// Model release of the bundled Gold build (`model-release.json` `id`), sent as `X-Babel-E2E-Release`.
 pub const GOLD_E2E_RELEASE: &str = "local-lfm3-llm-text-2026-10-31-r1";

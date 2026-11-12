@@ -1,13 +1,13 @@
 //! Status bar: last status message, save detail, lane audio loading, selection and the
 //! playhead position.
 
+use exaudio_editor::edit::format::{SPEED_OPTIONS, format_speed, format_time};
+use exaudio_editor::editor_model::SaveStatus;
 use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{ActiveTheme, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::format::{SPEED_OPTIONS, format_speed, format_time};
-use studio_editor::editor_model::SaveStatus;
 
 use crate::editor::model::{EditorEvent, EditorModel};
 use crate::editor::panels::ui::{stable_text, tabular_figures};

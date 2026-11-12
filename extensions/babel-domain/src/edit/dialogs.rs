@@ -1,4 +1,4 @@
-use studio_editor::edit::{EditError, EditResult, EditorDoc, Effect, Outcome};
+use exaudio_editor::edit::{EditError, EditResult, EditorDoc, Effect, Outcome};
 
 use super::annotation::EditAnnotationDialog;
 use super::create_region::{CreateRegionDialog, CreateRegionMode, CreateRegionTimeField};
@@ -132,7 +132,7 @@ impl BabelAnnotationDialogs {
                 .start_error
                 .clone()
                 .or_else(|| dialog.end_error.clone())
-                .unwrap_or(studio_editor::edit::time::TimeEditError::InvalidFormat),
+                .unwrap_or(exaudio_editor::edit::time::TimeEditError::InvalidFormat),
         ))
     }
 

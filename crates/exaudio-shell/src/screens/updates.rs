@@ -4,25 +4,25 @@
 
 use std::time::Instant;
 
+use exaudio_services::updater::{self, UpdateChannel, UpdateState};
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::{ActiveTheme, Disableable, Sizable, WindowExt as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_services::updater::{self, UpdateChannel, UpdateState};
 
 use crate::screens::{ShellModels, ui};
 use crate::services::{AppServices, spawn_service};
 
-/// This binary's version (`STUDIO_BUILD_VERSION` from packaging, else the crate version).
-pub const APP_VERSION: &str = match option_env!("STUDIO_BUILD_VERSION") {
+/// This binary's version (`EXAUDIO_BUILD_VERSION` from packaging, else the crate version).
+pub const APP_VERSION: &str = match option_env!("EXAUDIO_BUILD_VERSION") {
     Some(version) => version,
     None => env!("CARGO_PKG_VERSION"),
 };
 
 /// UI storage key of the chosen update channel (`"stable"` / `"alpha"`).
-const CHANNEL_STORAGE_KEY: &str = "studio.updates.channel.v1";
+const CHANNEL_STORAGE_KEY: &str = "exaudio.updates.channel.v1";
 /// UI storage key of the version the user chose to skip in the update notice.
-const SKIPPED_VERSION_STORAGE_KEY: &str = "studio.updates.skipped-version.v1";
+const SKIPPED_VERSION_STORAGE_KEY: &str = "exaudio.updates.skipped-version.v1";
 
 pub struct UpdaterModel {
     state: UpdateState,

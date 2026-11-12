@@ -5,12 +5,12 @@ use std::collections::HashMap;
 
 use base64::Engine as _;
 use bytes::Bytes;
-use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use studio_inference::{
+use exaudio_inference::{
     BackendStatus, DraftResponse, InferenceError, InferenceErrorKind, InferenceProgress, LaneAudio,
     OperationAvailability, PreservedRow, TimingResponse, TimingToken,
 };
+use serde::{Deserialize, Serialize};
+use serde_json::{Value, json};
 
 use crate::rpc::PageError;
 
@@ -488,7 +488,7 @@ mod tests {
     fn audio(field: &str) -> AudioRef {
         AudioRef {
             field_name: field.to_string(),
-            url: format!("https://studio-audio.example/{field}.wav"),
+            url: format!("https://exaudio-audio.example/{field}.wav"),
         }
     }
 
@@ -587,8 +587,8 @@ mod tests {
         assert_eq!(
             args[1],
             json!({
-                "lane0": { "url": "https://studio-audio.example/lane0.wav" },
-                "lane1": { "url": "https://studio-audio.example/lane1.wav" }
+                "lane0": { "url": "https://exaudio-audio.example/lane0.wav" },
+                "lane1": { "url": "https://exaudio-audio.example/lane1.wav" }
             })
         );
     }

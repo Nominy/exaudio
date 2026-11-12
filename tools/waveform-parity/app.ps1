@@ -1,7 +1,7 @@
 # Drives the real Studio app (demo task, isolated profile, unreachable Babel, silent audio)
 # without touching the desktop input: PostMessage keys/clicks/wheel, PrintWindow captures.
 #
-#   app.ps1 -Out <dir> -Mode shots [-Exe studio-app.exe]
+#   app.ps1 -Out <dir> -Mode shots [-Exe exaudio-app.exe]
 #       Captures the window at three exactly reachable timeline states (playhead 0):
 #         zoom1    the demo's opening view (zoom 1, viewport from 0 s)
 #         zoom10   Ctrl+wheel over the ruler until zoom clamps at 10 (2000 px/s), from 0 s
@@ -13,7 +13,7 @@
 param(
     [Parameter(Mandatory = $true)][string]$Out,
     [ValidateSet('shots', 'cpu')][string]$Mode = 'shots',
-    [string]$Exe = "$PSScriptRoot/../../target/release/studio-app.exe",
+    [string]$Exe = "$PSScriptRoot/../../target/release/exaudio-app.exe",
     [string]$Label = 'current',
     [int]$Runs = 3,
     [int]$Seconds = 30,
@@ -23,7 +23,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 if ($env:CARGO_TARGET_DIR -and -not $PSBoundParameters.ContainsKey('Exe')) {
-    $Exe = "$env:CARGO_TARGET_DIR/release/studio-app.exe"
+    $Exe = "$env:CARGO_TARGET_DIR/release/exaudio-app.exe"
 }
 $Exe = (Resolve-Path $Exe).Path
 
@@ -56,13 +56,13 @@ function Start-Studio($home_) {
     if (Test-Path $home_) { Remove-Item -Recurse -Force $home_ }
     New-Item -ItemType Directory -Force -Path $home_ | Out-Null
     $env:APPDATA = $home_ -replace '/', '\'
-    $env:STUDIO_PROVIDER_DIR = "$home_/providers"
-    $env:STUDIO_SUBACCOUNT_RELAY_SETTINGS = "$home_/relay.json"
-    $env:STUDIO_BABEL_SERVICE_BASE_URL = 'http://127.0.0.1:9'
-    $env:STUDIO_BABEL_CLERK_URL = 'http://127.0.0.1:9'
-    $env:STUDIO_REVIEW_BACKEND_BASE_URL = 'http://127.0.0.1:9'
-    $env:STUDIO_AUDIO_SILENT = '1'
-    $env:STUDIO_OPEN_DEMO_ON_START = '1'
+    $env:EXAUDIO_PROVIDER_DIR = "$home_/providers"
+    $env:EXAUDIO_SUBACCOUNT_RELAY_SETTINGS = "$home_/relay.json"
+    $env:EXAUDIO_BABEL_SERVICE_BASE_URL = 'http://127.0.0.1:9'
+    $env:EXAUDIO_BABEL_CLERK_URL = 'http://127.0.0.1:9'
+    $env:EXAUDIO_REVIEW_BACKEND_BASE_URL = 'http://127.0.0.1:9'
+    $env:EXAUDIO_AUDIO_SILENT = '1'
+    $env:EXAUDIO_OPEN_DEMO_ON_START = '1'
     $proc = Start-Process $Exe -PassThru -RedirectStandardError "$home_/stderr.log" -RedirectStandardOutput "$home_/stdout.log"
     for ($i = 0; $i -lt 120 -and $proc.MainWindowHandle -eq [IntPtr]::Zero; $i++) {
         Start-Sleep -Milliseconds 250; $proc.Refresh()

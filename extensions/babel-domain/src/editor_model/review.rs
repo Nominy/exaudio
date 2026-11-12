@@ -6,9 +6,9 @@ use exaudio_babel_lint::linter::{
     LintSeverity, ServerLintIssue, UNRESOLVED_LOW_CONFIDENCE_RULE,
     server_lint_issue_matches_segment,
 };
+use exaudio_core::Project;
+use exaudio_editor::transcript_model::diagnostic_key;
 use exaudio_extension::document::{Diagnostic, Severity};
-use studio_core::Project;
-use studio_editor::transcript_model::diagnostic_key;
 
 impl EditorSession<'_> {
     pub fn submit_review(&mut self, project: &Project) -> Result<(), String> {

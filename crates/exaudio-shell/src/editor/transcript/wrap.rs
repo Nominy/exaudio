@@ -272,7 +272,7 @@ mod tests {
     /// text paints exactly the wrapped rows, every row fits, and offsets map both ways.
     #[test]
     fn static_text_rows_height_and_caret_lines_agree() {
-        let project = studio_editor::load_sample_project().expect("demo project");
+        let project = exaudio_editor::load_sample_project().expect("demo project");
         let mut corpus: Vec<String> = project
             .segments
             .iter()

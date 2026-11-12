@@ -3,8 +3,8 @@
 //! `--babel-auth-*` CLI.
 //!
 //! Every store is addressed by an explicit path (`auth.json` in an account directory,
-//! see [`crate::account`]). Env: `STUDIO_BABEL_CLERK_URL` (default
-//! `https://clerk.babel.audio`), `STUDIO_BABEL_SERVICE_BASE_URL` (default
+//! see [`crate::account`]). Env: `EXAUDIO_BABEL_CLERK_URL` (default
+//! `https://clerk.babel.audio`), `EXAUDIO_BABEL_SERVICE_BASE_URL` (default
 //! `https://dashboard.babel.audio`).
 
 mod clerk;
@@ -26,17 +26,17 @@ pub use store::{
 
 const DEFAULT_CLERK_URL: &str = "https://clerk.babel.audio";
 const DEFAULT_BABEL_BASE_URL: &str = "https://dashboard.babel.audio";
-const STUDIO_BABEL_CLERK_URL: &str = "STUDIO_BABEL_CLERK_URL";
-pub(crate) const STUDIO_BABEL_SERVICE_BASE_URL: &str = "STUDIO_BABEL_SERVICE_BASE_URL";
+const EXAUDIO_BABEL_CLERK_URL: &str = "EXAUDIO_BABEL_CLERK_URL";
+pub(crate) const EXAUDIO_BABEL_SERVICE_BASE_URL: &str = "EXAUDIO_BABEL_SERVICE_BASE_URL";
 
-/// Clerk frontend API base (`STUDIO_BABEL_CLERK_URL`, trailing `/` trimmed).
+/// Clerk frontend API base (`EXAUDIO_BABEL_CLERK_URL`, trailing `/` trimmed).
 pub fn clerk_url() -> String {
-    env_url(STUDIO_BABEL_CLERK_URL).unwrap_or_else(|| DEFAULT_CLERK_URL.to_string())
+    env_url(EXAUDIO_BABEL_CLERK_URL).unwrap_or_else(|| DEFAULT_CLERK_URL.to_string())
 }
 
-/// Babel dashboard base (`STUDIO_BABEL_SERVICE_BASE_URL`, trailing `/` trimmed).
+/// Babel dashboard base (`EXAUDIO_BABEL_SERVICE_BASE_URL`, trailing `/` trimmed).
 pub fn babel_base_url() -> String {
-    env_url(STUDIO_BABEL_SERVICE_BASE_URL).unwrap_or_else(|| DEFAULT_BABEL_BASE_URL.to_string())
+    env_url(EXAUDIO_BABEL_SERVICE_BASE_URL).unwrap_or_else(|| DEFAULT_BABEL_BASE_URL.to_string())
 }
 
 fn env_url(name: &str) -> Option<String> {

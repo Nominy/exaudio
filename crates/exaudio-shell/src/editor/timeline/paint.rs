@@ -1,19 +1,19 @@
 //! Immediate-mode painters for the timeline surfaces (lane bodies, ruler, scrollbar,
 //! overview). Lane waveforms share the peak-preserving line representation (see
-//! [`studio_waveform::LineWaveform`]); the overview draws a per-frame column scan of its
+//! [`exaudio_waveform::LineWaveform`]); the overview draws a per-frame column scan of its
 //! peak buffer.
 
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use exaudio_extension::document::Severity;
-use gpui_kit::*;
-use studio_editor::timeline_model::{
+use exaudio_editor::timeline_model::{
     OverviewWaveformBlock, TimeRange, TimelineRulerNotchKind, TimelineRulerView, WaveformBlock,
 };
-use studio_editor::transcript_model::format_mm_ss;
-use studio_waveform::{LineFrame, LineView, LineWaveform, WaveformRenderModel, js_round};
+use exaudio_editor::transcript_model::format_mm_ss;
+use exaudio_extension::document::Severity;
+use exaudio_waveform::{LineFrame, LineView, LineWaveform, WaveformRenderModel, js_round};
+use gpui_kit::*;
 
 use super::geometry::{Thumb, selection_chip_left, selection_length_label, x_at};
 

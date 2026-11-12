@@ -6,9 +6,9 @@ use std::cell::Cell;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use exaudio_editor::timeline_model::{OverviewWaveformBlock, TimeRange};
 use gpui_kit::component::ActiveTheme;
 use gpui_kit::*;
-use studio_editor::timeline_model::{OverviewWaveformBlock, TimeRange};
 
 use super::geometry::{Thumb, fraction_at};
 use super::paint::{

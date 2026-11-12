@@ -1,10 +1,10 @@
 //! Gold settings preserve the existing shared storage key and serialized fields.
 
+use exaudio_services::prefs::UiStorage;
 use serde::{Deserialize, Serialize};
 use std::io;
-use studio_services::prefs::UiStorage;
 
-pub const AI_SETTINGS_KEY: &str = "studio.ai.settings.v1";
+pub const AI_SETTINGS_KEY: &str = "exaudio.ai.settings.v1";
 
 /// Typed access to Gold settings without coupling the generic store to AI.
 pub trait AiPreferences {

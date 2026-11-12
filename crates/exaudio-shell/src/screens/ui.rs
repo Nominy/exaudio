@@ -33,7 +33,7 @@ pub fn language(cx: &App) -> &'static str {
 
 /// Pushes the active language into crates that produce user-visible text without `cx`.
 pub fn sync_language(cx: &App) {
-    studio_editor::i18n::set_russian(language(cx) == "ru");
+    exaudio_editor::i18n::set_russian(language(cx) == "ru");
 }
 
 pub fn localized(cx: &App, en: &'static str, ru: &'static str) -> &'static str {

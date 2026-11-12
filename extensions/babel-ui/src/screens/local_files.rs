@@ -70,7 +70,7 @@ pub fn open_document(shell: ShellHandle, window: &mut Window, cx: &mut App) {
 }
 
 pub struct BabelFile {
-    pub project: studio_core::Project,
+    pub project: exaudio_core::Project,
     pub path: PathBuf,
     pub audio_base_dir: PathBuf,
 }
@@ -107,7 +107,7 @@ pub fn open_babel_json(
                 .background_spawn(async move {
                     let text = std::fs::read_to_string(&path)
                         .map_err(|error| format!("Failed to read {}: {error}", path.display()))?;
-                    let workflow = studio_editor::workflow::StudioWorkflow::from_babel_json(&text)
+                    let workflow = exaudio_editor::workflow::StudioWorkflow::from_babel_json(&text)
                         .map_err(|error| format!("{error:#}"))?;
                     let audio_base_dir = path
                         .parent()

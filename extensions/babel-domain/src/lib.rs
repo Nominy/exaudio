@@ -9,11 +9,11 @@ pub mod route;
 pub mod server_diagnostics;
 pub mod workflow;
 
+use exaudio_core::Project;
 use exaudio_extension::document::{
     DocumentEnvironment, DocumentOrigin, DocumentPolicy, DocumentProviders,
 };
 use std::sync::Arc;
-use studio_core::Project;
 
 /// Domain-only contributions. The host registers this factory under the Babel owner;
 /// lint and tags remain independently registered extension factories.

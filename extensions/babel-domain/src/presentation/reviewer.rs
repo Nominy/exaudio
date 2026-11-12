@@ -1,9 +1,9 @@
-use studio_core::Project;
+use exaudio_core::Project;
 
 const META_SHOW_REVIEWERS: &str = "studio.babel.diff.showReviewers";
 const META_REVIEWER_INTERVALS: &str = "studio.babel.diff.reviewerIntervals";
 
-use studio_editor::transcript_model::TranscriptReviewerView;
+use exaudio_editor::transcript_model::TranscriptReviewerView;
 
 #[derive(Clone, Debug, Default)]
 pub(super) struct ReviewerLookup {

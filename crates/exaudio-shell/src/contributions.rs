@@ -29,7 +29,7 @@ pub type LeaveHandler = Rc<
         crate::screens::local_files::Saved,
     ),
 >;
-pub type DocumentProviderFactory = Rc<dyn Fn(&studio_core::Project) -> DocumentProviders>;
+pub type DocumentProviderFactory = Rc<dyn Fn(&exaudio_core::Project) -> DocumentProviders>;
 pub type TeardownHandler = Rc<dyn Fn(&mut App)>;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PanelLocation {
@@ -275,7 +275,7 @@ impl ContributionRegistry {
     }
     pub fn providers_for_document(
         &mut self,
-        project: &studio_core::Project,
+        project: &exaudio_core::Project,
         mode: &str,
     ) -> DocumentProviders {
         let mut result = self.providers(mode);
@@ -302,7 +302,7 @@ impl ContributionRegistry {
     fn providers_for_enabled_owner(
         &mut self,
         owner: &str,
-        project: &studio_core::Project,
+        project: &exaudio_core::Project,
         mode: &str,
     ) -> DocumentProviders {
         let mut result = DocumentProviders::default();

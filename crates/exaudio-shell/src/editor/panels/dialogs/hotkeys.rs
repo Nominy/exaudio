@@ -2,13 +2,13 @@
 //! extensions by name), with rebinding (key capture), conflict warnings and reset per
 //! action or for all. Overrides persist through [`actions::update`].
 
+use exaudio_editor::edit::keymap::ACTION_DEFS;
 use exaudio_extension::actions::{CORE_OWNER, Entry, KeyChord, Priority};
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::component::{ActiveTheme, Disableable, Sizable, WindowExt, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::keymap::ACTION_DEFS;
 
 use crate::actions::{self, IS_MAC, keystroke_string};
 use crate::editor::panels::ui::{caption, dialog_footer, dialog_header, muted};

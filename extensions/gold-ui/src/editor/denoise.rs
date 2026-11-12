@@ -13,8 +13,14 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use exaudio_audio::{DecodedAudio, EnhancedAudioCache, decode_audio_bytes, sha256_hex};
+use exaudio_core::AudioLane;
 use exaudio_gold::prefs::ExecutionLocation;
 use exaudio_gold::remote::GOLD_ENHANCEMENT_MODEL;
+use exaudio_inference::{
+    EnhancedLane, InferenceBackend, InferenceProgress, LaneAudio, ProgressSink,
+};
+use exaudio_services::paths::app_support_dir;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::popover::Popover;
@@ -26,12 +32,6 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_audio::{DecodedAudio, EnhancedAudioCache, decode_audio_bytes, sha256_hex};
-use studio_core::AudioLane;
-use studio_inference::{
-    EnhancedLane, InferenceBackend, InferenceProgress, LaneAudio, ProgressSink,
-};
-use studio_services::paths::app_support_dir;
 
 use crate::editor::inference_audio::{read_lane_audio, until_cancelled};
 use crate::services::GoldServices;
@@ -862,7 +862,7 @@ async fn run_job(
         .map(|lane| lane.lane_id.clone())
         .collect::<Vec<_>>();
     let request_task_id = task_id.clone();
-    let result = studio_services::runtime::spawn(async move {
+    let result = exaudio_services::runtime::spawn(async move {
         until_cancelled(
             backend.enhance(&request_task_id, &lanes, progress),
             cancelled,

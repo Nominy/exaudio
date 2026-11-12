@@ -1,8 +1,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use exaudio_core::{AudioLane, Project, Segment, Speaker};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use studio_core::{AudioLane, Project, Segment, Speaker};
 use thiserror::Error;
 
 const META_PROJECT_PRESET: &str = "project_preset";

@@ -22,12 +22,12 @@ use exaudio_babel_services::babel::error_task::{
     segment_error_diff_context, select_style_guide_document, submission, valid_categories,
 };
 use exaudio_gold::prefs::ExecutionLocation;
-use serde_json::{Value, json};
-use studio_inference::{
+use exaudio_inference::{
     AlignRequest, AlignResponse, BackendStatus, DraftResponse, EnhancedLane, InferenceBackend,
     InferenceResult, LaneAudio, PreservedRow, ProgressSink, TimingResponse, TimingToken,
 };
-use studio_waveform::DecodedAudio;
+use exaudio_waveform::DecodedAudio;
+use serde_json::{Value, json};
 
 // ---------------------------------------------------------------------------------------
 // Diff alignment (port of error-diff.test.mjs)

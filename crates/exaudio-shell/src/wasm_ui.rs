@@ -1134,7 +1134,7 @@ impl Render for WasmPanel {
 /// Byte ranges remain byte ranges through shaping; core character selections are
 /// translated only at the document boundary, never by indexing a UTF-8 string.
 pub fn transcript_decorations(
-    doc: &studio_editor::edit::EditorDoc,
+    doc: &exaudio_editor::edit::EditorDoc,
     segment_id: &str,
     cx: &App,
 ) -> Vec<(std::ops::Range<usize>, HighlightStyle, String)> {

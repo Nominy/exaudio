@@ -3,6 +3,12 @@
 use std::cell::Cell;
 use std::rc::Rc;
 
+use exaudio_editor::edit::EditorAction;
+use exaudio_editor::edit::format::{
+    SPEED_OPTIONS, ZOOM_SLIDER_MAX, ZOOM_SLIDER_MIN, format_speed, slider_from_zoom_factor,
+    zoom_factor_from_slider,
+};
+use exaudio_editor::editor_model::SaveStatus;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::menu::{DropdownMenu as _, PopupMenuItem};
@@ -11,12 +17,6 @@ use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{ActiveTheme, Sizable as _, h_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::EditorAction;
-use studio_editor::edit::format::{
-    SPEED_OPTIONS, ZOOM_SLIDER_MAX, ZOOM_SLIDER_MIN, format_speed, slider_from_zoom_factor,
-    zoom_factor_from_slider,
-};
-use studio_editor::editor_model::SaveStatus;
 
 use crate::actions;
 use crate::editor::RequestLeave;

@@ -1,8 +1,8 @@
 //! Authoritative review-server diagnostics, independent of optional local lint engines.
 use exaudio_babel_lint::linter::{LintSeverity, ServerLintSnapshot};
+use exaudio_core::Project;
 use exaudio_extension::document::{Diagnostic, DiagnosticCollection, DiagnosticProvider, Severity};
 use std::collections::BTreeMap;
-use studio_core::Project;
 
 #[derive(Debug, Default)]
 pub struct ServerDiagnosticProvider {

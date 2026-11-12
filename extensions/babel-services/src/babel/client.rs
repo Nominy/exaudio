@@ -8,7 +8,7 @@ use exaudio_babel_domain::editor_model::feedback_assessment::{
 use exaudio_babel_domain::i18n::{localized, with_detail};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
 use exaudio_babel_lint::project_lint_tag_config::babel_project_lint_tag_metadata;
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::StudioWorkflow;
 
 use super::BabelError;
 use super::dashboard::{Dashboard, parse_dashboard};
@@ -161,7 +161,7 @@ impl BabelClient {
         Self { config }
     }
 
-    /// Client configured from the `STUDIO_BABEL_SERVICE_*` env.
+    /// Client configured from the `EXAUDIO_BABEL_SERVICE_*` env.
     pub fn from_env() -> Self {
         Self::new(BabelConfig::from_env())
     }

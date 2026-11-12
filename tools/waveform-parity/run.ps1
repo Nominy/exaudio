@@ -7,11 +7,11 @@
 #             fixtures' WAVs)
 #   babel     render.cjs babel: wavesurfer (upstream 7.12.1) + Babel's downsampler in headless
 #             Chromium (screenshots, canvas outlines, display signals)
-#   studio    examples/line_parity.rs: the same cases through studio-waveform
+#   studio    examples/line_parity.rs: the same cases through exaudio-waveform
 #   geometry  render.cjs studio: Studio's outlines drawn through the same wavesurfer page
 #   app       (-App) app.ps1: the running Studio's lanes (PrintWindow) vs Babel at the same view
 #   compare   compare.py: report.md / report.json / heatmaps
-#   -Fixtures also regenerates crates/studio-waveform/tests/fixtures/babel_line/*.json.
+#   -Fixtures also regenerates crates/exaudio-waveform/tests/fixtures/babel_line/*.json.
 #
 # Needs: python (numpy, Pillow), node, Playwright (NODE_PATH defaults to the node_modules of the
 # Babel monorepo beside this checkout), cargo, and Babel's proprietary display-signal downsampler
@@ -67,15 +67,15 @@ Push-Location $repo
 try {
     Step 'audio' { python "$PSScriptRoot/make_audio.py" "$Out/audio" }
     if ($Fixtures) {
-        Step 'fixtures' { node "$PSScriptRoot/render.cjs" fixtures "$repo/crates/studio-waveform/tests/fixtures/babel_line" }
+        Step 'fixtures' { node "$PSScriptRoot/render.cjs" fixtures "$repo/crates/exaudio-waveform/tests/fixtures/babel_line" }
     }
     Step 'babel' { node "$PSScriptRoot/render.cjs" babel "$PSScriptRoot/cases.json" "$Out/audio" $Out }
-    Step 'studio' { cargo run --release -q -p studio-waveform --example line_parity -- $Out }
+    Step 'studio' { cargo run --release -q -p exaudio-waveform --example line_parity -- $Out }
     Step 'geometry' { node "$PSScriptRoot/render.cjs" studio $Out }
     if ($App) {
         Step 'app-capture' { powershell -NoProfile -ExecutionPolicy Bypass -File "$PSScriptRoot/app.ps1" -Out $Out -Mode shots }
         Step 'app-prepare' { python "$PSScriptRoot/app_compare.py" prepare $Out }
-        Step 'app-babel' { node "$PSScriptRoot/render.cjs" app $Out "$repo/crates/studio-editor/assets/demo" }
+        Step 'app-babel' { node "$PSScriptRoot/render.cjs" app $Out "$repo/crates/exaudio-editor/assets/demo" }
         Step 'app-compare' { python "$PSScriptRoot/app_compare.py" compare $Out }
     }
     Step 'compare' { python "$PSScriptRoot/compare.py" $Out }

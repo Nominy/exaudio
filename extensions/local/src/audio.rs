@@ -8,8 +8,8 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use studio_audio::{LaneAudioFile, decode_audio_file};
-use studio_core::{AudioLane, Project, Speaker};
+use exaudio_audio::{LaneAudioFile, decode_audio_file};
+use exaudio_core::{AudioLane, Project, Speaker};
 use uuid::Uuid;
 
 pub struct ImportedAudioProject {

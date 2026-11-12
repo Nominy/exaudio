@@ -32,10 +32,10 @@ mod smoke {
 
     use bytes::Bytes;
     use exaudio_gold::{LocalBackend, LocalConfig, protocol::ModelsState};
-    use serde_json::{Value, json};
-    use studio_inference::{
+    use exaudio_inference::{
         AlignRequest, InferenceBackend, InferenceProgress, LaneAudio, ProgressSink, TimingResponse,
     };
+    use serde_json::{Value, json};
 
     struct Run {
         dir: PathBuf,

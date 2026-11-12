@@ -3,8 +3,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use exaudio_core::Project;
 use serde::{Deserialize, Serialize};
-use studio_core::Project;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FormatDescriptor {

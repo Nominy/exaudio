@@ -1,8 +1,8 @@
-use serde_json::{Value, json};
-use studio_babel::{
+use exaudio_babel_format::{
     BabelAnnotation, BabelAudioTrack, BabelImportError, BabelSpeaker, BabelTaskPackage,
     export_json, export_package, import_json, import_package,
 };
+use serde_json::{Value, json};
 
 fn load_fixture() -> BabelTaskPackage {
     let source = include_str!("fixtures/sample-task.json");

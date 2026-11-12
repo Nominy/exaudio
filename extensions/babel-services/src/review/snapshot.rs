@@ -6,8 +6,8 @@
 
 use anyhow::{Result, anyhow, bail};
 use exaudio_babel_domain::i18n::{localized, with_detail};
+use exaudio_core::Project;
 use serde_json::{Value, json};
-use studio_core::Project;
 
 use crate::babel::{BabelClient, BabelRequest};
 

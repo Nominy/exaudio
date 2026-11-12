@@ -1,6 +1,8 @@
 //! General (language), appearance, shortcuts and updates, then registered extension
 //! settings, then an Advanced disclosure holding provider accounts.
 
+use exaudio_services::prefs::EditorLayout;
+use exaudio_services::updater::UpdateChannel;
 use gpui_kit::component::button::{Button, ButtonGroup, ButtonVariants};
 use gpui_kit::component::notification::Notification;
 use gpui_kit::component::tooltip::Tooltip;
@@ -11,8 +13,6 @@ use gpui_kit::component::{
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use std::rc::Rc;
-use studio_services::prefs::EditorLayout;
-use studio_services::updater::UpdateChannel;
 
 use crate::editor::panels::dialogs::hotkeys;
 use crate::screens::ShellModels;
@@ -21,7 +21,7 @@ use crate::services::AppServices;
 use crate::{ContributionRegistry, PanelLocation, ShellHandle};
 
 /// UI storage key of the persisted theme (`"light"` / `"dark"`).
-pub const THEME_STORAGE_KEY: &str = "studio.theme.v1";
+pub const THEME_STORAGE_KEY: &str = "exaudio.theme.v1";
 
 const LAYOUTS: [(EditorLayout, &str, &str); 3] = [
     (EditorLayout::Classic, "Table", "Таблица"),

@@ -4,9 +4,9 @@
 
 use std::sync::LazyLock;
 
+use exaudio_core::Segment;
 use regex::Regex;
 use serde_json::Value;
-use studio_core::Segment;
 
 const LOW_CONFIDENCE_WORDS_METADATA: &str = "babelLowConfidenceWords";
 const LOW_CONFIDENCE_RESOLVED_METADATA: &str = "lowConfidenceResolved";
@@ -111,8 +111,8 @@ fn normalize_word(word: &str) -> String {
 mod tests {
     use std::collections::BTreeMap;
 
+    use exaudio_core::Segment;
     use serde_json::json;
-    use studio_core::Segment;
 
     use super::has_unresolved_low_confidence_word;
 

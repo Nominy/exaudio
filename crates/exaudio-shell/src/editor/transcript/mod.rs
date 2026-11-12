@@ -12,7 +12,7 @@
 //! bindings so keymap actions (row undo/redo, escape, tag list keys, text moves, global
 //! shortcuts) reach the doc instead of the input.
 //!
-//! [`EditorDoc`]: studio_editor::edit::EditorDoc
+//! [`EditorDoc`]: exaudio_editor::edit::EditorDoc
 
 mod find_bar;
 pub use find_bar::FindBar;
@@ -27,6 +27,10 @@ use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::rc::Rc;
 
+use exaudio_editor::edit::time::TimeField;
+use exaudio_editor::edit::{EditorDoc, Outcome, TextSelection};
+use exaudio_editor::timeline_model::LaneColor;
+use exaudio_editor::transcript_model::{TranscriptActionCommand, TranscriptRowView};
 use exaudio_extension::actions::KeyChord;
 use exaudio_extension::document::Completion;
 use gpui_kit::component::input::{InputEvent, InputState, RopeExt as _, TextareaState};
@@ -36,10 +40,6 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::time::TimeField;
-use studio_editor::edit::{EditorDoc, Outcome, TextSelection};
-use studio_editor::timeline_model::LaneColor;
-use studio_editor::transcript_model::{TranscriptActionCommand, TranscriptRowView};
 
 use crate::actions::{self, IS_MAC, keystroke_string};
 use crate::editor::model::{EditorEvent, EditorModel};

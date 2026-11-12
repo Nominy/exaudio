@@ -2,11 +2,11 @@
 //! closing it never moves a row): query input, match summary, previous/next and close. Find
 //! state is doc-wide, so one bar serves every pane of the split layouts.
 
+use exaudio_editor::edit::EditorDoc;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::{ActiveTheme, IconName, Sizable as _, h_flex};
 use gpui_kit::*;
-use studio_editor::edit::EditorDoc;
 
 use crate::editor::model::EditorModel;
 use crate::screens::ui::localized;

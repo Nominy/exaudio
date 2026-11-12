@@ -19,7 +19,7 @@ function Get-Gitleaks {
         return $existing.Source
     }
 
-    $toolRoot = Join-Path $env:TEMP "transcription-studio-gitleaks-$Version"
+    $toolRoot = Join-Path $env:TEMP "exaudio-gitleaks-$Version"
     $exe = Join-Path $toolRoot "gitleaks.exe"
     if (Test-Path -LiteralPath $exe) {
         return $exe
@@ -86,7 +86,7 @@ $repoRoot = Resolve-RepoPath
 $gitleaks = Get-Gitleaks -Version $GitleaksVersion
 & $gitleaks version
 
-$scanRoot = Join-Path $env:TEMP "transcription-studio-committable-secret-scan"
+$scanRoot = Join-Path $env:TEMP "exaudio-committable-secret-scan"
 Copy-CommittableTree -RepoRoot $repoRoot -Destination $scanRoot
 
 Invoke-Gitleaks `

@@ -1,6 +1,6 @@
+use exaudio_core::{Project, Segment, Speaker};
 use exaudio_extension::format::{ExportOptions, FormatProvider, FormatRegistry, ImportContent};
 use exaudio_formats::{EXTENSION_ID, SubtitleFormat};
-use studio_core::{Project, Segment, Speaker};
 
 fn segment(id: &str, start: f64, end: f64, text: &str, speaker: &str) -> Segment {
     Segment {

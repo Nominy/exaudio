@@ -9,7 +9,10 @@ pub mod transcript;
 use crate::actions::{self, IS_MAC, keystroke_string};
 use crate::services::AppServices;
 use crate::{ContributionRegistry, PanelLocation, ShellHandle};
+use exaudio_editor::edit::EditorAction;
+use exaudio_editor::edit::keymap::audition_key_for;
 use exaudio_extension::actions::{KeyChord, Value};
+use exaudio_services::prefs::EditorLayout;
 use gpui_kit::component::Sizable;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::resizable::{h_resizable, resizable_panel, v_resizable};
@@ -18,9 +21,6 @@ use gpui_kit::*;
 use model::EditorModel;
 use panels::transport::TransportStrip;
 use status_bar::StatusBar;
-use studio_editor::edit::EditorAction;
-use studio_editor::edit::keymap::audition_key_for;
-use studio_services::prefs::EditorLayout;
 use timeline::TimelineView;
 use toolbar::Toolbar;
 use transcript::{FindBar, TranscriptView};
@@ -198,7 +198,7 @@ impl EditorScreen {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        let modifiers = studio_editor::edit::PointerModifiers {
+        let modifiers = exaudio_editor::edit::PointerModifiers {
             shift: event.modifiers.shift,
             alt: event.modifiers.alt,
             secondary: event.modifiers.secondary(cx),

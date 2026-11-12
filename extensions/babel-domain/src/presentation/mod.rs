@@ -8,11 +8,11 @@ use crate::babel_metadata::project_is_read_only;
 use diff::{
     annotation_diff_state, annotation_removed_ghost_rows, diff_state, modified_segment_diff_rows,
 };
+use exaudio_core::Project;
+use exaudio_editor::track_filter::TrackFilter;
+use exaudio_editor::transcript_model::compute_row_availability;
+use exaudio_editor::transcript_model::*;
 use reviewer::ReviewerLookup;
-use studio_core::Project;
-use studio_editor::track_filter::TrackFilter;
-use studio_editor::transcript_model::compute_row_availability;
-use studio_editor::transcript_model::*;
 pub(crate) use words::build_transcript_word_views;
 
 const META_SELECTED_COMPARE_ACTION_ID: &str = "studio.babel.diff.selectedCompareActionId";
@@ -266,7 +266,7 @@ impl exaudio_extension::document::DecorationProvider for BabelPresentationProvid
 }
 
 impl exaudio_extension::document::SegmentKindProvider for BabelPresentationProvider {
-    fn is_text(&self, segment: &studio_core::Segment) -> Option<bool> {
+    fn is_text(&self, segment: &exaudio_core::Segment) -> Option<bool> {
         Some(
             segment
                 .metadata

@@ -5,7 +5,7 @@ Builds Exaudio for Windows and packs it with Velopack.
 .DESCRIPTION
 -UpdateChannel stable packs Velopack channel `win` (GitHub Releases: Exaudio-win-Setup.exe,
 Exaudio-win-Portable.zip); -UpdateChannel alpha packs channel `alpha` (VPS alpha feed). The
-channel and version are baked into the binary (STUDIO_UPDATE_CHANNEL, STUDIO_BUILD_VERSION),
+channel and version are baked into the binary (EXAUDIO_UPDATE_CHANNEL, EXAUDIO_BUILD_VERSION),
 so the installed app updates from the feed it was packaged for.
 
 Outputs: the full local feed in -OutputDir (default target/velopack/Releases) and, for
@@ -41,12 +41,12 @@ function Resolve-RepoPath {
 
 function Get-StudioAppVersion {
     param([string]$RepoRoot)
-    $manifestPath = Join-Path $RepoRoot "crates\studio-app\Cargo.toml"
+    $manifestPath = Join-Path $RepoRoot "crates\exaudio-app\Cargo.toml"
     $manifest = Get-Content -Raw -LiteralPath $manifestPath
     if ($manifest -match '(?m)^version\s*=\s*"([^"]+)"') {
         return $Matches[1]
     }
-    throw "Could not read studio-app package version from $manifestPath"
+    throw "Could not read exaudio-app package version from $manifestPath"
 }
 
 function Assert-ChildPath {
@@ -272,8 +272,8 @@ $cargoTargetDir = if ([string]::IsNullOrWhiteSpace($env:CARGO_TARGET_DIR)) {
 } else {
     $env:CARGO_TARGET_DIR
 }
-$sourceExePath = Join-Path $cargoTargetDir "release/studio-app.exe"
-$sourceRelayExePath = Join-Path $cargoTargetDir "release/studio-relay.exe"
+$sourceExePath = Join-Path $cargoTargetDir "release/exaudio-app.exe"
+$sourceRelayExePath = Join-Path $cargoTargetDir "release/exaudio-relay.exe"
 # Isolated compiler child for untrusted extension .wasm; the app resolves it as its sibling.
 $sourceWasmWorkerPath = Join-Path $cargoTargetDir "release/exaudio-wasm-worker.exe"
 $iconPath = Join-Path $repoRoot "assets/app/exaudio.ico"
@@ -295,10 +295,10 @@ if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) {
 
 if (-not $SkipBuild) {
     # Baked into the binary: the version it reports and the update channel it follows.
-    $env:STUDIO_BUILD_VERSION = $Version
-    $env:STUDIO_UPDATE_CHANNEL = $UpdateChannel
+    $env:EXAUDIO_BUILD_VERSION = $Version
+    $env:EXAUDIO_UPDATE_CHANNEL = $UpdateChannel
     # One resolution keeps shared Wasmtime dependencies from being rebuilt with a second feature set.
-    Invoke-CheckedCommand -Command "cargo" -Arguments @("build", "-p", "studio-app", "-p", "studio-relay", "-p", "exaudio-wasm", "--release", "--locked")
+    Invoke-CheckedCommand -Command "cargo" -Arguments @("build", "-p", "exaudio-app", "-p", "exaudio-relay", "-p", "exaudio-wasm", "--release", "--locked")
 }
 
 foreach ($binary in @($sourceExePath, $sourceRelayExePath, $sourceWasmWorkerPath)) {
@@ -313,9 +313,9 @@ if (Test-Path -LiteralPath $stagePath) {
 New-Item -ItemType Directory -Force -Path $stagePath | Out-Null
 New-Item -ItemType Directory -Force -Path $outputPath | Out-Null
 Copy-Item -LiteralPath $sourceExePath -Destination (Join-Path $stagePath $MainExe)
-Copy-Item -LiteralPath $sourceRelayExePath -Destination (Join-Path $stagePath "studio-relay.exe")
+Copy-Item -LiteralPath $sourceRelayExePath -Destination (Join-Path $stagePath "exaudio-relay.exe")
 Copy-Item -LiteralPath $sourceWasmWorkerPath -Destination (Join-Path $stagePath "exaudio-wasm-worker.exe")
-$demoSource = Join-Path $repoRoot "crates/studio-editor/assets/demo"
+$demoSource = Join-Path $repoRoot "crates/exaudio-editor/assets/demo"
 $demoDestination = Join-Path $stagePath "assets/demo"
 New-Item -ItemType Directory -Force -Path $demoDestination | Out-Null
 foreach ($file in @("speaker_1.wav", "speaker_2.wav")) {

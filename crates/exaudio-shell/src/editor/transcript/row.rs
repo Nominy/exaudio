@@ -4,6 +4,17 @@
 use std::ops::Range;
 use std::rc::Rc;
 
+use exaudio_editor::edit::EditorDoc;
+use exaudio_editor::edit::draft::byte_offset;
+use exaudio_editor::edit::time::TimeField;
+use exaudio_editor::editor_model::EditorSession;
+use exaudio_editor::i18n::localized;
+use exaudio_editor::timeline_model::LaneColor;
+use exaudio_editor::transcript_model::{
+    AnnotationDiffStatus, TranscriptActionCommand, TranscriptActionMenuEntry,
+    TranscriptDiffCellKind, TranscriptDiffView, TranscriptRowKind, TranscriptRowView,
+    TranscriptWordDiffStatus,
+};
 use exaudio_extension::document::Severity;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::input::{Input, Textarea};
@@ -12,17 +23,6 @@ use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{ActiveTheme, Icon, IconName, Sizable as _, Theme, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::EditorDoc;
-use studio_editor::edit::draft::byte_offset;
-use studio_editor::edit::time::TimeField;
-use studio_editor::editor_model::EditorSession;
-use studio_editor::i18n::localized;
-use studio_editor::timeline_model::LaneColor;
-use studio_editor::transcript_model::{
-    AnnotationDiffStatus, TranscriptActionCommand, TranscriptActionMenuEntry,
-    TranscriptDiffCellKind, TranscriptDiffView, TranscriptRowKind, TranscriptRowView,
-    TranscriptWordDiffStatus,
-};
 
 use super::TranscriptView;
 use super::layout::{

@@ -9,9 +9,9 @@ repository.workspace = true
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-studio-core.workspace = true
-studio-babel.workspace = true
-studio-editor.workspace = true
+exaudio-core.workspace = true
+exaudio-babel-format.workspace = true
+exaudio-editor.workspace = true
 exaudio-extension = { path = "../../crates/exaudio-extension" }
 exaudio-babel-lint = { path = "../babel-lint" }
 time.workspace = true
@@ -20,4 +20,4 @@ thiserror.workspace = true
 [dev-dependencies]
 exaudio-babel-tags = { path = "../babel-tags" }
 tempfile.workspace = true
-studio-waveform.workspace = true
+exaudio-waveform.workspace = true

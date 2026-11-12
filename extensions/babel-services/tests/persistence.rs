@@ -5,8 +5,8 @@ use exaudio_babel_services::{
     prefs::{ORIGINAL_SCRIPT_HIDDEN_KEY, SCRIPT_CONTEXT_HIDDEN_KEY},
     recovery,
 };
-use studio_core::Project;
-use studio_services::prefs::UiStorage;
+use exaudio_core::Project;
+use exaudio_services::prefs::UiStorage;
 
 fn project(id: &str, review_action_id: Option<&str>) -> Project {
     Project {

@@ -19,20 +19,20 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use exaudio_editor::edit::structure::OverlayDragTarget;
+use exaudio_editor::edit::{EditorAction, EditorDoc, PointerModifiers};
+use exaudio_editor::editor_model::CutOverlay;
+use exaudio_editor::timeline_model::{
+    LaneColor, TimeRange, TimelineLaneView, TimelineSegmentIndex, TimelineSegmentPreview,
+    build_timeline_ruler_for_viewport,
+};
 use exaudio_extension::document::Severity;
+use exaudio_waveform::{WaveformHit, WaveformHitTarget};
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::{ActiveTheme, Sizable as _, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::edit::structure::OverlayDragTarget;
-use studio_editor::edit::{EditorAction, EditorDoc, PointerModifiers};
-use studio_editor::editor_model::CutOverlay;
-use studio_editor::timeline_model::{
-    LaneColor, TimeRange, TimelineLaneView, TimelineSegmentIndex, TimelineSegmentPreview,
-    build_timeline_ruler_for_viewport,
-};
-use studio_waveform::{WaveformHit, WaveformHitTarget};
 
 use crate::actions::{self, IS_MAC};
 use crate::editor::model::{EditorEvent, EditorModel};

@@ -62,12 +62,12 @@ The public catalog lives in [`Nominy/exaudio-extensions`](https://github.com/Nom
 
 ## Build from source
 
-Every platform needs Git, the Rust toolchain pinned in `rust-toolchain.toml` and CMake (the bundled libopus is built from source). Windows adds MSVC C++ build tools with the Windows SDK; macOS the Xcode command-line tools; Linux a C compiler plus the development packages listed in `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). The editor and its platform live in `crates/`, everything optional in `extensions/`; internal crates keep the `studio-*` prefix.
+Every platform needs Git, the Rust toolchain pinned in `rust-toolchain.toml` and CMake (the bundled libopus is built from source). Windows adds MSVC C++ build tools with the Windows SDK; macOS the Xcode command-line tools; Linux a C compiler plus the development packages listed in `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). The editor and its platform live in `crates/`, everything optional in `extensions/`.
 
 ```powershell
 git clone https://github.com/Nominy/exaudio.git
 cd exaudio
-cargo run -p studio-app
+cargo run -p exaudio-app
 ```
 
 The default build includes Local, Formats, basic checks, the Gold AI tools and the Babel integration, and builds from a clean clone. Feature subsets:
@@ -76,7 +76,7 @@ The default build includes Local, Formats, basic checks, the Gold AI tools and t
 # The editor only: Local, formats, basic checks, command palette
 cargo editor
 # The same plus the AI tools, no Babel
-cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
+cargo run -p exaudio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
 ```
 
 Only the parity tooling and the linter parity tests need the private Babel data bundle (`tools/babel-data.json`); they skip when it is absent. See [development](docs/development.md) for checks, the contributor workflow and the extension SDK.

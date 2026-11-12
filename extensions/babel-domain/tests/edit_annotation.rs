@@ -1,4 +1,4 @@
-#[path = "../../../crates/studio-editor/tests/edit_support/mod.rs"]
+#[path = "../../../crates/exaudio-editor/tests/edit_support/mod.rs"]
 mod edit_support;
 use edit_support::*;
 use exaudio_babel_domain::edit::BabelAnnotationDialogs;
@@ -8,10 +8,10 @@ use exaudio_babel_domain::edit::create_region::{
     CreateRegionMode, secondary_category_options,
 };
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
+use exaudio_core::Project;
+use exaudio_editor::edit::{EditorDoc, Effect};
+use exaudio_editor::workflow::StudioWorkflow;
 use serde_json::json;
-use studio_core::Project;
-use studio_editor::edit::{EditorDoc, Effect};
-use studio_editor::workflow::StudioWorkflow;
 
 fn babel_environment(project: &Project) -> exaudio_extension::document::DocumentEnvironment {
     let mut environment =
@@ -475,19 +475,19 @@ fn annotation_drag_dispatches_domain_dialog_without_creating_native_row() {
     let project = annotation_mode_project();
     let environment = babel_environment(&project);
     let mut doc = EditorDoc::new(StudioWorkflow::from_babel_project(project), environment);
-    doc.session_mut().viewport = studio_editor::timeline_model::TimeRange {
+    doc.session_mut().viewport = exaudio_editor::timeline_model::TimeRange {
         start_seconds: 11.0,
         end_seconds: 13.8,
     };
     let count = segment_count(&doc);
     doc.hover_waveform(
         "lane-1",
-        hit(studio_waveform::WaveformHitTarget::Waveform, None, 12.0),
+        hit(exaudio_waveform::WaveformHitTarget::Waveform, None, 12.0),
     );
     let _ = ok(doc.press_waveform("lane-1"));
     doc.hover_waveform(
         "lane-1",
-        hit(studio_waveform::WaveformHitTarget::Waveform, None, 12.8),
+        hit(exaudio_waveform::WaveformHitTarget::Waveform, None, 12.8),
     );
     let outcome = ok(doc.release_waveform("lane-1"));
     let arguments = outcome

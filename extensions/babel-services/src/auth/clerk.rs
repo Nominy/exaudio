@@ -15,7 +15,7 @@ use super::store::{
     read_store, read_store_or_default, save_store, trimmed,
 };
 use super::{babel_base_url, clerk_url, now_unix_seconds};
-use studio_services::http;
+use exaudio_services::http;
 
 const CLERK_INSTANCE_SUFFIX: &str = "v1aVht_F";
 const CLERK_API_VERSION: &str = "2025-11-10";
@@ -210,7 +210,7 @@ pub async fn verify_phone_code_login(
     let mut store = read_store(store_path)?;
     let Some(sign_in_id) = trimmed(store.pending_sign_in_id.as_deref()) else {
         bail!(
-            "native Babel auth store has no pending phone-code login; run `studio-app --babel-auth-start-login <phone>`"
+            "native Babel auth store has no pending phone-code login; run `exaudio-app --babel-auth-start-login <phone>`"
         );
     };
     let (babel_url, clerk_url) = validated_urls(babel_url, clerk_url)?;
@@ -291,7 +291,7 @@ async fn mint_babel_jwt(
         .is_empty()
     {
         return Err(NeedsSignIn(format!(
-            "native Babel auth store {} has no Clerk cookies; run `studio-app --babel-auth-start-login <phone>`",
+            "native Babel auth store {} has no Clerk cookies; run `exaudio-app --babel-auth-start-login <phone>`",
             store_path.display()
         ))
         .into());
@@ -312,13 +312,13 @@ async fn mint_babel_jwt(
     let Some(session_id) = active_session_id(&clerk_client) else {
         if store.pending_sign_in_id.is_some() {
             return Err(NeedsSignIn(
-                "native Babel auth store has a pending phone-code login; run `studio-app --babel-auth-verify-login <code>`"
+                "native Babel auth store has a pending phone-code login; run `exaudio-app --babel-auth-verify-login <code>`"
                     .to_string(),
             )
             .into());
         }
         return Err(NeedsSignIn(
-            "native Babel auth store has no active Clerk session; run `studio-app --babel-auth-start-login <phone>`"
+            "native Babel auth store has no active Clerk session; run `exaudio-app --babel-auth-start-login <phone>`"
                 .to_string(),
         )
         .into());

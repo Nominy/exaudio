@@ -196,13 +196,13 @@ fn project_queues_sync_only_for_owners_with_a_valid_relay() {
 #[test]
 fn relay_readiness_is_read_from_stderr() {
     assert_eq!(
-        relay_ready_url("studio-relay listening on http://127.0.0.1:8787").as_deref(),
+        relay_ready_url("exaudio-relay listening on http://127.0.0.1:8787").as_deref(),
         Some("http://127.0.0.1:8787")
     );
     assert_eq!(relay_ready_url("other log"), None);
     assert_eq!(
         read_relay_ready(Cursor::new(
-            "warning before bind\nstudio-relay listening on http://127.0.0.1:3001\n"
+            "warning before bind\nexaudio-relay listening on http://127.0.0.1:3001\n"
         ))
         .unwrap(),
         "http://127.0.0.1:3001"
@@ -214,7 +214,7 @@ fn relay_readiness_is_read_from_stderr() {
 #[tokio::test]
 async fn relay_ready_future_resolves_or_times_out() {
     let ready = wait_for_relay_ready(
-        Cursor::new("studio-relay listening on http://127.0.0.1:9000\n"),
+        Cursor::new("exaudio-relay listening on http://127.0.0.1:9000\n"),
         Duration::from_secs(5),
     )
     .await
@@ -237,15 +237,15 @@ async fn relay_ready_future_resolves_or_times_out() {
 
 #[test]
 fn relay_executable_resolves_beside_the_app() {
-    let app_exe = PathBuf::from("install").join("studio-app.exe");
+    let app_exe = PathBuf::from("install").join("exaudio-app.exe");
     let relay = relay_executable_path_for_app_exe(&app_exe);
     assert_eq!(relay.parent(), app_exe.parent());
     assert_eq!(
         relay.file_name().and_then(|name| name.to_str()),
         Some(if cfg!(windows) {
-            "studio-relay.exe"
+            "exaudio-relay.exe"
         } else {
-            "studio-relay"
+            "exaudio-relay"
         })
     );
 }
@@ -253,7 +253,7 @@ fn relay_executable_resolves_beside_the_app() {
 #[test]
 fn launch_args_prefer_the_babel_command_over_http_upstream() {
     let config = RelayLaunchConfig {
-        executable_path: PathBuf::from("studio-relay.exe"),
+        executable_path: PathBuf::from("exaudio-relay.exe"),
         bind: "127.0.0.1:8787".to_string(),
         store_path: PathBuf::from("relay-store.json"),
         babel_service_command: Some("node bridge.js".to_string()),
@@ -293,7 +293,7 @@ fn relay_start_failure_and_outcomes_drive_status() {
     assert!(relay.can_start() && !relay.can_stop());
 
     let missing = RelayLaunchConfig {
-        executable_path: dir.path().join("missing-studio-relay.exe"),
+        executable_path: dir.path().join("missing-exaudio-relay.exe"),
         bind: "127.0.0.1:8787".to_string(),
         store_path: dir.path().join("store").join("relay-store.json"),
         babel_service_command: None,

@@ -26,7 +26,7 @@ impl BabelServices {
 
 /// Resolve Babel's exported/cache filename conventions without changing remote source references.
 pub(crate) fn local_audio_sources(
-    project: &studio_core::Project,
+    project: &exaudio_core::Project,
     base: Option<&Path>,
 ) -> BTreeMap<String, Vec<PathBuf>> {
     let Some(base) = base else {
@@ -133,16 +133,17 @@ mod tests {
 
     #[test]
     fn remote_lane_reference_loads_babel_export_audio_through_explicit_candidates() {
-        let mut project = studio_editor::load_sample_project().unwrap();
+        let mut project = exaudio_editor::load_sample_project().unwrap();
         let lane = &mut project.lanes[0];
         lane.speaker_id = "speaker-1".into();
         lane.source_path = "s3://synthetic-bucket/recording.wav".into();
         let id = lane.id.clone();
         let base =
-            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/studio-editor/assets/demo");
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates/exaudio-editor/assets/demo");
         let mut candidates = local_audio_sources(&project, Some(&base));
         let loaded =
-            studio_audio::load_lane_audio_candidates(&id, candidates.remove(&id).unwrap()).unwrap();
+            exaudio_audio::load_lane_audio_candidates(&id, candidates.remove(&id).unwrap())
+                .unwrap();
         assert_eq!(loaded.path, base.join("speaker_1.wav"));
     }
 }

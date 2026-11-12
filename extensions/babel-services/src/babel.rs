@@ -2,10 +2,10 @@
 //! admin flag, dashboard projects, reviewer feedback forms and error-category labels.
 //!
 //! Transport precedence per request: offline fixture
-//! (`STUDIO_BABEL_SERVICE_FIXTURE_JSON` / `_PATH`) → external command bridge
-//! (`STUDIO_BABEL_SERVICE_COMMAND`) → sub-account relay (active sub-account
+//! (`EXAUDIO_BABEL_SERVICE_FIXTURE_JSON` / `_PATH`) → external command bridge
+//! (`EXAUDIO_BABEL_SERVICE_COMMAND`) → sub-account relay (active sub-account
 //! session) → live Babel tRPC API with native Clerk auth (or the
-//! `STUDIO_BABEL_SERVICE_COOKIE` / `_AUTHORIZATION` / `_AUTH_COMMAND` overrides).
+//! `EXAUDIO_BABEL_SERVICE_COOKIE` / `_AUTHORIZATION` / `_AUTH_COMMAND` overrides).
 //!
 //! Stale-response handling is the caller's job: tag each call with the
 //! workspace generation / edit revision it was issued for and drop results

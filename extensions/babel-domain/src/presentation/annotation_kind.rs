@@ -1,8 +1,8 @@
-use studio_core::Segment;
+use exaudio_core::Segment;
 
 const DEFAULT_BABEL_ANNOTATION_TYPE: &str = "transcription";
 
-use studio_editor::transcript_model::TranscriptAnnotationKind;
+use exaudio_editor::transcript_model::TranscriptAnnotationKind;
 
 pub fn annotation_kind(segment: &Segment) -> TranscriptAnnotationKind {
     let annotation_type = segment

@@ -5,7 +5,7 @@
 //! OpenRouter decisions (`cloudflare/clef-omni`). The assistant fills only unanswered
 //! choices and never submits.
 //!
-//! [`InferenceBackend::align`]: studio_inference::InferenceBackend::align
+//! [`InferenceBackend::align`]: exaudio_inference::InferenceBackend::align
 
 mod assistant;
 mod broker;

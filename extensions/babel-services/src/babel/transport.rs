@@ -17,14 +17,14 @@ use super::dashboard::{
 use super::request::{BabelRequest, ResponseShape, is_query_operation};
 use super::response::{first_string_by_key, normalize_for_shape};
 use crate::auth;
-use studio_services::http;
+use exaudio_services::http;
 
-const ENV_FIXTURE_JSON: &str = "STUDIO_BABEL_SERVICE_FIXTURE_JSON";
-const ENV_FIXTURE_PATH: &str = "STUDIO_BABEL_SERVICE_FIXTURE_PATH";
-const ENV_COMMAND: &str = "STUDIO_BABEL_SERVICE_COMMAND";
-const ENV_COOKIE: &str = "STUDIO_BABEL_SERVICE_COOKIE";
-const ENV_AUTHORIZATION: &str = "STUDIO_BABEL_SERVICE_AUTHORIZATION";
-const ENV_AUTH_COMMAND: &str = "STUDIO_BABEL_SERVICE_AUTH_COMMAND";
+const ENV_FIXTURE_JSON: &str = "EXAUDIO_BABEL_SERVICE_FIXTURE_JSON";
+const ENV_FIXTURE_PATH: &str = "EXAUDIO_BABEL_SERVICE_FIXTURE_PATH";
+const ENV_COMMAND: &str = "EXAUDIO_BABEL_SERVICE_COMMAND";
+const ENV_COOKIE: &str = "EXAUDIO_BABEL_SERVICE_COOKIE";
+const ENV_AUTHORIZATION: &str = "EXAUDIO_BABEL_SERVICE_AUTHORIZATION";
+const ENV_AUTH_COMMAND: &str = "EXAUDIO_BABEL_SERVICE_AUTH_COMMAND";
 
 /// Babel tRPC query that presigns a review action's track audio.
 pub(crate) const PRESIGNED_CHUNK_URLS_OPERATION: &str = "transcriptions.getPresignedChunkUrls";
@@ -89,9 +89,9 @@ pub struct BabelConfig {
 }
 
 impl BabelConfig {
-    /// Direct Babel configuration from `STUDIO_BABEL_SERVICE_FIXTURE_JSON` /
+    /// Direct Babel configuration from `EXAUDIO_BABEL_SERVICE_FIXTURE_JSON` /
     /// `_FIXTURE_PATH`, `_COMMAND`, `_BASE_URL`, `_COOKIE`, `_AUTHORIZATION`,
-    /// `_AUTH_COMMAND`, and `STUDIO_BABEL_CLERK_URL`.
+    /// `_AUTH_COMMAND`, and `EXAUDIO_BABEL_CLERK_URL`.
     pub fn from_env() -> Self {
         let fixture = std::env::var(ENV_FIXTURE_JSON)
             .ok()
@@ -361,7 +361,7 @@ async fn live_auth_headers(config: &BabelConfig) -> Result<LiveAuth, TransportEr
 
 fn auth_configuration_error(native_error: &str) -> String {
     format!(
-        "Babel live service auth is not configured from native store: {native_error}; set {ENV_COOKIE}, {ENV_AUTHORIZATION}, {ENV_AUTH_COMMAND}, or complete native Babel auth with `studio-app --babel-auth-verify-login <code>`"
+        "Babel live service auth is not configured from native store: {native_error}; set {ENV_COOKIE}, {ENV_AUTHORIZATION}, {ENV_AUTH_COMMAND}, or complete native Babel auth with `exaudio-app --babel-auth-verify-login <code>`"
     )
 }
 

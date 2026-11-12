@@ -1,7 +1,7 @@
 //! Process-wide service handles and the bridge from tokio-backed service futures to gpui.
 
+use exaudio_services::prefs::UiStorage;
 use gpui_kit::*;
-use studio_services::prefs::UiStorage;
 
 /// Shared service clients. Read with `cx.global::<AppServices>()`; mutate storage with
 /// `cx.update_global::<AppServices, _>(..)`.
@@ -30,7 +30,7 @@ where
     F: Future<Output = R> + Send + 'static,
     R: Send + 'static,
 {
-    let pending = studio_services::runtime::spawn(fut);
+    let pending = exaudio_services::runtime::spawn(fut);
     cx.spawn(async move |this, cx| {
         let output = pending.await;
         this.update(cx, |this, cx| on_done(this, output, cx)).ok();
@@ -50,7 +50,7 @@ where
     F: Future<Output = R> + Send + 'static,
     R: Send + 'static,
 {
-    let pending = studio_services::runtime::spawn(fut);
+    let pending = exaudio_services::runtime::spawn(fut);
     cx.spawn_in(window, async move |this, cx| {
         let output = pending.await;
         this.update_in(cx, |this, window, cx| on_done(this, output, window, cx))

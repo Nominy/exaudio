@@ -1,8 +1,8 @@
 //! "Edit annotation" dialog: hydrates intensity/categories from segment metadata, validates the
 //! category rules and builds the metadata update.
 
+use exaudio_core::{Project, Segment};
 use serde_json::Value;
-use studio_core::{Project, Segment};
 
 use super::create_region::{
     OTHER_CATEGORY, annotation_content, annotation_display_text, intensity_value_from_label,

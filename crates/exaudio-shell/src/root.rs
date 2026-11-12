@@ -84,7 +84,7 @@ impl ShellHandle {
     }
     pub fn open_document(
         &self,
-        project: studio_core::Project,
+        project: exaudio_core::Project,
         origin: DocumentOrigin,
         environment: ProviderEnvironment,
         window: &mut Window,
@@ -100,10 +100,10 @@ impl ShellHandle {
     }
     pub fn open_document_with_audio(
         &self,
-        project: studio_core::Project,
+        project: exaudio_core::Project,
         origin: DocumentOrigin,
         environment: ProviderEnvironment,
-        audio: Vec<(String, studio_audio::LaneAudioFile)>,
+        audio: Vec<(String, exaudio_audio::LaneAudioFile)>,
         window: &mut Window,
         cx: &mut App,
     ) -> anyhow::Result<Entity<EditorModel>> {
@@ -199,10 +199,10 @@ impl StudioRoot {
     }
     pub fn open_document(
         &mut self,
-        project: studio_core::Project,
+        project: exaudio_core::Project,
         origin: DocumentOrigin,
         mut environment: ProviderEnvironment,
-        audio: Option<Vec<(String, studio_audio::LaneAudioFile)>>,
+        audio: Option<Vec<(String, exaudio_audio::LaneAudioFile)>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> anyhow::Result<Entity<EditorModel>> {
@@ -636,12 +636,12 @@ fn demo_audio_dir() -> Option<PathBuf> {
             return Some(installed);
         }
     }
-    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../studio-editor/assets/demo");
+    let source = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../exaudio-editor/assets/demo");
     complete(&source).then_some(source)
 }
 
 pub fn open_demo(shell: &ShellHandle, window: &mut Window, cx: &mut App) -> anyhow::Result<()> {
-    let project = studio_editor::load_sample_project()?;
+    let project = exaudio_editor::load_sample_project()?;
     let audio = demo_audio_dir().ok_or_else(|| {
         anyhow::anyhow!(
             "{}",

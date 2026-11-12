@@ -4,9 +4,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use anyhow::{Context, Result, anyhow, bail};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
+use exaudio_core::{Project, Segment};
+use exaudio_editor::workflow::StudioWorkflow;
 use serde_json::{Map, Value};
-use studio_core::{Project, Segment};
-use studio_editor::workflow::StudioWorkflow;
 
 pub use exaudio_babel_lint::project_lint_tag_config::{
     META_BABEL_PROJECT_ID as META_PROJECT_ID, META_BABEL_PROJECT_SLUG as META_PROJECT_SLUG,

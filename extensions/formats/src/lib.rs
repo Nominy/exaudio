@@ -3,12 +3,12 @@ use std::borrow::Cow;
 use std::fmt::Write as _;
 use std::sync::Arc;
 
+use exaudio_core::Project;
 use exaudio_extension::ExtensionManifest;
 use exaudio_extension::format::{
     ExportOptions, FormatDescriptor, FormatError, FormatProvider, FormatRegistry, ImportContent,
     ImportedCue,
 };
-use studio_core::Project;
 
 pub const EXTENSION_ID: &str = "exaudio.formats";
 pub const MAX_INPUT_BYTES: usize = 16 * 1024 * 1024;

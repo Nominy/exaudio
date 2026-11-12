@@ -307,20 +307,20 @@ fn an_unregistered_manifest_claim_cannot_impersonate_a_mode_owner() {
 #[test]
 fn utf8_transaction_is_one_undo_unit_and_stale_edits_are_rejected() {
     use exaudio_extension::document::DocumentEnvironment;
-    let project = studio_core::Project {
+    let project = exaudio_core::Project {
         id: "doc".into(),
         name: "test".into(),
-        speakers: vec![studio_core::Speaker {
+        speakers: vec![exaudio_core::Speaker {
             id: "speaker".into(),
             label: "Speaker".into(),
         }],
-        lanes: vec![studio_core::AudioLane {
+        lanes: vec![exaudio_core::AudioLane {
             id: "lane".into(),
             speaker_id: "speaker".into(),
             label: "Lane".into(),
             source_path: String::new(),
         }],
-        segments: vec![studio_core::Segment {
+        segments: vec![exaudio_core::Segment {
             id: "one".into(),
             source_annotation_id: None,
             speaker_id: "speaker".into(),
@@ -332,7 +332,7 @@ fn utf8_transaction_is_one_undo_unit_and_stale_edits_are_rejected() {
         }],
         metadata: BTreeMap::new(),
     };
-    let mut doc = studio_editor::edit::EditorDoc::from_project(
+    let mut doc = exaudio_editor::edit::EditorDoc::from_project(
         project.clone(),
         DocumentEnvironment::local("doc"),
     );
@@ -369,17 +369,17 @@ fn utf8_transaction_is_one_undo_unit_and_stale_edits_are_rejected() {
 #[test]
 fn invalid_utf8_edit_preserves_every_segment_and_history() {
     use exaudio_extension::document::DocumentEnvironment;
-    let project = studio_core::Project {
+    let project = exaudio_core::Project {
         id: "doc".into(),
         name: "test".into(),
         speakers: vec![],
-        lanes: vec![studio_core::AudioLane {
+        lanes: vec![exaudio_core::AudioLane {
             id: "lane".into(),
             speaker_id: String::new(),
             label: "Lane".into(),
             source_path: String::new(),
         }],
-        segments: vec![studio_core::Segment {
+        segments: vec![exaudio_core::Segment {
             id: "one".into(),
             source_annotation_id: None,
             speaker_id: String::new(),
@@ -391,7 +391,7 @@ fn invalid_utf8_edit_preserves_every_segment_and_history() {
         }],
         metadata: BTreeMap::new(),
     };
-    let mut doc = studio_editor::edit::EditorDoc::from_project(
+    let mut doc = exaudio_editor::edit::EditorDoc::from_project(
         project.clone(),
         DocumentEnvironment::local("doc"),
     );

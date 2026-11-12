@@ -1945,35 +1945,95 @@ dependencies = [
 ]
 
 [[package]]
+name = "exaudio-app"
+version = "0.4.1"
+dependencies = [
+ "anyhow",
+ "embed-resource",
+ "exaudio-babel-lint",
+ "exaudio-babel-services",
+ "exaudio-babel-tags",
+ "exaudio-babel-ui",
+ "exaudio-extension",
+ "exaudio-formats",
+ "exaudio-gold-ui",
+ "exaudio-lint-basic",
+ "exaudio-local",
+ "exaudio-palette",
+ "exaudio-services",
+ "exaudio-shell",
+ "gpui-kit",
+]
+
+[[package]]
+name = "exaudio-audio"
+version = "0.1.0"
+dependencies = [
+ "exaudio-core",
+ "exaudio-waveform",
+ "rodio",
+ "sha2 0.10.9",
+ "symphonia",
+ "symphonia-adapter-libopus",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "exaudio-babel-domain"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "exaudio-babel-format",
  "exaudio-babel-lint",
  "exaudio-babel-tags",
+ "exaudio-core",
+ "exaudio-editor",
  "exaudio-extension",
+ "exaudio-waveform",
  "serde",
  "serde_json",
- "studio-babel",
- "studio-core",
- "studio-editor",
- "studio-waveform",
  "tempfile",
  "thiserror 2.0.18",
  "time",
 ]
 
 [[package]]
+name = "exaudio-babel-format"
+version = "0.1.0"
+dependencies = [
+ "exaudio-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "exaudio-babel-lint"
 version = "0.1.0"
 dependencies = [
+ "exaudio-core",
  "exaudio-extension",
  "regex",
  "serde",
  "serde_json",
- "studio-core",
  "unicode-normalization",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "exaudio-babel-relay"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "axum",
+ "base64",
+ "rand 0.9.4",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
@@ -1986,8 +2046,14 @@ dependencies = [
  "base64",
  "bytes",
  "exaudio-babel-domain",
+ "exaudio-babel-format",
  "exaudio-babel-lint",
+ "exaudio-core",
+ "exaudio-editor",
  "exaudio-gold",
+ "exaudio-inference",
+ "exaudio-services",
+ "exaudio-waveform",
  "futures-util",
  "httpdate",
  "regex",
@@ -1995,12 +2061,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "studio-babel",
- "studio-core",
- "studio-editor",
- "studio-inference",
- "studio-services",
- "studio-waveform",
  "tempfile",
  "thiserror 2.0.18",
  "time",
@@ -2015,10 +2075,10 @@ name = "exaudio-babel-tags"
 version = "0.1.0"
 dependencies = [
  "exaudio-babel-lint",
+ "exaudio-core",
+ "exaudio-editor",
  "exaudio-extension",
  "serde_json",
- "studio-core",
- "studio-editor",
 ]
 
 [[package]]
@@ -2028,34 +2088,57 @@ dependencies = [
  "anyhow",
  "async-channel",
  "bytes",
+ "exaudio-audio",
  "exaudio-babel-domain",
+ "exaudio-babel-format",
  "exaudio-babel-lint",
  "exaudio-babel-services",
  "exaudio-babel-tags",
+ "exaudio-core",
+ "exaudio-editor",
  "exaudio-extension",
  "exaudio-gold",
  "exaudio-gold-ui",
+ "exaudio-inference",
+ "exaudio-services",
  "exaudio-shell",
+ "exaudio-waveform",
  "gpui-kit",
  "serde",
  "serde_json",
- "studio-audio",
- "studio-babel",
- "studio-core",
- "studio-editor",
- "studio-inference",
- "studio-services",
- "studio-waveform",
+]
+
+[[package]]
+name = "exaudio-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "exaudio-editor"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "exaudio-core",
+ "exaudio-extension",
+ "exaudio-project",
+ "exaudio-waveform",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "exaudio-extension"
 version = "0.1.0"
 dependencies = [
+ "exaudio-core",
  "semver",
  "serde",
  "serde_json",
- "studio-core",
  "thiserror 2.0.18",
 ]
 
@@ -2078,9 +2161,9 @@ dependencies = [
 name = "exaudio-formats"
 version = "0.1.0"
 dependencies = [
+ "exaudio-core",
  "exaudio-extension",
  "serde_json",
- "studio-core",
 ]
 
 [[package]]
@@ -2092,6 +2175,11 @@ dependencies = [
  "axum",
  "base64",
  "bytes",
+ "exaudio-core",
+ "exaudio-editor",
+ "exaudio-inference",
+ "exaudio-services",
+ "exaudio-waveform",
  "futures-util",
  "multer",
  "rand 0.9.4",
@@ -2099,11 +2187,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "studio-core",
- "studio-editor",
- "studio-inference",
- "studio-services",
- "studio-waveform",
  "tempfile",
  "thiserror 2.0.18",
  "tokio",
@@ -2121,27 +2204,38 @@ dependencies = [
  "anyhow",
  "async-channel",
  "bytes",
+ "exaudio-audio",
+ "exaudio-core",
+ "exaudio-editor",
  "exaudio-extension",
  "exaudio-gold",
+ "exaudio-inference",
+ "exaudio-services",
  "exaudio-shell",
+ "exaudio-waveform",
  "gpui-kit",
  "serde",
  "serde_json",
- "studio-audio",
- "studio-core",
- "studio-editor",
- "studio-inference",
- "studio-services",
- "studio-waveform",
+]
+
+[[package]]
+name = "exaudio-inference"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
 name = "exaudio-lint-basic"
 version = "0.1.0"
 dependencies = [
+ "exaudio-core",
  "exaudio-extension",
  "serde_json",
- "studio-core",
 ]
 
 [[package]]
@@ -2150,13 +2244,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
+ "exaudio-audio",
+ "exaudio-core",
  "exaudio-extension",
+ "exaudio-project",
  "exaudio-shell",
  "gpui-kit",
  "serde_json",
- "studio-audio",
- "studio-core",
- "studio-project",
  "tempfile",
  "uuid",
 ]
@@ -2191,14 +2285,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "exaudio-project"
+version = "0.1.0"
+dependencies = [
+ "exaudio-core",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "exaudio-services"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "exaudio-core",
+ "exaudio-project",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "velopack",
+]
+
+[[package]]
 name = "exaudio-shell"
 version = "0.3.0"
 dependencies = [
  "anyhow",
  "async-channel",
+ "exaudio-audio",
+ "exaudio-core",
+ "exaudio-editor",
  "exaudio-extension",
  "exaudio-marketplace",
+ "exaudio-project",
+ "exaudio-services",
  "exaudio-wasm",
+ "exaudio-waveform",
  "futures-lite",
  "gpui-kit",
  "keyring",
@@ -2208,12 +2335,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
- "studio-audio",
- "studio-core",
- "studio-editor",
- "studio-project",
- "studio-services",
- "studio-waveform",
  "sys-locale",
  "tempfile",
  "time",
@@ -2237,6 +2358,14 @@ dependencies = [
  "url",
  "wasmtime",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "exaudio-waveform"
+version = "0.1.0"
+dependencies = [
+ "rayon",
+ "serde_json",
 ]
 
 [[package]]
@@ -7535,135 +7664,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
-]
-
-[[package]]
-name = "studio-app"
-version = "0.4.1"
-dependencies = [
- "anyhow",
- "embed-resource",
- "exaudio-babel-lint",
- "exaudio-babel-services",
- "exaudio-babel-tags",
- "exaudio-babel-ui",
- "exaudio-extension",
- "exaudio-formats",
- "exaudio-gold-ui",
- "exaudio-lint-basic",
- "exaudio-local",
- "exaudio-palette",
- "exaudio-shell",
- "gpui-kit",
- "studio-services",
-]
-
-[[package]]
-name = "studio-audio"
-version = "0.1.0"
-dependencies = [
- "rodio",
- "sha2 0.10.9",
- "studio-core",
- "studio-waveform",
- "symphonia",
- "symphonia-adapter-libopus",
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-babel"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "studio-core",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-editor"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "exaudio-extension",
- "serde",
- "serde_json",
- "studio-core",
- "studio-project",
- "studio-waveform",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-inference"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-project"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "studio-core",
- "tempfile",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "studio-relay"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "base64",
- "rand 0.9.4",
- "reqwest",
- "serde",
- "serde_json",
- "tempfile",
- "tokio",
-]
-
-[[package]]
-name = "studio-services"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "reqwest",
- "serde",
- "serde_json",
- "studio-core",
- "studio-project",
- "tempfile",
- "tokio",
- "velopack",
-]
-
-[[package]]
-name = "studio-waveform"
-version = "0.1.0"
-dependencies = [
- "rayon",
- "serde_json",
 ]
 
 [[package]]

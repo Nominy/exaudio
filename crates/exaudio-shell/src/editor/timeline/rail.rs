@@ -2,12 +2,12 @@
 //! zoom). Each is its own view, mounted cached in the lane rows, so the playback frames that
 //! repaint the timeline surfaces reuse them; they re-render on doc changes only.
 
+use exaudio_editor::timeline_model::TimelineLaneHeader;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants as _};
 use gpui_kit::component::slider::{Slider, SliderEvent, SliderScale, SliderState};
 use gpui_kit::component::{ActiveTheme, Selectable as _, Sizable as _, h_flex, v_flex};
 use gpui_kit::*;
-use studio_editor::timeline_model::TimelineLaneHeader;
 
 use super::{RAIL_WIDTH, lane_color};
 use crate::editor::model::EditorModel;

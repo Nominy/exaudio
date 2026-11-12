@@ -1,7 +1,7 @@
 use super::*;
 use crate::editor::model::EditorModel;
+use exaudio_editor::edit::TextSelection;
 use exaudio_extension::document as d;
-use studio_editor::edit::TextSelection;
 
 pub(super) enum Request {
     Snapshot(usize),
@@ -49,7 +49,7 @@ pub(super) fn dispatch(
                     if envelope.cancelled.load(Ordering::Acquire)
                         || Instant::now() >= envelope.deadline
                     {
-                        Err(studio_editor::edit::EditError::Unavailable(
+                        Err(exaudio_editor::edit::EditError::Unavailable(
                             "extension transaction cancelled before commit".into(),
                         ))
                     } else {
@@ -200,7 +200,7 @@ fn json(value: &w::Scalar) -> serde_json::Value {
         w::Scalar::Boolean(v) => (*v).into(),
     }
 }
-fn segment(value: &studio_core::Segment) -> w::Segment {
+fn segment(value: &exaudio_core::Segment) -> w::Segment {
     w::Segment {
         id: value.id.clone(),
         lane: value.lane_id.clone(),
@@ -218,8 +218,8 @@ fn segment(value: &studio_core::Segment) -> w::Segment {
             .collect(),
     }
 }
-pub(crate) fn core_segment(value: &w::Segment) -> studio_core::Segment {
-    studio_core::Segment {
+pub(crate) fn core_segment(value: &w::Segment) -> exaudio_core::Segment {
+    exaudio_core::Segment {
         id: value.id.clone(),
         source_annotation_id: None,
         speaker_id: value.speaker_id.clone().unwrap_or_default(),
@@ -234,14 +234,14 @@ pub(crate) fn core_segment(value: &w::Segment) -> studio_core::Segment {
             .collect(),
     }
 }
-pub(crate) fn project(value: &w::Document) -> Result<studio_core::Project> {
-    let project = studio_core::Project {
+pub(crate) fn project(value: &w::Document) -> Result<exaudio_core::Project> {
+    let project = exaudio_core::Project {
         id: value.id.clone(),
         name: value.name.clone(),
         speakers: value
             .speakers
             .iter()
-            .map(|s| studio_core::Speaker {
+            .map(|s| exaudio_core::Speaker {
                 id: s.id.clone(),
                 label: s.label.clone(),
             })
@@ -249,7 +249,7 @@ pub(crate) fn project(value: &w::Document) -> Result<studio_core::Project> {
         lanes: value
             .lanes
             .iter()
-            .map(|l| studio_core::AudioLane {
+            .map(|l| exaudio_core::AudioLane {
                 id: l.id.clone(),
                 speaker_id: l.speaker_id.clone().unwrap_or_default(),
                 label: l.label.clone(),
@@ -426,7 +426,7 @@ pub(crate) fn transaction(value: &w::Transaction) -> Result<d::DocumentTransacti
 }
 fn transaction_for_project(
     value: &w::Transaction,
-    project: &studio_core::Project,
+    project: &exaudio_core::Project,
 ) -> Result<d::DocumentTransaction, String> {
     let mut transaction = transaction(value)?;
     for edit in &mut transaction.edits {
@@ -534,7 +534,7 @@ impl Publications {
 #[derive(Debug)]
 struct Provider(std::sync::Weak<Mutex<Publications>>);
 impl d::DecorationProvider for Provider {
-    fn decorate(&self, project: &studio_core::Project, revision: u64) -> Vec<d::Decoration> {
+    fn decorate(&self, project: &exaudio_core::Project, revision: u64) -> Vec<d::Decoration> {
         let Some(shared) = self.0.upgrade() else {
             return vec![];
         };

@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use studio_waveform::DecodedAudio;
+use exaudio_waveform::DecodedAudio;
 
 use super::broker::{
     self, AlignBackend, CancelToken, ClipWav, DecisionInput, DecisionStore, ErrorTaskProgress,

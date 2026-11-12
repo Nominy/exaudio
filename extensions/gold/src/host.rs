@@ -191,7 +191,7 @@ impl PageHost {
         let (ready_tx, ready_rx) = mpsc::channel();
         let thread_shared = shared.clone();
         let thread = std::thread::Builder::new()
-            .name("studio-inference-webview".to_string())
+            .name("exaudio-inference-webview".to_string())
             .spawn(move || host_thread(config, thread_shared, command_rx, ready_tx))
             .map_err(|error| HostError::Crashed(format!("could not spawn host thread: {error}")))?;
         match ready_rx.recv() {

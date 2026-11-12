@@ -1,5 +1,5 @@
+use exaudio_core::{Project, Segment};
 use serde_json::Value;
-use studio_core::{Project, Segment};
 
 use super::{
     AnnotationDiffStatus, TranscriptAnnotationDiffView, TranscriptDiffCellKind, TranscriptDiffView,

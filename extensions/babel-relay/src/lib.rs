@@ -38,13 +38,13 @@ pub struct RelayConfig {
 impl RelayConfig {
     pub fn from_env() -> Self {
         Self {
-            store_path: std::env::var_os("STUDIO_SUBACCOUNT_RELAY_STORE")
+            store_path: std::env::var_os("EXAUDIO_SUBACCOUNT_RELAY_STORE")
                 .map(PathBuf::from)
-                .unwrap_or_else(|| PathBuf::from(".studio-dev/subaccounts/relay-store.json")),
-            owner_token: non_empty_env("STUDIO_SUBACCOUNT_OWNER_TOKEN"),
-            babel_service_command: non_empty_env("STUDIO_BABEL_SERVICE_COMMAND"),
-            upstream_url: non_empty_env("STUDIO_SUBACCOUNT_UPSTREAM_URL"),
-            task_cents: std::env::var("STUDIO_SUBACCOUNT_TASK_CENTS")
+                .unwrap_or_else(|| PathBuf::from(".exaudio-dev/subaccounts/relay-store.json")),
+            owner_token: non_empty_env("EXAUDIO_SUBACCOUNT_OWNER_TOKEN"),
+            babel_service_command: non_empty_env("EXAUDIO_BABEL_SERVICE_COMMAND"),
+            upstream_url: non_empty_env("EXAUDIO_SUBACCOUNT_UPSTREAM_URL"),
+            task_cents: std::env::var("EXAUDIO_SUBACCOUNT_TASK_CENTS")
                 .ok()
                 .and_then(|value| value.parse::<i64>().ok())
                 .unwrap_or(0),
@@ -87,7 +87,7 @@ impl RelayState {
             return execute_http_upstream(upstream_url, envelope).await;
         }
         Err(RelayError::bad_gateway(
-            "relay upstream is not configured; set STUDIO_BABEL_SERVICE_COMMAND or STUDIO_SUBACCOUNT_UPSTREAM_URL",
+            "relay upstream is not configured; set EXAUDIO_BABEL_SERVICE_COMMAND or EXAUDIO_SUBACCOUNT_UPSTREAM_URL",
         ))
     }
 }
@@ -304,7 +304,7 @@ struct ProjectQueueConfigInput {
     #[serde(default)]
     chunked_queue_id: String,
     // Wire field is "stitchedTxQueueId" everywhere else in this contract (see
-    // OwnerAssignRequest neighbors and studio-app's ProjectQueueConfig), which the
+    // OwnerAssignRequest neighbors and exaudio-app's ProjectQueueConfig), which the
     // auto-derived camelCase rename would not produce from `stitched_queue_id`.
     #[serde(default, rename = "stitchedTxQueueId")]
     stitched_queue_id: String,

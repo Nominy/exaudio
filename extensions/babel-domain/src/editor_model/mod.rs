@@ -6,8 +6,8 @@ pub mod review_actions;
 pub mod submit_control;
 pub mod task_lookup;
 use exaudio_babel_lint::linter::ServerLintSnapshot;
-use studio_core::Project;
-use studio_editor::editor_model::EditorSession as CoreSession;
+use exaudio_core::Project;
+use exaudio_editor::editor_model::EditorSession as CoreSession;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct BabelDocumentState {

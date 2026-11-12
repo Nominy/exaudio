@@ -6,6 +6,7 @@
 //! repeated expressive marks and stutters are deliberately not checked.
 //! Timing and empty-text findings never offer destructive or speculative fixes.
 
+use exaudio_core::{Project, Segment};
 use exaudio_extension::{
     document::{
         Diagnostic, DiagnosticCollection, DiagnosticProvider, DocumentEdit, DocumentProviders,
@@ -17,7 +18,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
-use studio_core::{Project, Segment};
 
 pub const ID: &str = "exaudio.lint-basic";
 pub const MANIFEST_JSON: &str = include_str!("../manifest.json");

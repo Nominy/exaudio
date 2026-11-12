@@ -50,7 +50,7 @@ fn metadata_keys_match_babel_service_contract() {
 #[test]
 fn startup_route_args_with_equals_values_load_review_action_before_default_claim() {
     let route = StartupRoute::parse_args([
-        "studio-app",
+        "exaudio-app",
         "--reviewActionId= review-action-url ",
         "--processedTranscriptionId= processed-url ",
         "--displayFeedback=true",
@@ -92,7 +92,7 @@ fn startup_route_args_with_equals_values_load_review_action_before_default_claim
 #[test]
 fn startup_route_query_arg_opens_task_lookup_with_processed_transcription() {
     let route = StartupRoute::parse_args([
-        "studio-app",
+        "exaudio-app",
         "babel://we-edit?processedTranscriptionId=processed-url&displayFeedback=true&taskLookup=true&stitchedQueueId=stitched-queue-url",
     ]);
 
@@ -229,7 +229,7 @@ fn load_precedence_is_task_lookup_then_review_action_then_processed_then_claim()
 
 #[test]
 fn empty_route_has_no_metadata_and_no_load() {
-    let route = StartupRoute::parse_args(["studio-app", "--unknown-flag=1", "positional"]);
+    let route = StartupRoute::parse_args(["exaudio-app", "--unknown-flag=1", "positional"]);
     assert!(route.is_empty());
     assert_eq!(route, StartupRoute::default());
     assert!(route.metadata_entries().is_empty());
@@ -247,7 +247,7 @@ fn display_feedback_alone_is_not_empty_but_loads_nothing() {
 #[test]
 fn space_separated_values_and_bool_flags_are_parsed() {
     let route = StartupRoute::parse_args([
-        "studio-app",
+        "exaudio-app",
         "--review-action-id",
         "ra-1",
         "--display-feedback",
@@ -421,7 +421,7 @@ fn parse_query_accepts_optional_leading_question_mark_and_empty_pairs() {
 #[test]
 fn query_args_merge_with_flag_args() {
     let route = StartupRoute::parse_args([
-        "studio-app",
+        "exaudio-app",
         "--display-feedback",
         "babel://we-edit?reviewActionId=ra",
         "--chunkedQueueId=cq",

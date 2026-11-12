@@ -9,11 +9,11 @@
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
+use exaudio_editor::edit::EditorDoc;
+use exaudio_editor::edit::draft::{SegmentDraft, byte_offset};
+use exaudio_editor::edit::time::TimeField;
+use exaudio_editor::transcript_model::{TranscriptRowKind, TranscriptRowView};
 use gpui_kit::*;
-use studio_editor::edit::EditorDoc;
-use studio_editor::edit::draft::{SegmentDraft, byte_offset};
-use studio_editor::edit::time::TimeField;
-use studio_editor::transcript_model::{TranscriptRowKind, TranscriptRowView};
 
 use super::wrap::WrappedText;
 
@@ -156,7 +156,7 @@ impl RowMetrics {
             rem: metrics.rem,
             font_size: metrics.font_size,
             line_height: metrics.line_height,
-            language: studio_editor::i18n::localized("en", "ru"),
+            language: exaudio_editor::i18n::localized("en", "ru"),
         };
         if let Some((cached, sizes)) = &self.sizes
             && cached.matches(&key)
@@ -339,10 +339,10 @@ pub(super) fn diff_display_text(row: &TranscriptRowView) -> String {
         return String::new();
     };
     if diff.words.is_empty() {
-        return if diff.kind == studio_editor::transcript_model::TranscriptDiffCellKind::New {
+        return if diff.kind == exaudio_editor::transcript_model::TranscriptDiffCellKind::New {
             row.text.clone()
         } else {
-            studio_editor::i18n::localized("No content", "Пусто").to_string()
+            exaudio_editor::i18n::localized("No content", "Пусто").to_string()
         };
     }
     let mut text = String::new();

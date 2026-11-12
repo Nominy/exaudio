@@ -62,12 +62,12 @@
 
 ## Сборка из исходников
 
-На любой платформе нужны Git, Rust из `rust-toolchain.toml` и CMake (встроенный libopus собирается из исходников). Windows добавляет инструменты MSVC C++ с Windows SDK; macOS — инструменты командной строки Xcode; Linux — компилятор C и dev-пакеты из `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Редактор и его платформа лежат в `crates/`, всё необязательное — в `extensions/`; внутренние крейты сохраняют префикс `studio-*`.
+На любой платформе нужны Git, Rust из `rust-toolchain.toml` и CMake (встроенный libopus собирается из исходников). Windows добавляет инструменты MSVC C++ с Windows SDK; macOS — инструменты командной строки Xcode; Linux — компилятор C и dev-пакеты из `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Редактор и его платформа лежат в `crates/`, всё необязательное — в `extensions/`.
 
 ```powershell
 git clone https://github.com/Nominy/exaudio.git
 cd exaudio
-cargo run -p studio-app
+cargo run -p exaudio-app
 ```
 
 Стандартная сборка включает Local, Formats, базовые проверки, ИИ-инструменты Gold и интеграцию Babel и собирается из чистого клона. Подмножества features:
@@ -76,7 +76,7 @@ cargo run -p studio-app
 # Только редактор: Local, форматы, базовые проверки, палитра команд
 cargo editor
 # То же плюс ИИ-инструменты, без Babel
-cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
+cargo run -p exaudio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
 ```
 
 Приватный пакет данных Babel (`tools/babel-data.json`) нужен только инструментам сверки и тестам сверки линтера; без него они пропускаются. Проверки, процесс для участников и SDK расширений — в [руководстве разработчика](docs/development.md).

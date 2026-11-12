@@ -3,7 +3,7 @@
 //! The page host starts lazily on first use, is restarted on the next request after the browser
 //! or page process dies, and is shut down by [`LocalBackend::shutdown`] (app exit) or drop.
 //! Lane audio reaches the page as files in a staging folder mapped to
-//! `https://studio-audio.example/`; each request's files are deleted when it settles.
+//! `https://exaudio-audio.example/`; each request's files are deleted when it settles.
 
 use std::{
     path::{Path, PathBuf},
@@ -16,11 +16,11 @@ use std::{
 use crate::remote::GOLD_ENHANCEMENT_MODEL;
 use async_trait::async_trait;
 use bytes::Bytes;
-use serde_json::Value;
-use studio_inference::{
+use exaudio_inference::{
     AlignRequest, AlignResponse, BackendStatus, DraftResponse, EnhancedLane, InferenceBackend,
     InferenceError, InferenceResult, LaneAudio, PreservedRow, ProgressSink, TimingResponse,
 };
+use serde_json::Value;
 
 use crate::AUDIO_HOST;
 use crate::bundle::GoldBuildPin;
@@ -50,7 +50,7 @@ impl LocalConfig {
 
     /// The app's layout: state under Studio's app-support folder.
     pub fn for_app() -> Self {
-        Self::new(studio_services::paths::app_support_dir().join("inference"))
+        Self::new(exaudio_services::paths::app_support_dir().join("inference"))
     }
 
     #[cfg(windows)]
@@ -378,7 +378,7 @@ impl InferenceBackend for LocalBackend {
 #[cfg(not(windows))]
 fn unsupported() -> InferenceError {
     InferenceError::new(
-        studio_inference::InferenceErrorKind::Unsupported,
+        exaudio_inference::InferenceErrorKind::Unsupported,
         "Running AI on this computer needs Windows with Microsoft Edge WebView2. Use a remote server instead.",
     )
 }
@@ -475,7 +475,7 @@ mod windows_host {
         time::Duration,
     };
 
-    use studio_inference::{InferenceError, InferenceErrorKind};
+    use exaudio_inference::{InferenceError, InferenceErrorKind};
 
     use super::LocalConfig;
     use crate::host::{HostConfig, HostError, PageHost};

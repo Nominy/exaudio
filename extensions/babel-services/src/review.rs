@@ -1,6 +1,6 @@
 //! Reviewer / Gold Drafting backend (native capability panel) and the required L2 feedback form.
 //!
-//! - [`ReviewBackend`]: async HTTP client (`STUDIO_REVIEW_BACKEND_BASE_URL`).
+//! - [`ReviewBackend`]: async HTTP client (`EXAUDIO_REVIEW_BACKEND_BASE_URL`).
 //! - Payload builders from the project ([`build_reviewer_payload`], drafting payloads).
 //! - [`ReviewSnapshot`]: original (Babel L1) / current pair for Magic Review and the Grader.
 //! - [`ReviewerWorkspace`]: interactive Magic Review session/card/comment/finalize state.

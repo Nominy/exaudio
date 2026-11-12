@@ -1,7 +1,7 @@
 //! Task-lookup dialog state: look up a stitched transcription to claim, or open a review
 //! action / processed transcription read-only.
 
-use studio_core::Project;
+use exaudio_core::Project;
 
 use crate::babel_metadata::metadata_bool;
 

@@ -42,7 +42,7 @@ pub struct ProjectQueueConfig {
 
 pub async fn load_dashboard(auth_store: &Path, host_url: &str) -> Result<OwnerDashboard> {
     let (host_url, headers) = owner_target(auth_store, host_url).await?;
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .get(api_url(&host_url, OWNER_DASHBOARD_PATH))
         .headers(headers)
         .send()
@@ -57,7 +57,7 @@ pub async fn create_subaccount(
     label: &str,
 ) -> Result<OwnerDashboard> {
     let (host_url, headers) = owner_target(auth_store, host_url).await?;
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .post(api_url(&host_url, OWNER_SUBACCOUNTS_PATH))
         .headers(headers)
         .json(&json!({ "label": label.trim() }))
@@ -72,7 +72,7 @@ pub async fn revoke_subaccount(
     subaccount_id: &str,
 ) -> Result<OwnerDashboard> {
     let (host_url, headers) = owner_target(auth_store, host_url).await?;
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .delete(api_url(
             &host_url,
             &format!(
@@ -94,7 +94,7 @@ pub async fn assign_projects(
     project_ids: &[String],
 ) -> Result<OwnerDashboard> {
     let (host_url, headers) = owner_target(auth_store, host_url).await?;
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .put(api_url(
             &host_url,
             &format!(
@@ -116,7 +116,7 @@ pub async fn push_project_queue_configs(
     configs: &[ProjectQueueConfig],
 ) -> Result<()> {
     let (host_url, headers) = owner_target(auth_store, host_url).await?;
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .put(api_url(&host_url, OWNER_PROJECT_QUEUES_PATH))
         .headers(headers)
         .json(&json!({

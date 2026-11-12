@@ -1,9 +1,9 @@
-//! Sub-accounts: code-login sessions routed through a `studio-relay` host, the remembered relay
+//! Sub-accounts: code-login sessions routed through a `exaudio-relay` host, the remembered relay
 //! URL, Babel-request relaying for active sessions, and owner management APIs ([`owner`]).
 //! A session lives in its account directory (`subaccount.json`, see [`crate::account`]).
 //!
-//! Env: `STUDIO_SUBACCOUNT_RELAY_SETTINGS` (remembered relay URL file),
-//! `STUDIO_SUBACCOUNT_RELAY_URL` (relay URL override).
+//! Env: `EXAUDIO_SUBACCOUNT_RELAY_SETTINGS` (remembered relay URL file),
+//! `EXAUDIO_SUBACCOUNT_RELAY_URL` (relay URL override).
 
 pub mod owner;
 
@@ -17,8 +17,8 @@ use anyhow::{Context, Result, anyhow, bail};
 use reqwest::header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, HeaderMap, HeaderValue};
 use serde_json::{Value, json};
 
-pub const SUBACCOUNT_RELAY_SETTINGS_ENV: &str = "STUDIO_SUBACCOUNT_RELAY_SETTINGS";
-pub const SUBACCOUNT_RELAY_URL_ENV: &str = "STUDIO_SUBACCOUNT_RELAY_URL";
+pub const SUBACCOUNT_RELAY_SETTINGS_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_SETTINGS";
+pub const SUBACCOUNT_RELAY_URL_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_URL";
 
 const APP_SUPPORT_DIR_NAME: &str = "Exaudio";
 /// File name of a relay session inside an account directory.
@@ -58,7 +58,7 @@ pub fn relay_settings_path() -> PathBuf {
     env::var_os(SUBACCOUNT_RELAY_SETTINGS_ENV)
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            studio_services::paths::app_support_dir_named(APP_SUPPORT_DIR_NAME)
+            exaudio_services::paths::app_support_dir_named(APP_SUPPORT_DIR_NAME)
                 .join(RELAY_SETTINGS_FILE_NAME)
         })
 }
@@ -156,7 +156,7 @@ pub fn parse_relay_settings(source: &str) -> Result<String> {
     normalize_relay_host_url(&host_url)
 }
 
-/// Relay URL for login prompts and owner controls: `STUDIO_SUBACCOUNT_RELAY_URL`, else the
+/// Relay URL for login prompts and owner controls: `EXAUDIO_SUBACCOUNT_RELAY_URL`, else the
 /// remembered settings, else empty.
 pub fn default_relay_host_url() -> String {
     env::var(SUBACCOUNT_RELAY_URL_ENV)
@@ -198,7 +198,7 @@ pub async fn login_with_code(host_url: &str, code: &str) -> Result<SubaccountSes
     if code.is_empty() {
         bail!("Sub-account code is required.");
     }
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .post(api_url(&host_url, LOGIN_PATH))
         .header(ACCEPT, "application/json")
         .json(&json!({ "code": code }))
@@ -240,7 +240,7 @@ pub async fn relay_babel_payload(
     request_kind: &str,
     envelope: Value,
 ) -> Result<String> {
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .post(api_url(&session.host_url, BABEL_SERVICE_PATH))
         .headers(session_headers(session)?)
         .json(&json!({ "requestKind": request_kind, "envelope": envelope }))
@@ -260,7 +260,7 @@ pub async fn audio_presigned_urls(
     if chunked_processed_recording_ids.is_empty() {
         return Ok(BTreeMap::new());
     }
-    let response = studio_services::http::client()
+    let response = exaudio_services::http::client()
         .post(api_url(&session.host_url, AUDIO_PRESIGN_PATH))
         .headers(session_headers(session)?)
         .json(&json!({

@@ -1,7 +1,7 @@
 //! Target-speaker clip encoding (Gold `encodeErrorTaskWav`): mono PCM16 WAV of at most ten
 //! seconds of one already isolated recording, sample-rounded bounds.
 
-use studio_waveform::DecodedAudio;
+use exaudio_waveform::DecodedAudio;
 
 use super::ErrorTaskError;
 use super::diff_align::AudioInterval;

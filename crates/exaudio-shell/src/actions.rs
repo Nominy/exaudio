@@ -5,15 +5,15 @@
 
 use std::rc::Rc;
 
+use exaudio_editor::edit::EditorAction;
+use exaudio_editor::edit::keymap::{ACTION_DEFS, ActionDef, KeyContext};
+use exaudio_editor::i18n::Text;
 use exaudio_extension::actions::{
     ActionManifest, ActionRegistry, CORE_OWNER, Context, KeyBindingManifest, KeyChord, Localized,
     MenuPlacement, Priority, UserBindings, Value, legacy_action_id,
 };
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::*;
-use studio_editor::edit::EditorAction;
-use studio_editor::edit::keymap::{ACTION_DEFS, ActionDef, KeyContext};
-use studio_editor::i18n::Text;
 
 use crate::ShellHandle;
 use crate::screens::ui;
@@ -31,9 +31,10 @@ const HOST_OS: OperatingSystem = if IS_MAC {
 
 /// UI storage key of the user's key overrides (`UserBindings` JSON).
 pub const STORAGE_KEY: &str = "exaudio.keymap";
-/// Key the per-`EditorAction` overrides were saved under before the registry; read once and
-/// rewritten under [`STORAGE_KEY`].
-const LEGACY_STORAGE_KEY: &str = "studio.native.hotkeyBindings.v1";
+/// Key the per-`EditorAction` overrides were saved under before the registry
+/// (`studio.native.hotkeyBindings.v1` on disk; the store loads it under the `exaudio.`
+/// prefix); read once and rewritten under [`STORAGE_KEY`].
+const LEGACY_STORAGE_KEY: &str = "exaudio.native.hotkeyBindings.v1";
 
 pub const MENU_EDITOR_OVERFLOW: &str = "editor/overflow";
 pub const MENU_EDITOR_TOOLBAR: &str = "editor/toolbar";

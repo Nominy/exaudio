@@ -13,9 +13,9 @@ pub const CLEF_MODEL: &str = "cloudflare/clef-omni";
 const DECISIONS_URL: &str = "https://openrouter.ai/api/alpha/decisions";
 /// Points Initial fill at a decisions server on this machine (smoke runs). Honored only for
 /// `http://localhost` / `http://127.0.0.1` URLs, so the Gold key never goes anywhere else.
-pub const DECISIONS_URL_ENV: &str = "STUDIO_OPENROUTER_DECISIONS_URL";
+pub const DECISIONS_URL_ENV: &str = "EXAUDIO_OPENROUTER_DECISIONS_URL";
 
-/// The decisions endpoint: `STUDIO_OPENROUTER_DECISIONS_URL` when it is a loopback URL, else
+/// The decisions endpoint: `EXAUDIO_OPENROUTER_DECISIONS_URL` when it is a loopback URL, else
 /// OpenRouter's.
 pub fn decisions_url() -> String {
     decisions_url_with(std::env::var(DECISIONS_URL_ENV).ok().as_deref())

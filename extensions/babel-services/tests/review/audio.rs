@@ -4,7 +4,7 @@ use exaudio_gold::polish::{
     DraftAudioMode, broker_audio_tracks, draft_audio_cue_status, draft_audio_guard,
     encode_pcm16_wav, resolve_draft_audio,
 };
-use studio_waveform::DecodedAudio;
+use exaudio_waveform::DecodedAudio;
 
 use super::sample_project;
 
@@ -89,7 +89,7 @@ fn broker_tracks_attach_loaded_lanes_as_pcm16_wav() {
     assert_eq!(track.metadata["speakerKey"], "spk-2");
     assert_eq!(track.metadata["trackLabel"], "Speaker 2");
     assert_eq!(&track.bytes[0..4], b"RIFF");
-    let decoded = studio_waveform::decode_pcm16_wav(&track.bytes).unwrap();
+    let decoded = exaudio_waveform::decode_pcm16_wav(&track.bytes).unwrap();
     assert_eq!(decoded.sample_rate(), 4);
     assert_eq!(decoded.frame_count(), 4);
 }
@@ -104,6 +104,6 @@ fn wav_encoding_interleaves_and_clamps_samples() {
         .map(|pair| i16::from_le_bytes([pair[0], pair[1]]))
         .collect::<Vec<_>>();
     assert_eq!(samples, vec![32767, 0, -32768, 16384]);
-    let decoded = studio_waveform::decode_pcm16_wav(&bytes).unwrap();
+    let decoded = exaudio_waveform::decode_pcm16_wav(&bytes).unwrap();
     assert_eq!(decoded.number_of_channels(), 2);
 }

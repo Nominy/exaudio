@@ -6,13 +6,13 @@ use std::{
     sync::Arc,
 };
 
+use exaudio_core::{Project, Segment};
 use exaudio_extension::document::{DocumentEdit, DocumentTransaction};
 use exaudio_extension::format::{ExportOptions, FormatDescriptor, FormatProvider, ImportContent};
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::notification::Notification;
 use gpui_kit::component::{ActiveTheme, WindowExt as _, v_flex};
 use gpui_kit::*;
-use studio_core::{Project, Segment};
 
 use crate::screens::ui::localized;
 use crate::{ContributionRegistry, ShellHandle};

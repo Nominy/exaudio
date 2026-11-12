@@ -11,8 +11,8 @@
 
 use std::collections::HashMap;
 
-use studio_audio::{DecodedAudio, blend_lane_audio};
-use studio_editor::timeline_model::LaneWaveform;
+use exaudio_audio::{DecodedAudio, blend_lane_audio};
+use exaudio_editor::timeline_model::LaneWaveform;
 
 /// Retained bytes of the blends kept but not painted, all lanes together. The most recently
 /// built blend is kept even when it alone exceeds the budget.

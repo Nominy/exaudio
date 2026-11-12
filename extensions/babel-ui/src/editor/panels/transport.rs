@@ -11,6 +11,7 @@ use exaudio_babel_domain::editor_model::review_actions::{
 };
 use exaudio_babel_domain::editor_model::{AssessmentPhase, EditorSession};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
+use exaudio_editor::editor_model::SaveStatus;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
 use gpui_kit::component::switch::Switch;
@@ -20,7 +21,6 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::editor_model::SaveStatus;
 
 use super::dialogs::submit;
 use super::flows::skip_disabled_tooltip;

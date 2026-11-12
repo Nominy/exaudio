@@ -13,10 +13,10 @@ mod workspace;
 use std::collections::BTreeMap;
 
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
-use studio_core::{AudioLane, Project, Segment, Speaker};
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_core::{AudioLane, Project, Segment, Speaker};
+use exaudio_editor::workflow::StudioWorkflow;
 
-/// Recovered Babel review action (`studio-babel` fixture) with local audio paths.
+/// Recovered Babel review action (`exaudio-babel-format` fixture) with local audio paths.
 pub fn review_action_workflow() -> StudioWorkflow {
     let mut value: serde_json::Value = serde_json::from_str(include_str!(
         "../../../babel-format/tests/fixtures/review-action-final.json"

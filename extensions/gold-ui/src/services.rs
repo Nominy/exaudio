@@ -2,16 +2,16 @@
 
 use std::{future::Future, pin::Pin, sync::Arc};
 
+use exaudio_core::Project;
 use exaudio_gold::polish::{
     AudioTrack, BackendHealth, DraftResult, DraftStreamEvent, DraftingConfig,
 };
 use exaudio_gold::prefs::{AiPreferences, AiSettings, ExecutionLocation};
 use exaudio_gold::remote::{RemoteBackend, RemoteConfig, TimingTokenStore};
 use exaudio_gold::{LocalBackend, LocalConfig};
+use exaudio_inference::InferenceBackend;
+use exaudio_services::prefs::UiStorage;
 use gpui_kit::*;
-use studio_core::Project;
-use studio_inference::InferenceBackend;
-use studio_services::prefs::UiStorage;
 
 pub type PolishFuture<'a, T> = Pin<Box<dyn Future<Output = anyhow::Result<T>> + Send + 'a>>;
 pub type PolishEvents = Arc<dyn Fn(DraftStreamEvent) + Send + Sync>;

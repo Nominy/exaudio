@@ -8,10 +8,10 @@
 use crate::ShellHandle;
 use crate::services::AppServices;
 use anyhow::{Result, bail};
+use exaudio_services::prefs::UiStorage;
 use gpui_kit::*;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, path::PathBuf, rc::Rc};
-use studio_services::prefs::UiStorage;
 
 const INSTANCES_KEY: &str = "exaudio.providers.instances";
 const SELECTED_KEY: &str = "exaudio.providers.selected";
@@ -182,7 +182,7 @@ impl InstanceStore {
 }
 
 /// Shell-owned registry of provider types and configured instances. Persisted in
-/// [`UiStorage`](studio_services::prefs::UiStorage) under `exaudio.providers.*`.
+/// [`UiStorage`](exaudio_services::prefs::UiStorage) under `exaudio.providers.*`.
 #[derive(Default)]
 pub struct ProviderRegistry {
     types: BTreeMap<String, (String, ProviderContribution)>,
@@ -259,11 +259,11 @@ impl ProviderRegistry {
     }
 }
 
-/// Root of all provider instance directories. Resolution: `STUDIO_PROVIDER_DIR`, else
+/// Root of all provider instance directories. Resolution: `EXAUDIO_PROVIDER_DIR`, else
 /// `<executable dir>/providers` when that directory exists (portable install), else
 /// `<app support>/providers`.
 pub fn providers_root() -> PathBuf {
-    if let Some(dir) = std::env::var_os("STUDIO_PROVIDER_DIR") {
+    if let Some(dir) = std::env::var_os("EXAUDIO_PROVIDER_DIR") {
         let trimmed = dir.to_string_lossy().trim().to_owned();
         if !trimmed.is_empty() {
             return PathBuf::from(trimmed);
@@ -277,7 +277,7 @@ pub fn providers_root() -> PathBuf {
             return portable;
         }
     }
-    studio_services::paths::app_support_dir().join("providers")
+    exaudio_services::paths::app_support_dir().join("providers")
 }
 
 /// Private directory for an instance's credentials and caches, owned by the provider type.
@@ -289,7 +289,7 @@ pub fn instance_dir(instance: &ProviderInstance) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::{InstanceStore, ProviderInstance};
-    use studio_services::prefs::UiStorage;
+    use exaudio_services::prefs::UiStorage;
 
     fn instance(id: &str, label: &str) -> ProviderInstance {
         ProviderInstance {

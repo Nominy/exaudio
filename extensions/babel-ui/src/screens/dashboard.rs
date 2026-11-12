@@ -11,6 +11,7 @@ use exaudio_babel_services::babel::{
 };
 use exaudio_babel_services::recovery::{self, RecoveryDraft};
 use exaudio_babel_services::subaccounts::SubaccountSession;
+use exaudio_editor::workflow::StudioWorkflow;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::progress::Progress;
 use gpui_kit::component::scroll::ScrollableElement as _;
@@ -18,7 +19,6 @@ use gpui_kit::component::spinner::Spinner;
 use gpui_kit::component::{ActiveTheme, Disableable, Icon, IconName, Sizable, h_flex, v_flex};
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_editor::workflow::StudioWorkflow;
 
 use crate::editor::panels::dialogs::no_work;
 use crate::root::{BabelController, DashboardFilter};

@@ -20,4 +20,4 @@ pub mod host;
 pub use backend::{LocalBackend, LocalConfig};
 
 /// Virtual host the audio staging folder is served at (allowed by Gold's host manifest).
-pub const AUDIO_HOST: &str = "studio-audio.example";
+pub const AUDIO_HOST: &str = "exaudio-audio.example";

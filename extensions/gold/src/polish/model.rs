@@ -2,8 +2,8 @@
 
 use anyhow::{Context, Result, anyhow};
 use bytes::Bytes;
+use exaudio_core::Project;
 use serde_json::Value;
-use studio_core::Project;
 
 fn parse_json(payload: &str) -> Result<Value> {
     serde_json::from_str(payload).context("malformed JSON")

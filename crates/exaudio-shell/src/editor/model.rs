@@ -12,15 +12,15 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use crate::{DocumentOrigin, ProviderEnvironment};
-use gpui_kit::*;
-use studio_audio::{
+use exaudio_audio::{
     AudioEngine, AudioError, DecodedAudio, LaneAudioFile, PlaybackState, load_lane_audio,
     load_lane_audio_candidates,
 };
-use studio_core::AudioLane;
-use studio_core::Project;
-use studio_editor::edit::{EditResult, EditorAction, EditorDoc, Effect, Outcome};
-use studio_editor::timeline_model::LaneWaveform;
+use exaudio_core::AudioLane;
+use exaudio_core::Project;
+use exaudio_editor::edit::{EditResult, EditorAction, EditorDoc, Effect, Outcome};
+use exaudio_editor::timeline_model::LaneWaveform;
+use gpui_kit::*;
 
 use crate::editor::blended_waveforms::{BlendKey, BlendedWaveforms, Selection, build_blend};
 
@@ -43,7 +43,7 @@ pub enum EditorEvent {
     },
     SelectText {
         segment_id: String,
-        selection: studio_editor::edit::TextSelection,
+        selection: exaudio_editor::edit::TextSelection,
     },
     BlurText,
     DraftChanged {
@@ -522,7 +522,7 @@ impl EditorModel {
     fn report_audio(&mut self, result: Result<usize, AudioError>) {
         if let Err(error) = result {
             self.status = Some(
-                studio_editor::i18n::localized(
+                exaudio_editor::i18n::localized(
                     "Can't play audio on this device.",
                     "Не удаётся воспроизвести звук на этом устройстве.",
                 )
@@ -611,7 +611,7 @@ impl EditorModel {
                 self.audio_load.failed += 1;
                 let lane = self.doc.lane_label(&lane_id);
                 self.status = Some(
-                    studio_editor::i18n::localized(
+                    exaudio_editor::i18n::localized(
                         "Couldn't load audio for “{track}”.",
                         "Не удалось загрузить аудио для «{track}».",
                     )

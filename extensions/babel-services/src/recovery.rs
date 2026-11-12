@@ -13,11 +13,11 @@ use std::{
 
 use anyhow::{Context, Result};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
-use studio_core::Project;
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_core::Project;
+use exaudio_editor::workflow::StudioWorkflow;
 
 use crate::babel::META_REVIEW_ACTION_ID;
-use studio_services::paths::app_support_dir;
+use exaudio_services::paths::app_support_dir;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RecoveryDraft {

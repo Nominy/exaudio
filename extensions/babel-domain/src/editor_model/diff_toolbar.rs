@@ -1,7 +1,7 @@
 //! Diff-toolbar state: compare-version choices, toggles and diff metrics carried in task metadata.
 
+use exaudio_core::Project;
 use serde_json::Value;
-use studio_core::Project;
 
 use super::{AssessmentPhase, EditorSessionView};
 

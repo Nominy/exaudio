@@ -1,8 +1,8 @@
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
+use exaudio_babel_format::BabelTaskPackage;
 use exaudio_babel_lint::linter::{LintSeverity, ServerLintIssue};
-use studio_babel::BabelTaskPackage;
-use studio_core::{AudioLane, Project, Segment, Speaker};
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_core::{AudioLane, Project, Segment, Speaker};
+use exaudio_editor::workflow::StudioWorkflow;
 
 const SAMPLE_TASK_JSON: &str = include_str!("fixtures/stable-workflow-task.json");
 const REVIEW_ACTION_JSON: &str =
@@ -651,7 +651,7 @@ fn workflow_saves_and_reloads_local_project() {
         std::fs::write(
             path,
             include_bytes!(
-                "../../../crates/studio-waveform/tests/fixtures/babel_line/tone-8k-mono.wav"
+                "../../../crates/exaudio-waveform/tests/fixtures/babel_line/tone-8k-mono.wav"
             ),
         )
         .unwrap();

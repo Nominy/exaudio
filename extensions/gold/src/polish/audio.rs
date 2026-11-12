@@ -2,9 +2,9 @@
 //! "audio capture needs review" guard shown before a generation with missing lanes.
 
 use anyhow::{Result, bail};
+use exaudio_core::{AudioLane, Project};
+use exaudio_waveform::DecodedAudio;
 use serde_json::json;
-use studio_core::{AudioLane, Project};
-use studio_waveform::DecodedAudio;
 
 use super::model::AudioTrack;
 

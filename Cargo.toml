@@ -4,13 +4,13 @@ members = [
   "crates/exaudio-marketplace",
   "crates/exaudio-wasm",
   "crates/exaudio-shell",
-  "crates/studio-core",
-  "crates/studio-project",
-  "crates/studio-waveform",
-  "crates/studio-editor",
-  "crates/studio-services",
-  "crates/studio-audio",
-  "crates/studio-app",
+  "crates/exaudio-core",
+  "crates/exaudio-project",
+  "crates/exaudio-waveform",
+  "crates/exaudio-editor",
+  "crates/exaudio-services",
+  "crates/exaudio-audio",
+  "crates/exaudio-app",
   "extensions/palette",
   "extensions/local",
   "extensions/formats",
@@ -28,7 +28,7 @@ members = [
   "tools/extension-index"
 ]
 exclude = ["vendor/gpui-pre-windows", "sdk/rust", "extensions/examples/hello-panel"]
-default-members = ["crates/studio-app"]
+default-members = ["crates/exaudio-app"]
 resolver = "2"
 
 [workspace.package]
@@ -70,14 +70,14 @@ exaudio-babel-services = { path = "extensions/babel-services" }
 exaudio-babel-lint = { path = "extensions/babel-lint" }
 exaudio-babel-tags = { path = "extensions/babel-tags" }
 exaudio-gold = { path = "extensions/gold" }
-studio-core = { path = "crates/studio-core" }
-studio-project = { path = "crates/studio-project" }
-studio-babel = { path = "extensions/babel-format" }
-studio-waveform = { path = "crates/studio-waveform" }
-studio-editor = { path = "crates/studio-editor" }
-studio-services = { path = "crates/studio-services" }
-studio-audio = { path = "crates/studio-audio" }
-studio-inference = { path = "extensions/inference" }
+exaudio-core = { path = "crates/exaudio-core" }
+exaudio-project = { path = "crates/exaudio-project" }
+exaudio-babel-format = { path = "extensions/babel-format" }
+exaudio-waveform = { path = "crates/exaudio-waveform" }
+exaudio-editor = { path = "crates/exaudio-editor" }
+exaudio-services = { path = "crates/exaudio-services" }
+exaudio-audio = { path = "crates/exaudio-audio" }
+exaudio-inference = { path = "extensions/inference" }
 
 [profile.dev]
 debug = 1

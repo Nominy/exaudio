@@ -1,7 +1,7 @@
 use exaudio_babel_domain::workflow::BabelMutationPolicy;
+use exaudio_core::{AudioLane, CommandHistory, EditorCommand, Project, Segment, Speaker};
 use serde_json::json;
 use std::collections::BTreeMap;
-use studio_core::{AudioLane, CommandHistory, EditorCommand, Project, Segment, Speaker};
 
 fn sample_project() -> Project {
     Project {
@@ -428,8 +428,8 @@ fn review_action_annotation_metadata_edit_exports_low_confidence_resolution() {
         }
     ]);
 
-    let mut project =
-        studio_babel::import_json(&source.to_string()).expect("review action should import");
+    let mut project = exaudio_babel_format::import_json(&source.to_string())
+        .expect("review action should import");
     let mut history = CommandHistory::default();
     history
         .apply_with_policy(
@@ -452,7 +452,8 @@ fn review_action_annotation_metadata_edit_exports_low_confidence_resolution() {
         )
         .expect("native annotation metadata edit should apply");
 
-    let exported = studio_babel::export_json(&project).expect("review action should export");
+    let exported =
+        exaudio_babel_format::export_json(&project).expect("review action should export");
 
     assert_eq!(
         exported.pointer("/0/result/data/json/annotations/0/content"),

@@ -466,7 +466,7 @@ async fn mint_without_an_auth_store_needs_sign_in() {
 fn cli_parses_start_login_with_reset() {
     assert_eq!(
         parse_args([
-            "studio-app",
+            "exaudio-app",
             "--babel-auth-store",
             "C:/accounts/tester/auth.json",
             "--babel-auth-start-login",
@@ -488,7 +488,7 @@ fn cli_parses_start_login_with_reset() {
 fn cli_parses_verify_login_code() {
     assert_eq!(
         parse_args([
-            "studio-app",
+            "exaudio-app",
             "--babel-auth-verify-login=123456",
             "--babel_auth_store=/tmp/auth.json"
         ])
@@ -504,22 +504,29 @@ fn cli_parses_verify_login_code() {
 
 #[test]
 fn cli_requires_a_store_for_login_commands() {
-    assert!(parse_args(["studio-app", "--babel-auth-verify-login=123456"]).is_err());
-    assert!(parse_args(["studio-app", "--babel-auth-store=x", "--babel-auth-store=y"]).is_err());
-    assert!(parse_args(["studio-app", "--babel-auth-store=/tmp/auth.json"]).is_err());
+    assert!(parse_args(["exaudio-app", "--babel-auth-verify-login=123456"]).is_err());
+    assert!(
+        parse_args([
+            "exaudio-app",
+            "--babel-auth-store=x",
+            "--babel-auth-store=y"
+        ])
+        .is_err()
+    );
+    assert!(parse_args(["exaudio-app", "--babel-auth-store=/tmp/auth.json"]).is_err());
 }
 
 #[test]
 fn cli_ignores_regular_args_and_rejects_bad_combinations() {
     assert_eq!(
-        parse_args(["studio-app", "--reviewActionId=abc"]).expect("parse"),
+        parse_args(["exaudio-app", "--reviewActionId=abc"]).expect("parse"),
         None
     );
-    assert!(parse_args(["studio-app", "--babel-auth-start-login"]).is_err());
-    assert!(parse_args(["studio-app", "--babel-auth-start-login= "]).is_err());
+    assert!(parse_args(["exaudio-app", "--babel-auth-start-login"]).is_err());
+    assert!(parse_args(["exaudio-app", "--babel-auth-start-login= "]).is_err());
     assert!(
         parse_args([
-            "studio-app",
+            "exaudio-app",
             "--babel-auth-start-login=a",
             "--babel-auth-verify-login=1"
         ])
@@ -527,13 +534,13 @@ fn cli_ignores_regular_args_and_rejects_bad_combinations() {
     );
     assert!(
         parse_args([
-            "studio-app",
+            "exaudio-app",
             "--babel-auth-verify-login=1",
             "--babel_auth_verify_login=2"
         ])
         .is_err()
     );
-    assert!(exaudio_babel_services::auth::cli::run_from_args(["studio-app", "--other"]).is_none());
+    assert!(exaudio_babel_services::auth::cli::run_from_args(["exaudio-app", "--other"]).is_none());
 }
 
 #[test]

@@ -16,7 +16,7 @@ mod low_confidence;
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use studio_core::{Project, Segment};
+use exaudio_core::{Project, Segment};
 
 use crate::project_lint_tag_config::resolve_babel_project_lint_tag_config;
 use gold::{GoldAnnotation, lint_annotations};
@@ -299,8 +299,8 @@ pub fn warning_key(segment: &Segment, lint: &LintStatus) -> Option<String> {
 mod tests {
     use std::collections::BTreeMap;
 
+    use exaudio_core::{AudioLane, Project, Segment, Speaker};
     use serde::Deserialize;
-    use studio_core::{AudioLane, Project, Segment, Speaker};
 
     use super::{
         LintKind, LintSeverity, LintStatus, ProjectLintAnalysis, ServerLintIssue,

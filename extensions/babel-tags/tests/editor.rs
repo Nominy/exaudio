@@ -1,7 +1,7 @@
 #![allow(unused_must_use)]
+use exaudio_core::{AudioLane, Project, Segment, Speaker};
+use exaudio_editor::edit::{CompletionKey, EditError, EditorDoc, Effect, Outcome, TextSelection};
 use exaudio_extension::document::{Completion, DocumentEnvironment};
-use studio_core::{AudioLane, Project, Segment, Speaker};
-use studio_editor::edit::{CompletionKey, EditError, EditorDoc, Effect, Outcome, TextSelection};
 
 fn project(segments: Vec<Segment>) -> Project {
     Project {

@@ -1,8 +1,8 @@
 //! Pure timeline geometry: time ↔ x mapping, waveform hit testing, scrollbar thumbs and the
 //! cut selection's length chip.
 
-use studio_editor::timeline_model::{TimeRange, WaveformBlock};
-use studio_waveform::{WaveformHit, WaveformHitTarget};
+use exaudio_editor::timeline_model::{TimeRange, WaveformBlock};
+use exaudio_waveform::{WaveformHit, WaveformHitTarget};
 
 /// Distance (px at 100% interface zoom) from a visible region edge that grabs its resize
 /// handle.
@@ -180,7 +180,7 @@ impl Thumb {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use studio_editor::timeline_model::WaveformPeakSource;
+    use exaudio_editor::timeline_model::WaveformPeakSource;
 
     fn block(id: &str, start: f64, end: f64) -> WaveformBlock {
         WaveformBlock {

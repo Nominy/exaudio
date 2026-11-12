@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, path::PathBuf};
 
-use studio_relay::{RelayConfig, RelayState, router};
+use exaudio_babel_relay::{RelayConfig, RelayState, router};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -34,7 +34,7 @@ async fn main() -> anyhow::Result<()> {
     let state = RelayState::new(config).await?;
     let listener = TcpListener::bind(bind).await?;
     let local_addr = listener.local_addr()?;
-    eprintln!("studio-relay listening on http://{local_addr}");
+    eprintln!("exaudio-relay listening on http://{local_addr}");
     axum::serve(listener, router(state))
         .with_graceful_shutdown(shutdown_signal())
         .await?;
@@ -106,8 +106,8 @@ impl Args {
 
 fn print_help() {
     println!(
-        "Usage: studio-relay [--bind 127.0.0.1:8787] [--store path] [--owner-token token] [--babel-service-command command] [--upstream-url url] [--task-cents cents]\n\n\
+        "Usage: exaudio-relay [--bind 127.0.0.1:8787] [--store path] [--owner-token token] [--babel-service-command command] [--upstream-url url] [--task-cents cents]\n\n\
 Runs the Exaudio Sub-account relay.\n\
-Environment: STUDIO_SUBACCOUNT_RELAY_STORE, STUDIO_SUBACCOUNT_OWNER_TOKEN, STUDIO_BABEL_SERVICE_COMMAND, STUDIO_SUBACCOUNT_UPSTREAM_URL, STUDIO_SUBACCOUNT_TASK_CENTS."
+Environment: EXAUDIO_SUBACCOUNT_RELAY_STORE, EXAUDIO_SUBACCOUNT_OWNER_TOKEN, EXAUDIO_BABEL_SERVICE_COMMAND, EXAUDIO_SUBACCOUNT_UPSTREAM_URL, EXAUDIO_SUBACCOUNT_TASK_CENTS."
     );
 }

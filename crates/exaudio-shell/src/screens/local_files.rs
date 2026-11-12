@@ -50,7 +50,7 @@ pub fn open_path(shell: ShellHandle, path: PathBuf, window: &mut Window, cx: &mu
     window
         .spawn(cx, async move |cx| {
             let result = cx
-                .background_spawn(async move { studio_project::load_project(&target) })
+                .background_spawn(async move { exaudio_project::load_project(&target) })
                 .await;
             cx.update(|window, cx| match result {
                 Ok(project) => {
@@ -244,7 +244,7 @@ fn save_to(
         .spawn(cx, async move |cx| {
             let (result, discarded) = cx
                 .background_spawn(async move {
-                    let result = studio_project::save_project(&project, &target, &base);
+                    let result = exaudio_project::save_project(&project, &target, &base);
                     // The saved manifest now holds everything the snapshots did.
                     let discarded = if result.is_ok() {
                         super::recovery::discard_after_save(&project_id, &target, &open_files)
@@ -387,9 +387,9 @@ pub fn export_project_folder(model: &Entity<EditorModel>, window: &mut Window, c
             };
             let target = path.clone();
             let result = cx
-                .background_spawn(
-                    async move { studio_project::save_project(&snapshot, &target, &base) },
-                )
+                .background_spawn(async move {
+                    exaudio_project::save_project(&snapshot, &target, &base)
+                })
                 .await;
             cx.update(|window, cx| match result {
                 Ok(()) => {

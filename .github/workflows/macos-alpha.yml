@@ -77,11 +77,11 @@ jobs:
     env:
       RUNTIME: ${{ matrix.runtime }}
       MACOSX_DEPLOYMENT_TARGET: "14.0"
-      STUDIO_ALPHA_FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.feed_suffix }}
+      EXAUDIO_ALPHA_FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.feed_suffix }}
       REMOTE_PATH: /var/www/exaudio/alpha/${{ matrix.feed_suffix }}
       FEED_SUFFIX: ${{ matrix.feed_suffix }}
       PUBLISH_DIR: ${{ github.workspace }}/target/velopack/Publish
-      STUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
+      EXAUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
       HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 != '' }}
       APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}
       APPLE_DEVELOPER_ID_INSTALLER: ${{ secrets.APPLE_DEVELOPER_ID_INSTALLER }}
@@ -95,9 +95,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/studio-app/Cargo.toml)"
+          base="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/exaudio-app/Cargo.toml)"
           if [[ ! "$base" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "studio-app version must be numeric major.minor.patch; found '$base'." >&2
+            echo "exaudio-app version must be numeric major.minor.patch; found '$base'." >&2
             exit 1
           fi
           version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-alpha.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"

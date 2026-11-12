@@ -1,8 +1,8 @@
 //! Script-context and original-script panel data extracted from Babel task metadata.
 
 use crate::i18n::localized;
+use exaudio_core::Project;
 use serde_json::Value;
-use studio_core::Project;
 
 const META_EXTRA_PACKAGE: &str = "babel.extra.package";
 

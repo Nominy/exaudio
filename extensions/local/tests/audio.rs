@@ -2,7 +2,7 @@ use exaudio_local::audio::{ImportStrings, import_audio};
 use std::{fs, path::PathBuf};
 
 const TONE: &[u8] =
-    include_bytes!("../../../crates/studio-waveform/tests/fixtures/babel_line/tone-8k-mono.wav");
+    include_bytes!("../../../crates/exaudio-waveform/tests/fixtures/babel_line/tone-8k-mono.wav");
 
 fn source(root: &std::path::Path, name: &str) -> PathBuf {
     let path = root.join(name);

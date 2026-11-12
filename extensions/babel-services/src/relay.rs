@@ -1,9 +1,9 @@
-//! Launches and supervises the bundled `studio-relay` executable (sub-account relay host).
+//! Launches and supervises the bundled `exaudio-relay` executable (sub-account relay host).
 //!
-//! Env: `STUDIO_SUBACCOUNT_RELAY_EXE` (executable, default beside the app exe),
-//! `STUDIO_SUBACCOUNT_RELAY_BIND` (default `127.0.0.1:8787`), `STUDIO_SUBACCOUNT_RELAY_STORE`
-//! (relay store file), `STUDIO_BABEL_SERVICE_COMMAND` (preferred upstream),
-//! `STUDIO_SUBACCOUNT_UPSTREAM_URL` (HTTP upstream), `STUDIO_SUBACCOUNT_TASK_CENTS`.
+//! Env: `EXAUDIO_SUBACCOUNT_RELAY_EXE` (executable, default beside the app exe),
+//! `EXAUDIO_SUBACCOUNT_RELAY_BIND` (default `127.0.0.1:8787`), `EXAUDIO_SUBACCOUNT_RELAY_STORE`
+//! (relay store file), `EXAUDIO_BABEL_SERVICE_COMMAND` (preferred upstream),
+//! `EXAUDIO_SUBACCOUNT_UPSTREAM_URL` (HTTP upstream), `EXAUDIO_SUBACCOUNT_TASK_CENTS`.
 
 use std::{
     env, fs,
@@ -21,17 +21,17 @@ use std::os::windows::process::CommandExt;
 
 use anyhow::{Context, Result, anyhow, bail};
 
-pub const RELAY_EXECUTABLE_ENV: &str = "STUDIO_SUBACCOUNT_RELAY_EXE";
-pub const RELAY_BIND_ENV: &str = "STUDIO_SUBACCOUNT_RELAY_BIND";
-pub const RELAY_STORE_ENV: &str = "STUDIO_SUBACCOUNT_RELAY_STORE";
-pub const RELAY_UPSTREAM_URL_ENV: &str = "STUDIO_SUBACCOUNT_UPSTREAM_URL";
-pub const RELAY_COMMAND_ENV: &str = "STUDIO_BABEL_SERVICE_COMMAND";
-pub const RELAY_TASK_CENTS_ENV: &str = "STUDIO_SUBACCOUNT_TASK_CENTS";
+pub const RELAY_EXECUTABLE_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_EXE";
+pub const RELAY_BIND_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_BIND";
+pub const RELAY_STORE_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_STORE";
+pub const RELAY_UPSTREAM_URL_ENV: &str = "EXAUDIO_SUBACCOUNT_UPSTREAM_URL";
+pub const RELAY_COMMAND_ENV: &str = "EXAUDIO_BABEL_SERVICE_COMMAND";
+pub const RELAY_TASK_CENTS_ENV: &str = "EXAUDIO_SUBACCOUNT_TASK_CENTS";
 pub const DEFAULT_RELAY_BIND: &str = "127.0.0.1:8787";
 /// Readiness wait bound after spawn.
 pub const RELAY_READY_TIMEOUT: Duration = Duration::from_secs(10);
 
-const RELAY_READY_PREFIX: &str = "studio-relay listening on ";
+const RELAY_READY_PREFIX: &str = "exaudio-relay listening on ";
 const DEFAULT_RELAY_STORE_FILE_NAME: &str = "subaccount-relay-store.json";
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
@@ -47,7 +47,7 @@ pub struct RelayLaunchConfig {
 }
 
 impl RelayLaunchConfig {
-    /// Reads the `STUDIO_SUBACCOUNT_RELAY_*` environment; errors on an invalid bind address.
+    /// Reads the `EXAUDIO_SUBACCOUNT_RELAY_*` environment; errors on an invalid bind address.
     pub fn from_environment() -> Result<Self> {
         let bind = non_empty_env(RELAY_BIND_ENV).unwrap_or_else(|| DEFAULT_RELAY_BIND.to_string());
         bind.parse::<SocketAddr>()
@@ -92,15 +92,15 @@ impl RelayLaunchConfig {
 }
 
 pub fn default_relay_store_path() -> PathBuf {
-    studio_services::paths::app_support_dir().join(DEFAULT_RELAY_STORE_FILE_NAME)
+    exaudio_services::paths::app_support_dir().join(DEFAULT_RELAY_STORE_FILE_NAME)
 }
 
-/// `studio-relay[.exe]` beside the given app executable.
+/// `exaudio-relay[.exe]` beside the given app executable.
 pub fn relay_executable_path_for_app_exe(app_exe: &Path) -> PathBuf {
     app_exe.with_file_name(if cfg!(windows) {
-        "studio-relay.exe"
+        "exaudio-relay.exe"
     } else {
-        "studio-relay"
+        "exaudio-relay"
     })
 }
 
@@ -155,7 +155,7 @@ impl RelayProcess {
     }
 
     /// Spawns the relay (no console window on Windows) and returns a runtime-agnostic future
-    /// resolving to its listening URL (from `studio-relay listening on <url>` on stderr) within
+    /// resolving to its listening URL (from `exaudio-relay listening on <url>` on stderr) within
     /// [`RELAY_READY_TIMEOUT`]. Pass the result to [`RelayProcess::complete_start`].
     pub fn start(
         &mut self,
@@ -252,7 +252,7 @@ pub fn read_relay_ready(reader: impl Read) -> Result<String> {
     )
 }
 
-/// URL from a `studio-relay listening on <url>` line.
+/// URL from a `exaudio-relay listening on <url>` line.
 pub fn relay_ready_url(line: &str) -> Option<String> {
     line.trim()
         .strip_prefix(RELAY_READY_PREFIX)
@@ -347,7 +347,7 @@ fn stop_child(child: &mut Child) -> Result<()> {
 fn default_relay_executable_path() -> PathBuf {
     env::current_exe()
         .map(|exe| relay_executable_path_for_app_exe(&exe))
-        .unwrap_or_else(|_| relay_executable_path_for_app_exe(Path::new("studio-relay")))
+        .unwrap_or_else(|_| relay_executable_path_for_app_exe(Path::new("exaudio-relay")))
 }
 
 fn non_empty_env(name: &str) -> Option<String> {

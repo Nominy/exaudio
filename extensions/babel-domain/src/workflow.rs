@@ -3,14 +3,14 @@ use time::OffsetDateTime;
 
 use crate::editor_model::submit_control::AdminFlagPayload;
 use anyhow::{Context, Result};
+use exaudio_babel_format::{META_REVIEW_ACTION_DECISION, export_json, import_json};
 use exaudio_babel_lint::linter::{LintSeverity, ServerLintIssue};
+use exaudio_core::{EditorCommand, Project, Segment, SegmentMutationPolicy};
 use serde_json::{Value, json};
-use studio_babel::{META_REVIEW_ACTION_DECISION, export_json, import_json};
-use studio_core::{EditorCommand, Project, Segment, SegmentMutationPolicy};
 
 use crate::babel_metadata::META_DROP_CLAIM_DROPPED;
 use crate::i18n::{localized, localized_fmt};
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_editor::workflow::StudioWorkflow;
 
 const META_SELECTED_COMPARE_ACTION_ID: &str = "studio.babel.diff.selectedCompareActionId";
 const META_SHOW_REVIEWERS: &str = "studio.babel.diff.showReviewers";

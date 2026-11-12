@@ -2,8 +2,8 @@
 //! project-metadata lookups they share (review action id, review level).
 
 use anyhow::{Result, anyhow, bail};
+use exaudio_core::{AudioLane, Project, Segment};
 use serde_json::{Map, Value, json};
-use studio_core::{AudioLane, Project, Segment};
 use time::OffsetDateTime;
 
 use super::model::{GeneratedReview, ReviewerSession};
@@ -152,7 +152,7 @@ pub fn build_reviewer_analytics_payload(
         unreachable!("reviewer payload is an object");
     };
     let mut metadata = Map::new();
-    metadata.insert("client".to_string(), json!("transcription-studio-native"));
+    metadata.insert("client".to_string(), json!("exaudio-native"));
     metadata.insert("source".to_string(), json!("native-capability-panel"));
     metadata.insert("capturedAt".to_string(), json!(current_utc_timestamp()));
     if let Some(session) = session {

@@ -3,6 +3,7 @@ use crate::{
     DocumentOrigin, ProviderEnvironment, ShellHandle, editor::model::EditorModel, screens::ui,
     services::AppServices,
 };
+use exaudio_project::{RecoveryEntry, RecoverySnapshot};
 use gpui_kit::component::WindowExt as _;
 use gpui_kit::*;
 use std::{
@@ -11,7 +12,6 @@ use std::{
     path::{Path, PathBuf},
     time::{Duration, SystemTime},
 };
-use studio_project::{RecoveryEntry, RecoverySnapshot};
 
 const STORAGE_KEY: &str = "exaudio.native-recovery";
 const SNAPSHOT_FILE: &str = "autosave/recovery.json";
@@ -57,7 +57,7 @@ fn snapshot_root(project_id: &str, native_path: Option<&PathBuf>) -> PathBuf {
     let mut hasher = std::hash::DefaultHasher::new();
     project_id.hash(&mut hasher);
     native_path.hash(&mut hasher);
-    studio_services::paths::app_support_dir()
+    exaudio_services::paths::app_support_dir()
         .join("native-recovery")
         .join(format!("{:016x}", hasher.finish()))
 }
@@ -130,15 +130,15 @@ pub fn collect(roots: Vec<PathBuf>) -> Collected {
             }
             continue;
         }
-        match studio_project::load_recovery(&root) {
+        match exaudio_project::load_recovery(&root) {
             Ok(snapshot) => loaded.push(RecoveryEntry { root, snapshot }),
             Err(_) => unreadable.push(root),
         }
     }
-    let (kept, superseded) = studio_project::newest_per_project(loaded);
+    let (kept, superseded) = exaudio_project::newest_per_project(loaded);
     let (stale, current): (Vec<_>, Vec<_>) = kept
         .into_iter()
-        .partition(|entry| studio_project::superseded_by_save(&entry.snapshot));
+        .partition(|entry| exaudio_project::superseded_by_save(&entry.snapshot));
     for entry in superseded.into_iter().chain(stale) {
         if remove_root(&entry.root) {
             removed.push(entry.root);
@@ -232,7 +232,7 @@ pub fn start(model: &Entity<EditorModel>, cx: &mut App) -> Task<()> {
                         saved_at: SystemTime::now(),
                     };
                     let result =
-                        studio_services::recovery::write_snapshot(&snapshot, &target, &base);
+                        exaudio_services::recovery::write_snapshot(&snapshot, &target, &base);
                     (snapshot.project, result)
                 })
                 .await;
@@ -265,7 +265,7 @@ pub fn open(shell: ShellHandle, root: PathBuf, window: &mut Window, cx: &mut App
     window
         .spawn(cx, async move |cx| {
             let result = cx
-                .background_spawn(async move { studio_services::recovery::load_snapshot(&target) })
+                .background_spawn(async move { exaudio_services::recovery::load_snapshot(&target) })
                 .await;
             cx.update(|window, cx| match result {
                 Ok(snapshot) => {
@@ -299,7 +299,7 @@ pub fn open(shell: ShellHandle, root: PathBuf, window: &mut Window, cx: &mut App
 /// Status line for a failed backup write; the I/O error stays behind the hover.
 fn backup_not_saved(model: &mut EditorModel, error: &str, cx: &mut Context<EditorModel>) {
     model.set_status_with_detail(
-        studio_editor::i18n::localized(
+        exaudio_editor::i18n::localized(
             "Couldn't save a backup of unsaved work.",
             "Не удалось сохранить резервную копию.",
         ),

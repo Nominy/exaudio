@@ -7,8 +7,8 @@ use exaudio_babel_services::review::{
     FeedbackBootstrap, FeedbackBootstrapIds, FeedbackForm, ReviewerFeedback, parse_grade_result,
     reviewer_feedback_rating,
 };
+use exaudio_core::Project;
 use serde_json::json;
-use studio_core::Project;
 
 use super::sample_project;
 
@@ -198,7 +198,7 @@ fn rapid_edits_save_the_latest_snapshot_after_the_in_flight_one() {
 
 #[test]
 fn terminal_save_error_blocks_submit_until_a_new_edit_saves() {
-    let mut workflow = studio_editor::workflow::StudioWorkflow::from_project(sample_project());
+    let mut workflow = exaudio_editor::workflow::StudioWorkflow::from_project(sample_project());
     let mut form = word_accuracy_form();
     form.set_comment("wordAccuracy", "Failed edit");
     let failed = form.request_save().unwrap();

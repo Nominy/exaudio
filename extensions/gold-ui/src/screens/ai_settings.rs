@@ -11,6 +11,7 @@ use exaudio_gold::prefs::{
     AiSettings, ExecutionLocation, REASONING_EFFORTS, SERVICE_TIERS, normalize_base_url,
 };
 use exaudio_gold::protocol::{HostStatus, ModelsState, SampleResult};
+use exaudio_inference::{BackendStatus, InferenceProgress, InferenceResult, ProgressSink};
 use gpui_kit::component::button::{Button, ButtonGroup, ButtonVariants as _};
 use gpui_kit::component::input::{Input, InputEvent, InputState};
 use gpui_kit::component::progress::Progress;
@@ -20,7 +21,6 @@ use gpui_kit::component::{
 };
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
-use studio_inference::{BackendStatus, InferenceProgress, InferenceResult, ProgressSink};
 
 use crate::editor::inference_audio::until_cancelled;
 use crate::editor::panels::gold_progress::{hold, label};

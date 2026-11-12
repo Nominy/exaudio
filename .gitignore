@@ -1,5 +1,5 @@
 /target/
-/.studio-dev/
+/.exaudio-dev/
 
 # Local credentials and machine-specific auth stores.
 .env

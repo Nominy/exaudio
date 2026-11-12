@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 
+use exaudio_core::Segment;
 use serde_json::Value;
-use studio_core::Segment;
 
 use super::TranscriptWordView;
 

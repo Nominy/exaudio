@@ -20,16 +20,16 @@ Use the repository root as the working directory. A full first build takes a whi
 cargo editor
 
 # The same plus the Gold AI tools, without Babel
-cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
+cargo run -p exaudio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
 
 # Core shell only: deliberately no bundled modes, formats, checks or AI
-cargo run -p studio-app --no-default-features --locked
+cargo run -p exaudio-app --no-default-features --locked
 
 # All batteries, including Babel
-cargo run -p studio-app --locked
+cargo run -p exaudio-app --locked
 ```
 
-`cargo editor` is an alias in `.cargo/config.toml` for `cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks`. `studio-app` remains the Cargo package/binary name used during development. Packaged releases use the Exaudio name. The default `batteries-included` feature selects `palette`, `local`, `formats`, `basic-checks`, `gold` and `babel`; changing the build feature set is different from enabling/disabling an installed extension. Bundled native extensions live under `extensions/`: `palette` (command palette, `Ctrl+Shift+P`), `local`, `formats`, `lint-basic`, `gold`/`gold-ui` and the `babel-*` family.
+`cargo editor` is an alias in `.cargo/config.toml` for `cargo run -p exaudio-app --no-default-features --features palette,local,formats,basic-checks`. `exaudio-app` is the Cargo package and binary name used during development. Packaged releases use the Exaudio name. The default `batteries-included` feature selects `palette`, `local`, `formats`, `basic-checks`, `gold` and `babel`; changing the build feature set is different from enabling/disabling an installed extension. Bundled native extensions live under `extensions/`: `palette` (command palette, `Ctrl+Shift+P`), `local`, `formats`, `lint-basic`, `gold`/`gold-ui` and the `babel-*` family.
 
 **First-party code and build inputs:** Helper, reviewer/drafting and Babel integration extensions are the Exaudio author's own developments, not proprietary third-party extensions. Every build above, including the default all-batteries one, builds from a fresh checkout: the Babel linter's rule data (`babel-lint-data.json`, `error-category-names.json`) is tracked in `extensions/babel-lint/assets`. Only the parity fixtures described below are private. Keep credentials and private task content out of source and public fixtures.
 
@@ -48,30 +48,30 @@ The three parity tests in `exaudio-babel-lint` (`matches_babel_on_every_parity_c
 For an account-free, synthetic demo, set these variables in a PowerShell terminal before launching the editor:
 
 ```powershell
-$env:STUDIO_OPEN_DEMO_ON_START = '1'   # open the two-speaker demo instead of Start
-$env:STUDIO_AUDIO_SILENT = '1'         # keep the playback path, emit silence
+$env:EXAUDIO_OPEN_DEMO_ON_START = '1'   # open the two-speaker demo instead of Start
+$env:EXAUDIO_AUDIO_SILENT = '1'         # keep the playback path, emit silence
 cargo editor
 ```
 
-Unset them afterward with `Remove-Item Env:STUDIO_OPEN_DEMO_ON_START, Env:STUDIO_AUDIO_SILENT` when returning to normal use. `STUDIO_LOG_AUDIO_PLAYBACK=1` logs one line per transport start. The demo is an original Russian dialogue synthesized with Piper voices; [the generator](../tools/demo-audio/generate.py) records the source voices and dataset provenance. Do not regenerate it just to run the app, and do not substitute private platform tasks in public screenshots or test fixtures.
+Unset them afterward with `Remove-Item Env:EXAUDIO_OPEN_DEMO_ON_START, Env:EXAUDIO_AUDIO_SILENT` when returning to normal use. `EXAUDIO_LOG_AUDIO_PLAYBACK=1` logs one line per transport start. The demo is an original Russian dialogue synthesized with Piper voices; [the generator](../tools/demo-audio/generate.py) records the source voices and dataset provenance. Do not regenerate it just to run the app, and do not substitute private platform tasks in public screenshots or test fixtures.
 
 ## Working on the editor
 
-Editor work happens in `crates/`. `extensions/` is optional (Babel, AI, formats, checks, modes) and the editor builds and runs without it; `crates/studio-app/tests/crate_boundaries.rs` fails if a crate under `crates/` starts depending on an extension.
+Editor work happens in `crates/`. `extensions/` is optional (Babel, AI, formats, checks, modes) and the editor builds and runs without it; `crates/exaudio-app/tests/crate_boundaries.rs` fails if a crate under `crates/` starts depending on an extension.
 
 | Where | What |
 |---|---|
-| `crates/studio-core` | `Project`, `Segment`, `EditorCommand`, `CommandHistory` (undo/redo). |
-| `crates/studio-editor` | The editor without UI. `edit::EditorDoc` is the facade: every user operation is a method that returns an `Outcome` (status line + `Effect`s for the view to perform) or an `EditError`. `edit/doc/*` holds those methods by concern, `edit/*.rs` the pure rules they call. `editor_model::EditorSession` is the view state (selection, playhead, viewport, zoom, loop, track filter); `timeline_model` and `transcript_model` build what the views draw (`TimelineLaneView`, `TranscriptRowView`); `edit/keymap.rs` declares every action and its default keys. |
+| `crates/exaudio-core` | `Project`, `Segment`, `EditorCommand`, `CommandHistory` (undo/redo). |
+| `crates/exaudio-editor` | The editor without UI. `edit::EditorDoc` is the facade: every user operation is a method that returns an `Outcome` (status line + `Effect`s for the view to perform) or an `EditError`. `edit/doc/*` holds those methods by concern, `edit/*.rs` the pure rules they call. `editor_model::EditorSession` is the view state (selection, playhead, viewport, zoom, loop, track filter); `timeline_model` and `transcript_model` build what the views draw (`TimelineLaneView`, `TranscriptRowView`); `edit/keymap.rs` declares every action and its default keys. |
 | `crates/exaudio-shell/src/editor` | The GPUI views. `model.rs` (`EditorModel`: owns the `EditorDoc` and the audio engine, emits `EditorEvent`), `mod.rs` (`EditorScreen`: layout, key routing, extension panels), `toolbar.rs`, `status_bar.rs`, `timeline/` (`mod.rs` view and pointer handling, `paint.rs`, `geometry.rs` hit-testing, `overview.rs`, `rail.rs`), `transcript/` (`mod.rs` list, `row.rs`, `fast_row.rs`, `row_style.rs`, `layout.rs`, `wrap.rs`, `find_bar.rs`), `panels/` (transport strip, create-region and hotkeys dialogs, shared `ui.rs` / `modal.rs` widgets). |
 | `crates/exaudio-shell/src/screens` | Everything outside the editor: Start, Settings, Extensions, accounts, updates. `screens/ui.rs` has the shared styling helpers. |
-| `crates/studio-waveform`, `crates/studio-audio` | Peaks and line waveforms; decoding, playback engine and transport clock. |
+| `crates/exaudio-waveform`, `crates/exaudio-audio` | Peaks and line waveforms; decoding, playback engine and transport clock. |
 
 Conventions the code relies on:
 
-- **Behaviour goes in `studio-editor`, drawing in the shell.** A view calls `EditorModel::run(cx, |doc| doc.some_operation(..))`; the model applies the returned `Outcome` (status line, audio, scrolling, focus) and notifies the views. Views do not mutate the project themselves. Behaviour is tested headlessly in `crates/studio-editor/tests`.
+- **Behaviour goes in `exaudio-editor`, drawing in the shell.** A view calls `EditorModel::run(cx, |doc| doc.some_operation(..))`; the model applies the returned `Outcome` (status line, audio, scrolling, focus) and notifies the views. Views do not mutate the project themselves. Behaviour is tested headlessly in `crates/exaudio-editor/tests`.
 - **A new action** is an `EditorAction` variant plus its `ACTION_DEFS` entry (section, EN/RU description, context, default keys) in `edit/keymap.rs`, dispatched in `EditorDoc::perform` (`edit/doc/actions.rs`) or, for app-level actions, `EditorScreen::perform`. The hotkeys dialog and the command palette list it without further wiring; the rules are in [`architecture/actions.md`](architecture/actions.md).
-- **Strings in views have an English and a Russian form**: `screens::ui::localized(cx, en, ru)` in views, `studio_editor::i18n::localized(en, ru)` where no `cx` exists. The status lines and refusals `EditorDoc` returns (`Outcome::status`, `EditError`) are English only and shown as they are.
+- **Strings in views have an English and a Russian form**: `screens::ui::localized(cx, en, ru)` in views, `exaudio_editor::i18n::localized(en, ru)` where no `cx` exists. The status lines and refusals `EditorDoc` returns (`Outcome::status`, `EditError`) are English only and shown as they are.
 - **Sizes follow the interface zoom**: use rems, or multiply pixel constants by `zoom::ui_scale(window)`. Colours come from `cx.theme()`.
 - **A transcript row has two render paths.** `transcript/row.rs` builds elements (editing, menus, chips, diff rows); `transcript/fast_row.rs` paints plain rows directly. Both lay out through `transcript/row_style.rs`; a new cell or state has to reach both.
 - **Some editor surfaces only appear in Babel documents**: the reviewer column, diff rows, low-confidence chips, annotation rows, and the panels extensions dock at `PanelLocation::{Sidebar, Inspector, Overlay, Transport}`. Local documents never fill them, so a change to their rendering needs a look in the full build.
@@ -88,7 +88,7 @@ cargo nextest run --workspace --all-targets --locked
 These cover every crate, Babel and Gold included, and pass without the Babel data bundle (the parity tests skip). CI additionally lints the editor-only build:
 
 ```powershell
-cargo clippy -p studio-app --no-default-features --features palette,local,formats,basic-checks --locked -- -D warnings
+cargo clippy -p exaudio-app --no-default-features --features palette,local,formats,basic-checks --locked -- -D warnings
 ```
 
 `git config core.hooksPath .githooks` enables a pre-push hook that runs the format and Clippy checks. Native GUI behavior, audio playback, model setup and packaging are not covered by these commands and need a real run. Never use private service credentials or paid provider requests as a default test prerequisite.

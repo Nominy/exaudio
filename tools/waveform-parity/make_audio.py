@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO = REPO / "crates/studio-editor/assets/demo"
+DEMO = REPO / "crates/exaudio-editor/assets/demo"
 
 
 def read(path):
@@ -57,7 +57,7 @@ def main():
     write(out / "s1-32k.wav", 32_000, resample(a, rate, 32_000))
     write(out / "s1-48k.wav", 48_000, resample(a, rate, 48_000))
     # Short synthetic fixtures for the Rust behaviour tests (checked in).
-    fixtures = REPO / "crates/studio-waveform/tests/fixtures/babel_line"
+    fixtures = REPO / "crates/exaudio-waveform/tests/fixtures/babel_line"
     fixtures.mkdir(parents=True, exist_ok=True)
     for name, fixture_rate, channels in [
         ("tone-24k-mono", 24_000, 1),

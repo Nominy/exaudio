@@ -3,12 +3,12 @@ pub mod autofix;
 pub mod skaz;
 pub mod tags;
 
+use exaudio_core::Project;
 use exaudio_extension::document::{
     CommandOutcome, CommandProvider, CommandRequest, Completion, CompletionProvider,
     CompletionRequest, DocumentProviders, DraftReplacement, TextRange,
 };
 use std::sync::Arc;
-use studio_core::Project;
 
 pub const ID: &str = "exaudio.babel-tags";
 pub const MANIFEST_JSON: &str = include_str!("../manifest.json");

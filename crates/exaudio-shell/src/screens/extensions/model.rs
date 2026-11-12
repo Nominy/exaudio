@@ -33,7 +33,7 @@ pub fn shared(shell: ShellHandle, cx: &mut App) -> Entity<ExtensionsModel> {
             .value(INDEX_KEY)
             .unwrap_or(DEFAULT_INDEX)
             .to_owned();
-        let root = studio_services::paths::app_support_dir().join("extensions");
+        let root = exaudio_services::paths::app_support_dir().join("extensions");
         let model = cx.new(|_| ExtensionsModel {
             shell,
             index,

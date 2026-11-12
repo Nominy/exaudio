@@ -7,8 +7,8 @@
 
 use std::sync::LazyLock;
 
+use exaudio_core::Project;
 use serde_json::Value;
-use studio_core::Project;
 
 use crate::linter::gold::{GoldLanguage, gold_language, gold_languages};
 
@@ -195,7 +195,7 @@ fn first_string_by_keys(value: &Value, keys: &[&str]) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use studio_core::Project;
+    use exaudio_core::Project;
 
     use super::{
         META_BABEL_LINT_TAG_LANGUAGE, META_BABEL_PROJECT_ID, META_BABEL_PROJECT_SLUG,

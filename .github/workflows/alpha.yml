@@ -31,7 +31,7 @@ jobs:
     if: github.repository == 'Nominy/exaudio'
     runs-on: windows-latest
     env:
-      STUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
+      EXAUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
 
     steps:
       - name: Check out repository
@@ -41,7 +41,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $manifest = Get-Content -Raw -LiteralPath crates/studio-app/Cargo.toml
+          $manifest = Get-Content -Raw -LiteralPath crates/exaudio-app/Cargo.toml
           $package = [regex]::Match($manifest, '(?ms)^\[package\]\s*(?<body>.*?)(?=^\[|\z)')
           $declared = [regex]::Match($package.Groups["body"].Value, '(?m)^\s*version\s*=\s*"(?<version>[^"]+)"')
           $base = [regex]::Match(
@@ -49,7 +49,7 @@ jobs:
             '^(?<major>0|[1-9][0-9]*)\.(?<minor>0|[1-9][0-9]*)\.(?<patch>0|[1-9][0-9]*)$'
           )
           if (-not $base.Success) {
-            throw "studio-app version must be numeric major.minor.patch; found '$($declared.Groups["version"].Value)'."
+            throw "exaudio-app version must be numeric major.minor.patch; found '$($declared.Groups["version"].Value)'."
           }
           # The next patch's pre-release sorts above the current stable and below the next one.
           $nextPatch = [System.Numerics.BigInteger]::Parse($base.Groups["patch"].Value) + 1

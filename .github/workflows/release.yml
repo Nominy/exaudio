@@ -63,12 +63,12 @@ jobs:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          version="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/studio-app/Cargo.toml)"
+          version="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/exaudio-app/Cargo.toml)"
           if [[ "$DRY_RUN" == "true" ]]; then
             # Above the current release (Velopack refuses to pack at or below a feed's latest
             # version) and below the next one, like alpha builds.
             if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)(-.*)?$ ]]; then
-              echo "::error::studio-app version must be major.minor.patch[-pre]; found '$version'." >&2
+              echo "::error::exaudio-app version must be major.minor.patch[-pre]; found '$version'." >&2
               exit 1
             fi
             version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.$((BASH_REMATCH[3] + 1))-dry.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
@@ -83,7 +83,7 @@ jobs:
               exit 1
             fi
             if [[ "$tag" != "v$version" ]]; then
-              echo "::error::Tag $tag does not match crates/studio-app version $version (expected v$version)." >&2
+              echo "::error::Tag $tag does not match crates/exaudio-app version $version (expected v$version)." >&2
               exit 1
             fi
           fi
@@ -161,7 +161,7 @@ jobs:
       TAG: ${{ needs.prepare.outputs.tag }}
       VERSION: ${{ needs.prepare.outputs.version }}
       PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
-      STUDIO_BUILD_GIT_COMMIT: ${{ needs.prepare.outputs.ref }}
+      EXAUDIO_BUILD_GIT_COMMIT: ${{ needs.prepare.outputs.ref }}
       MACOSX_DEPLOYMENT_TARGET: "14.0"
       HAS_APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE_P12_BASE64 != '' }}
       APPLE_DEVELOPER_ID_APPLICATION: ${{ secrets.APPLE_DEVELOPER_ID_APPLICATION }}

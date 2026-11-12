@@ -2,8 +2,8 @@ use exaudio_babel_lint::{
     BabelDiagnosticProvider,
     linter::{LintSeverity, ServerLintIssue, ServerLintSnapshot},
 };
+use exaudio_core::Project;
 use exaudio_extension::document::{DiagnosticProvider, DocumentProviders, Severity};
-use studio_core::Project;
 
 fn empty_project() -> Project {
     Project {

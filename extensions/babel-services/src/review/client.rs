@@ -26,7 +26,7 @@ use exaudio_gold::polish::{
     parse_redistribution,
 };
 
-pub const REVIEW_BACKEND_BASE_URL_ENV: &str = "STUDIO_REVIEW_BACKEND_BASE_URL";
+pub const REVIEW_BACKEND_BASE_URL_ENV: &str = "EXAUDIO_REVIEW_BACKEND_BASE_URL";
 pub const DEFAULT_REVIEW_BACKEND_BASE_URL: &str = "https://reviewgen.ovh";
 pub const OPENROUTER_KEY_HEADER: &str = "X-OpenRouter-Key";
 pub const OPENROUTER_MODEL_HEADER: &str = "X-OpenRouter-Model";
@@ -323,7 +323,7 @@ impl ProposalDecision {
 }
 
 /// Reviewer/Drafting backend client. Cheap to clone; all methods are `Send` futures that need
-/// the services tokio runtime (wrap in [`studio_services::runtime::spawn`] from a gpui executor).
+/// the services tokio runtime (wrap in [`exaudio_services::runtime::spawn`] from a gpui executor).
 #[derive(Debug, Clone)]
 pub struct ReviewBackend {
     base_url: String,
@@ -334,7 +334,7 @@ pub struct ReviewBackend {
 }
 
 impl ReviewBackend {
-    /// Uses `STUDIO_REVIEW_BACKEND_BASE_URL` (trimmed, no trailing `/`) or `https://reviewgen.ovh`.
+    /// Uses `EXAUDIO_REVIEW_BACKEND_BASE_URL` (trimmed, no trailing `/`) or `https://reviewgen.ovh`.
     pub fn from_env() -> Self {
         Self::new(review_backend_base_url_from_env())
     }
@@ -342,7 +342,7 @@ impl ReviewBackend {
     pub fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into().trim().trim_end_matches('/').to_string(),
-            client: studio_services::http::client(),
+            client: exaudio_services::http::client(),
             keyed_client: reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .timeout(KEYED_REQUEST_TIMEOUT)

@@ -15,9 +15,9 @@ use std::{
 };
 
 use base64::Engine as _;
+use exaudio_inference::{InferenceError, InferenceProgress, InferenceResult, ProgressSink};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
-use studio_inference::{InferenceError, InferenceProgress, InferenceResult, ProgressSink};
 
 /// The Gold build this Studio version runs.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]

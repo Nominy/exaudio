@@ -1,8 +1,8 @@
+use exaudio_core::{Project, Segment};
 use exaudio_extension::document::{
     DiagnosticCollection, DiagnosticProvider, DocumentEdit, Severity,
 };
 use exaudio_lint_basic::{BasicChecks, ID};
-use studio_core::{Project, Segment};
 
 fn segment(id: &str, lane: &str, text: &str, start: f64, end: f64) -> Segment {
     Segment {

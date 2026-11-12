@@ -2,7 +2,7 @@
 //!
 //! Dialog copy lives in the UI; this module only decides what is allowed and why not.
 
-use studio_core::Project;
+use exaudio_core::Project;
 
 use crate::babel_metadata::{AssessmentPhase, metadata_bool};
 use crate::i18n::localized;

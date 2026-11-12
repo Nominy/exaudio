@@ -8,7 +8,7 @@ usage: python tools/demo-audio/generate.py <voices_dir>
 ru_RU-dmitri-medium` (pip install piper-tts). Both voices are trained on CC0 datasets
 (https://github.com/OHF-Voice/voice-datasets), so the generated audio is freely redistributable.
 
-Writes crates/studio-editor/assets/demo/speaker_{1,2}.wav (44.1 kHz mono PCM16, each speaker's
+Writes crates/exaudio-editor/assets/demo/speaker_{1,2}.wav (44.1 kHz mono PCM16, each speaker's
 voice alone on its own track), the native sample-project.json for the extension-free Local
 demo, and the Babel codec fixture sample-task.json. Piper samples noise, so each run
 produces slightly different audio and timings; transcript-derived tests do not depend on audio.
@@ -26,9 +26,9 @@ from piper import PiperVoice, SynthesisConfig
 from scipy.signal import resample_poly
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO_DIR = REPO / "crates/studio-editor/assets/demo"
+DEMO_DIR = REPO / "crates/exaudio-editor/assets/demo"
 SAMPLE_TASK = REPO / "extensions/babel-format/tests/fixtures/sample-task.json"
-SAMPLE_PROJECT = REPO / "crates/studio-editor/assets/sample-project.json"
+SAMPLE_PROJECT = REPO / "crates/exaudio-editor/assets/sample-project.json"
 RATE = 44_100
 NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://github.com/Nominy/exaudio/demo")
 

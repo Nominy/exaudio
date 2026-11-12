@@ -2,7 +2,7 @@ use exaudio_babel_lint::project_lint_tag_config::{
     BabelProjectLintTagConfig, META_BABEL_PROJECT_SLUG, resolve_babel_project_lint_tag_config,
 };
 use exaudio_babel_tags::tags::{TagSuggestion, TagSuggestionKind, suggestions_for_text};
-use studio_core::Project;
+use exaudio_core::Project;
 
 fn default_config() -> BabelProjectLintTagConfig {
     BabelProjectLintTagConfig::default()

@@ -18,12 +18,12 @@ use bytes::Bytes;
 use exaudio_gold::remote::{
     GOLD_E2E_RELEASE, GOLD_ENHANCEMENT_MODEL, RemoteBackend, RemoteConfig, TimingTokenStore,
 };
-use serde_json::{Value, json};
-use sha2::{Digest, Sha256};
-use studio_inference::{
+use exaudio_inference::{
     AlignRequest, BackendStatus, InferenceBackend, InferenceErrorKind, InferenceProgress,
     LaneAudio, PreservedRow, ProgressSink,
 };
+use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone)]
 struct Seen {

@@ -14,10 +14,10 @@ serde.workspace = true
 serde_json.workspace = true
 exaudio-gold = { path = "../gold" }
 exaudio-shell = { path = "../../crates/exaudio-shell" }
-studio-audio.workspace = true
+exaudio-audio.workspace = true
 exaudio-extension = { path = "../../crates/exaudio-extension" }
-studio-core.workspace = true
-studio-editor.workspace = true
-studio-inference.workspace = true
-studio-services.workspace = true
-studio-waveform.workspace = true
+exaudio-core.workspace = true
+exaudio-editor.workspace = true
+exaudio-inference.workspace = true
+exaudio-services.workspace = true
+exaudio-waveform.workspace = true

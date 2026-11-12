@@ -19,20 +19,20 @@ use exaudio_babel_domain::editor_model::{
     AssessmentPhase, BabelDocumentState, EditorSession as DomainSession, ReviewState,
 };
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
+use exaudio_babel_format::import_json;
 use exaudio_babel_lint::linter::{LintSeverity, ServerLintIssue, ServerLintSnapshot};
-use exaudio_extension::document::Severity;
-use studio_babel::import_json;
-use studio_core::{AudioLane, Project, Segment, Speaker};
-use studio_editor::editor_model::{EditorSession as CoreSession, ProblemCounts, SaveStatus};
-use studio_editor::timeline_model::{LaneColor, LaneWaveform, TimeRange, WaveformPeakSource};
-use studio_editor::track_filter::TrackFilter;
-use studio_editor::transcript_model::{
+use exaudio_core::{AudioLane, Project, Segment, Speaker};
+use exaudio_editor::editor_model::{EditorSession as CoreSession, ProblemCounts, SaveStatus};
+use exaudio_editor::timeline_model::{LaneColor, LaneWaveform, TimeRange, WaveformPeakSource};
+use exaudio_editor::track_filter::TrackFilter;
+use exaudio_editor::transcript_model::{
     AnnotationDiffStatus, TranscriptActionCommand, TranscriptActionMenuEntry,
     TranscriptAnnotationKind, TranscriptDiffCellKind, TranscriptDiffView, TranscriptRowKind,
     TranscriptRowVisibleCells, TranscriptWordDiffStatus,
 };
-use studio_editor::workflow::StudioWorkflow;
-use studio_waveform::DecodedAudio;
+use exaudio_editor::workflow::StudioWorkflow;
+use exaudio_extension::document::Severity;
+use exaudio_waveform::DecodedAudio;
 
 fn test_environment(project: &Project) -> exaudio_extension::document::DocumentEnvironment {
     let mut environment =

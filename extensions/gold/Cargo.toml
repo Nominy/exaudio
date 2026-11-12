@@ -7,9 +7,9 @@ repository.workspace = true
 
 [dependencies]
 anyhow.workspace = true
-studio-core.workspace = true
-studio-editor.workspace = true
-studio-waveform.workspace = true
+exaudio-core.workspace = true
+exaudio-editor.workspace = true
+exaudio-waveform.workspace = true
 multer = "3"
 uuid = { version = "1", features = ["v4"] }
 async-trait = "0.1"
@@ -19,8 +19,8 @@ reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
-studio-services.workspace = true
-studio-inference.workspace = true
+exaudio-services.workspace = true
+exaudio-inference.workspace = true
 futures-util = { version = "0.3", default-features = false }
 rand.workspace = true
 url.workspace = true

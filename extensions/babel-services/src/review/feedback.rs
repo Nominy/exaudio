@@ -10,8 +10,8 @@ use exaudio_babel_domain::editor_model::feedback_assessment::{
 };
 use exaudio_babel_domain::i18n::{localized, with_detail};
 use exaudio_babel_domain::workflow::BabelWorkflowExt;
-use studio_core::Project;
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_core::Project;
+use exaudio_editor::workflow::StudioWorkflow;
 
 use super::model::{CategoryGrade, ReviewerFeedback};
 use crate::babel::{BabelClient, FeedbackDraftBootstrap};

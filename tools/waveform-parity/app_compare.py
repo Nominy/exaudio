@@ -25,7 +25,7 @@ import numpy as np
 from PIL import Image
 
 REPO = Path(__file__).resolve().parents[2]
-DEMO = REPO / "crates/studio-editor/assets/demo"
+DEMO = REPO / "crates/exaudio-editor/assets/demo"
 SAMPLE = REPO / "extensions/babel-format/tests/fixtures/sample-task.json"
 WAVE = np.array([0x70, 0x70, 0x70], dtype=np.float64)
 LANES = [  # Studio lane order and colours (LaneColor::for_lane_index), Babel's speaker colours

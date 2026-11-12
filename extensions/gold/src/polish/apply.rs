@@ -1,8 +1,8 @@
 //! Applying drafting results to the project as undoable workflow edits.
 
 use anyhow::{Result, bail};
-use studio_core::SegmentUpdate;
-use studio_editor::workflow::StudioWorkflow;
+use exaudio_core::SegmentUpdate;
+use exaudio_editor::workflow::StudioWorkflow;
 
 use super::model::{DraftRow, RedistributionAllocation, RedistributionMove, RedistributionPreview};
 

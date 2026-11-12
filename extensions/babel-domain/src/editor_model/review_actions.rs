@@ -1,6 +1,6 @@
 //! Which review actions the action strip offers for the loaded task.
 
-use studio_core::Project;
+use exaudio_core::Project;
 
 use crate::babel_metadata::{
     AssessmentPhase, META_ASSESSMENT_FINAL_SUBMITTED, META_ASSESSMENT_IS_TRANSITIONING,

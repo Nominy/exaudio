@@ -11,8 +11,8 @@ use exaudio_babel_services::babel::{
     self, BabelClient, BabelConfig, BabelRequest, Fixture, LoadedTask, OpenedTask, RouteContext,
     SaveAnnotationsRequest, SubmitReviewActionRequest, TaskRequest,
 };
+use exaudio_editor::workflow::StudioWorkflow;
 use serde_json::{Value, json};
-use studio_editor::workflow::StudioWorkflow;
 
 fn transcript(opened: OpenedTask) -> LoadedTask {
     match opened {

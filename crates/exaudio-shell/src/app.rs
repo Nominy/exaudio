@@ -78,7 +78,7 @@ pub fn run(register: impl FnOnce(&mut App) -> anyhow::Result<()> + 'static) {
             crate::screens::extensions::startup(ShellHandle::from_root(root.downgrade()), cx);
             let shell = ShellHandle::from_root(root.downgrade());
             let _ = window.update(cx, |_, window, cx| {
-                if std::env::var_os("STUDIO_OPEN_DEMO_ON_START").is_some()
+                if std::env::var_os("EXAUDIO_OPEN_DEMO_ON_START").is_some()
                     && let Err(error) = crate::root::open_demo(&shell, window, cx)
                 {
                     window.push_notification(

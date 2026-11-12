@@ -1,6 +1,6 @@
 # Every push to main packages Linux alpha builds (x64 and arm64 AppImages, pack id Exaudio,
 # Velopack channel `alpha`, tools/package-unix.sh) and publishes each to its per-architecture
-# VPS alpha feed, the feed Linux alpha builds update from (studio-services updater).
+# VPS alpha feed, the feed Linux alpha builds update from (exaudio-services updater).
 name: Linux Alpha
 
 on:
@@ -44,10 +44,10 @@ jobs:
       RUNTIME: ${{ matrix.runtime }}
       FEED_SUFFIX: ${{ matrix.runtime }}
       FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.runtime }}
-      STUDIO_ALPHA_FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.runtime }}
+      EXAUDIO_ALPHA_FEED_URL: https://reviewgen.ovh/exaudio/alpha/${{ matrix.runtime }}
       REMOTE_PATH: /var/www/exaudio/alpha/${{ matrix.runtime }}
       PUBLISH_DIR: ${{ github.workspace }}/target/velopack/Publish
-      STUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
+      EXAUDIO_BUILD_GIT_COMMIT: ${{ github.sha }}
       # rust-cache keeps dependency artifacts; sccache keeps compiled workspace crates too.
       SCCACHE_GHA_ENABLED: "true"
       RUSTC_WRAPPER: sccache
@@ -60,9 +60,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          base="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/studio-app/Cargo.toml)"
+          base="$(awk -F '"' '/^version[[:space:]]*=/ { print $2; exit }' crates/exaudio-app/Cargo.toml)"
           if [[ ! "$base" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
-            echo "studio-app version must be numeric major.minor.patch; found '$base'." >&2
+            echo "exaudio-app version must be numeric major.minor.patch; found '$base'." >&2
             exit 1
           fi
           # The next patch's pre-release sorts above the current stable and below the next one.

@@ -9,9 +9,9 @@ use gpui_kit::*;
 
 use crate::services::AppServices;
 
-actions!(studio, [ZoomIn, ZoomOut, ZoomReset]);
+actions!(exaudio, [ZoomIn, ZoomOut, ZoomReset]);
 
-const STORAGE_KEY: &str = "studio.uiZoom.v1";
+const STORAGE_KEY: &str = "exaudio.uiZoom.v1";
 /// gpui-component's default base font sizes at 100%.
 const BASE_FONT_SIZE: f32 = 16.;
 const BASE_MONO_FONT_SIZE: f32 = 13.;

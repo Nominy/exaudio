@@ -34,7 +34,7 @@ Ubuntu 22.04 so the AppImage's glibc floor is 2.35; macOS builds target macOS 14
 
 ## In-app updates
 
-- A build follows the channel it was packaged for (`STUDIO_UPDATE_CHANNEL=stable|alpha`,
+- A build follows the channel it was packaged for (`EXAUDIO_UPDATE_CHANNEL=stable|alpha`,
   baked in at compile time; plain `cargo build` means stable). Settings → Updates switches
   channel; the choice is stored in the UI storage and checked immediately.
 - Installed builds check on launch and then at most every 6 hours, in the background. When an
@@ -48,8 +48,8 @@ Ubuntu 22.04 so the AppImage's glibc floor is 2.35; macOS builds target macOS 14
 
 ## Cut a stable release
 
-1. Bump `version` in `crates/studio-app/Cargo.toml` (SemVer, e.g. `0.3.1`) and run any cargo
-   command (`cargo check -p studio-app`) so `Cargo.lock` follows.
+1. Bump `version` in `crates/exaudio-app/Cargo.toml` (SemVer, e.g. `0.3.1`) and run any cargo
+   command (`cargo check -p exaudio-app`) so `Cargo.lock` follows.
 2. Commit and push to `main`; wait for CI.
 3. Tag, push the tag, and start the release **from `main`** (a tag push by itself triggers
    nothing: Actions caches are scoped per ref, and only runs on `main` reuse the compiler
@@ -66,12 +66,12 @@ cache backend) for compiled workspace crates; `sccache --show-stats` is printed 
 
 `release.yml` then runs three stages:
 
-1. **prepare** (`ubuntu-latest`): fails unless the tag is exactly `v` + the `studio-app`
+1. **prepare** (`ubuntu-latest`): fails unless the tag is exactly `v` + the `exaudio-app`
    version; generates the release notes (GitHub's generated notes plus the download and
    unsigned-package lines) once for every job.
 2. **build** (one job per platform, see the matrix above; `fail-fast: false`):
-   - builds `studio-app`, `studio-relay` and `exaudio-wasm` together in one Cargo invocation,
-     keeping shared dependency features unified, with `STUDIO_UPDATE_CHANNEL=stable`;
+   - builds `exaudio-app`, `exaudio-relay` and `exaudio-wasm` together in one Cargo invocation,
+     keeping shared dependency features unified, with `EXAUDIO_UPDATE_CHANNEL=stable`;
      `exaudio-wasm-worker` is the isolated compiler child for untrusted extension `.wasm` and
      ships beside the main executable (`Exaudio.exe`, `Exaudio.app/Contents/MacOS/Exaudio`,
      the AppImage's `usr/bin/Exaudio`);
@@ -155,7 +155,7 @@ Every push to `main` runs `alpha.yml` on `windows-latest` (one build per push, r
 serialized, never cancelled):
 
 - version `<major>.<minor>.<patch+1>-alpha.<run number>.<run attempt>`, which sorts above the
-  current stable and below the next one; it is compiled in as `STUDIO_BUILD_VERSION`;
+  current stable and below the next one; it is compiled in as `EXAUDIO_BUILD_VERSION`;
 - the previous alpha is downloaded from the feed for delta packages;
 - `tools/package-windows.ps1 -UpdateChannel alpha` packs channel `alpha`
   (`Exaudio-alpha-Setup.exe` is the tester installer);
@@ -204,7 +204,7 @@ Velopack's `Exaudio-alpha-Portable.zip`) and can publish to:
 | `latest-amd64` | `macos-15-intel` | `osx-x64` | `https://reviewgen.ovh/exaudio/alpha/mac-x64` |
 | `sonoma-amd64` | `macos-14-large` | `osx-x64` | `https://reviewgen.ovh/exaudio/alpha/mac-sonoma-x64` |
 
-`STUDIO_ALPHA_FEED_URL` bakes each target's feed into its build. `macos-14-large` is a
+`EXAUDIO_ALPHA_FEED_URL` bakes each target's feed into its build. `macos-14-large` is a
 larger runner and is billed even for public repositories; skip `sonoma-amd64` unless that is
 intended. Publishing goes through `tools/publish-alpha-unix.sh` (the same incoming-directory,
 verify, promote-metadata-last and rollback steps as the Windows publisher).
