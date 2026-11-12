@@ -178,46 +178,4 @@ mod tests {
             );
         }
     }
-
-    #[test]
-    fn bucket_max_tracks_current_peak_abs_without_recomputing_it_per_sample() {
-        let source = include_str!("peaks.rs");
-        let bucket_max_with = source
-            .split("fn bucket_max_with(")
-            .nth(1)
-            .expect("bucket max helper should exist")
-            .split("#[cfg(test)]")
-            .next()
-            .expect("tests should follow bucket max helper");
-
-        assert!(bucket_max_with.contains("let mut peak_abs = 0.0_f64;"));
-        assert!(
-            !bucket_max_with.contains("peak.abs()"),
-            "peak export is a startup hot loop and should not recompute the current peak abs for every sample"
-        );
-    }
-
-    #[test]
-    fn large_bucket_exports_use_parallel_iterators() {
-        let source = include_str!("peaks.rs");
-        let imports_and_constants = source
-            .split("#[derive(Clone, Debug, PartialEq, Eq)]")
-            .next()
-            .expect("peak export constants should precede the error type");
-        let bucket_max_with = source
-            .split("fn bucket_max_with(")
-            .nth(1)
-            .expect("bucket max helper should exist")
-            .split("#[cfg(test)]")
-            .next()
-            .expect("tests should follow bucket max helper");
-
-        assert!(imports_and_constants.contains("use rayon::prelude::*;"));
-        assert!(imports_and_constants.contains("const PARALLEL_BUCKET_MAX_MIN: usize"));
-        assert!(bucket_max_with.contains("max_length >= PARALLEL_BUCKET_MAX_MIN"));
-        assert!(
-            bucket_max_with.contains("into_par_iter()"),
-            "large peak exports are load-time hot loops and should use available CPU cores"
-        );
-    }
 }

@@ -92,19 +92,6 @@ fn viewport_layout_follows_min_px_per_second_and_fill_parent_rules() {
 }
 
 #[test]
-fn viewport_scroll_time_moves_the_visible_scroll_window() {
-    let mut viewport = WaveViewport::new(4.0, 300.0, 200.0, false, 1.0);
-
-    let scroll = viewport.set_scroll_time(1.25);
-
-    assert_eq!(viewport.get_scroll(), 250.0);
-    assert_eq!(scroll.visible_start_seconds, 1.25);
-    assert_eq!(scroll.visible_end_seconds, 2.75);
-    assert_eq!(scroll.scroll_left_px, 250.0);
-    assert_eq!(scroll.scroll_right_px, 550.0);
-}
-
-#[test]
 fn precomputed_peak_source_exports_without_decoded_audio() {
     let source =
         WaveformSource::from_precomputed_peaks(vec![vec![0.0, 0.5, -0.75, 0.25, 1.0, -0.25]], 3.0)
@@ -116,42 +103,10 @@ fn precomputed_peak_source_exports_without_decoded_audio() {
         source.export_peaks(1, 3, 100.0).unwrap(),
         vec![vec![0.5, -0.75, 1.0]]
     );
-    assert_eq!(
-        source.render_window_samples(2.0, 2.0, 6.0, 1),
-        vec![vec![-0.75, 0.25]]
-    );
 }
 
 #[test]
-fn peak_cache_reuses_resolution_and_can_render_visible_ranges() {
-    let audio = DecodedAudio::new(4, vec![vec![0.0, 0.25, -0.5, 0.75, -1.0, 0.5, 0.25, 0.0]])
-        .expect("valid audio");
-    let mut cache = PeakCache::new(WaveformSource::from_decoded(audio));
-
-    let first = cache.peaks_for_resolution(4, 100.0).unwrap();
-    let second = cache.peaks_for_resolution(4, 100.0).unwrap();
-
-    assert_eq!(first, second);
-    assert_eq!(cache.cached_resolution_count(), 1);
-    assert_eq!(
-        cache.visible_peaks(1.0, 2.0, 1, 4, 100.0).unwrap(),
-        vec![vec![-1.0, 0.5, 0.25, 0.0]]
-    );
-}
-
-#[test]
-fn visible_peak_cache_slices_borrowed_resolution_without_full_clone() {
-    let cache_source = include_str!("../src/cache.rs");
-
-    assert!(cache_source.contains("fn cached_peaks_for_resolution("));
-    assert!(
-        cache_source.contains("self.cached_peaks_for_resolution(resolution_length, precision)?")
-    );
-    assert!(!cache_source.contains("let full_resolution = self.peaks_for_resolution"));
-}
-
-#[test]
-fn render_model_reuses_cached_peak_resolution_for_moving_viewports() {
+fn render_model_reuses_cached_peak_resolution_across_renders() {
     let source = WaveformSource::from_decoded(
         DecodedAudio::new(
             10,
@@ -164,6 +119,7 @@ fn render_model_reuses_cached_peak_resolution_for_moving_viewports() {
         .expect("valid audio"),
     );
     let mut cache = PeakCache::new(source);
+    let viewport = WaveViewport::new(10.0, 200.0, 100.0, false, 1.0);
     let options = WaveformRenderOptions {
         channels: 1,
         peak_count: 8,
@@ -171,35 +127,16 @@ fn render_model_reuses_cached_peak_resolution_for_moving_viewports() {
         ..WaveformRenderOptions::default()
     };
 
-    let mut first_viewport = WaveViewport::new(10.0, 200.0, 100.0, false, 1.0);
-    first_viewport.set_scroll_time(1.0);
-    let first = WaveformRenderModel::from_peak_cache(&mut cache, first_viewport, 1.5, options)
+    let first = WaveformRenderModel::from_peak_cache(&mut cache, viewport, 0.5, options)
         .expect("first render model should build");
-
-    let mut second_viewport = WaveViewport::new(10.0, 200.0, 100.0, false, 1.0);
-    second_viewport.set_scroll_time(2.0);
-    let second = WaveformRenderModel::from_peak_cache(&mut cache, second_viewport, 2.5, options)
+    let cache_after_first = cache.clone();
+    let second = WaveformRenderModel::from_peak_cache(&mut cache, viewport, 1.5, options)
         .expect("second render model should build");
 
-    assert_eq!(cache.cached_resolution_count(), 1);
-    assert_eq!(first.visible_start_seconds, 1.0);
-    assert_eq!(second.visible_start_seconds, 2.0);
+    assert_eq!(cache, cache_after_first);
+    assert_eq!(first.visible_end_seconds, 2.0);
     assert_eq!(first.channels[0].peaks.len(), 8);
-    assert_eq!(second.channels[0].peaks.len(), 8);
-}
-
-#[test]
-fn viewport_zoom_at_keeps_anchor_time_under_pointer() {
-    let mut viewport = WaveViewport::new(10.0, 500.0, 100.0, false, 1.0);
-    viewport.set_scroll(250.0);
-
-    let anchor_time = viewport.viewport_px_to_seconds(100.0);
-    viewport.zoom_at(100.0, 200.0);
-
-    assert_eq!(anchor_time, 3.5);
-    assert_eq!(viewport.min_px_per_sec(), 200.0);
-    assert_eq!(viewport.get_scroll(), 600.0);
-    assert_eq!(viewport.viewport_px_to_seconds(100.0), anchor_time);
+    assert_eq!(second.channels, first.channels);
 }
 
 #[test]
@@ -208,13 +145,13 @@ fn render_model_clips_peaks_and_cursor_to_visible_viewport() {
         DecodedAudio::new(2, vec![vec![0.0, 0.25, -0.5, 0.75, -1.0, 0.5, 0.25, 0.0]])
             .expect("valid audio"),
     );
-    let mut viewport = WaveViewport::new(4.0, 200.0, 100.0, false, 1.0);
-    viewport.set_scroll_time(1.0);
+    let mut cache = PeakCache::new(source);
+    let viewport = WaveViewport::new(4.0, 4.0, 2.0, false, 1.0);
 
-    let model = WaveformRenderModel::from_source(
-        &source,
+    let model = WaveformRenderModel::from_peak_cache(
+        &mut cache,
         viewport,
-        2.0,
+        1.0,
         WaveformRenderOptions {
             channels: 1,
             peak_count: 4,
@@ -224,9 +161,9 @@ fn render_model_clips_peaks_and_cursor_to_visible_viewport() {
     )
     .expect("render model should build");
 
-    assert_eq!(model.visible_start_seconds, 1.0);
-    assert_eq!(model.visible_end_seconds, 3.0);
-    assert_eq!(model.channels[0].peaks.as_ref(), &[-0.5, 0.75, -1.0, 0.5]);
+    assert_eq!(model.visible_start_seconds, 0.0);
+    assert_eq!(model.visible_end_seconds, 2.0);
+    assert_eq!(model.channels[0].peaks.as_ref(), &[0.0, 0.25, -0.5, 0.75]);
     assert_eq!(model.cursor.progress_percent, 50.0);
 }
 

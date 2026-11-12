@@ -41,22 +41,6 @@ impl PeakCache {
         }
     }
 
-    pub fn cached_resolution_count(&self) -> usize {
-        self.resolutions.len()
-    }
-
-    pub fn peaks_for_resolution(
-        &mut self,
-        max_length: usize,
-        precision: f64,
-    ) -> Result<Vec<Vec<f64>>, PeakExportError> {
-        Ok(self
-            .cached_peaks_for_resolution(max_length, precision)?
-            .iter()
-            .map(|channel| channel.to_vec())
-            .collect())
-    }
-
     fn cached_peaks_for_resolution(
         &mut self,
         max_length: usize,
@@ -147,18 +131,6 @@ impl PeakCache {
                 .expect("oldest resolution came from the cache");
             self.cached_peak_bytes -= removed.peak_bytes;
         }
-    }
-
-    pub fn visible_peaks(
-        &self,
-        start_seconds: f64,
-        end_seconds: f64,
-        channels: usize,
-        max_length: usize,
-        precision: f64,
-    ) -> Result<Vec<Vec<f64>>, PeakExportError> {
-        self.source
-            .export_range_peaks(start_seconds, end_seconds, channels, max_length, precision)
     }
 
     pub fn visible_peaks_from_cached_resolution(
@@ -259,7 +231,7 @@ mod tests {
                 .expect("valid peak request");
         }
 
-        assert!(cache.cached_resolution_count() <= MAX_CACHED_RESOLUTIONS);
+        assert!(cache.resolutions.len() <= MAX_CACHED_RESOLUTIONS);
         assert!(cache.cached_peak_bytes <= MAX_CACHED_PEAK_BYTES);
         assert!(cache.resolutions.contains_key(&key(300)));
     }
@@ -320,7 +292,7 @@ mod tests {
             .cached_peaks_for_resolution(second_length, 100.0)
             .expect("second large peak request");
 
-        assert_eq!(cache.cached_resolution_count(), 1);
+        assert_eq!(cache.resolutions.len(), 1);
         assert!(cache.cached_peak_bytes <= MAX_CACHED_PEAK_BYTES);
         assert!(!cache.resolutions.contains_key(&key(first_length)));
         assert!(cache.resolutions.contains_key(&key(second_length)));
@@ -332,7 +304,7 @@ mod tests {
             .len();
 
         assert_eq!(oversized_len, oversized_length);
-        assert_eq!(cache.cached_resolution_count(), 1);
+        assert_eq!(cache.resolutions.len(), 1);
         assert!(cache.cached_peak_bytes > MAX_CACHED_PEAK_BYTES);
         assert!(cache.resolutions.contains_key(&key(oversized_length)));
     }

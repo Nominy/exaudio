@@ -75,36 +75,6 @@ impl WaveformSource {
             ),
         }
     }
-
-    pub fn render_window_samples(
-        &self,
-        offset_px: f64,
-        clamped_width_px: f64,
-        total_width_px: f64,
-        channels: usize,
-    ) -> Vec<Vec<f64>> {
-        match self {
-            Self::Decoded(decoded) => slice_channels(
-                (0..channels.min(decoded.number_of_channels()))
-                    .filter_map(|channel_index| decoded.channel_data(channel_index))
-                    .collect(),
-                offset_px,
-                clamped_width_px,
-                total_width_px,
-            ),
-            Self::Peaks(peaks) => slice_channels(
-                peaks
-                    .channels
-                    .iter()
-                    .take(channels.min(peaks.channels.len()))
-                    .map(Vec::as_slice)
-                    .collect(),
-                offset_px,
-                clamped_width_px,
-                total_width_px,
-            ),
-        }
-    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -191,49 +161,5 @@ impl PrecomputedPeaks {
                 bucket_max(&channel[start_index..end_index], max_length, precision)
             })
             .collect())
-    }
-}
-
-fn slice_channels(
-    channels: Vec<&[impl Copy + Into<f64>]>,
-    offset_px: f64,
-    clamped_width_px: f64,
-    total_width_px: f64,
-) -> Vec<Vec<f64>> {
-    if total_width_px <= 0.0 || !total_width_px.is_finite() {
-        return Vec::new();
-    }
-
-    channels
-        .into_iter()
-        .map(|channel| {
-            let start = (finite_non_negative(offset_px) / total_width_px * channel.len() as f64)
-                .floor() as usize;
-            let end = ((finite_non_negative(offset_px) + finite_non_negative(clamped_width_px))
-                / total_width_px
-                * channel.len() as f64)
-                .floor() as usize;
-            let start = start.min(channel.len());
-            let end = end.min(channel.len());
-            channel[start..end]
-                .iter()
-                .copied()
-                .map(sample_to_render_f64)
-                .collect()
-        })
-        .collect()
-}
-
-fn sample_to_render_f64(sample: impl Into<f64>) -> f64 {
-    const RENDER_SAMPLE_PRECISION: f64 = 1_000_000.0;
-    let sample = sample.into();
-    (sample * RENDER_SAMPLE_PRECISION).round() / RENDER_SAMPLE_PRECISION
-}
-
-fn finite_non_negative(value: f64) -> f64 {
-    if value.is_finite() {
-        value.max(0.0)
-    } else {
-        0.0
     }
 }

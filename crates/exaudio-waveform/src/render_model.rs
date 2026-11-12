@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use crate::{
     PeakCache, PeakExportError, ProgressGeometry, RendererLayout, ScrollWindow, WaveViewport,
-    WaveformSource,
 };
 
 const MAX_CACHED_RENDER_PEAKS: usize = 1_048_576;
@@ -30,7 +29,6 @@ impl Default for WaveformRenderOptions {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct WaveformRenderModel {
-    pub layout: RendererLayout,
     pub visible_start_seconds: f64,
     pub visible_end_seconds: f64,
     pub cursor: ProgressGeometry,
@@ -38,29 +36,6 @@ pub struct WaveformRenderModel {
 }
 
 impl WaveformRenderModel {
-    pub fn from_source(
-        source: &WaveformSource,
-        viewport: WaveViewport,
-        current_seconds: f64,
-        options: WaveformRenderOptions,
-    ) -> Result<Self, PeakExportError> {
-        let scroll_window = viewport.scroll_window();
-        let peaks = source.export_range_peaks(
-            scroll_window.visible_start_seconds,
-            scroll_window.visible_end_seconds,
-            options.channels,
-            options.peak_count,
-            options.precision,
-        )?;
-        Self::from_render_parts(
-            viewport.layout(),
-            scroll_window,
-            peaks,
-            current_seconds,
-            options,
-        )
-    }
-
     pub fn from_peak_cache(
         peak_cache: &mut PeakCache,
         viewport: WaveViewport,
@@ -78,17 +53,10 @@ impl WaveformRenderModel {
             options.precision,
             resolution_length,
         )?;
-        Self::from_render_parts(
-            viewport.layout(),
-            scroll_window,
-            peaks,
-            current_seconds,
-            options,
-        )
+        Self::from_render_parts(scroll_window, peaks, current_seconds, options)
     }
 
     fn from_render_parts(
-        layout: RendererLayout,
         scroll_window: ScrollWindow,
         peaks: Vec<Vec<f64>>,
         current_seconds: f64,
@@ -104,7 +72,6 @@ impl WaveformRenderModel {
         );
 
         Ok(Self {
-            layout,
             visible_start_seconds,
             visible_end_seconds,
             cursor,
@@ -165,8 +132,6 @@ impl WaveformChannelRender {
             &peaks,
             visible_start_seconds,
             visible_end_seconds,
-            visible_start_seconds,
-            visible_end_seconds,
             visible_peak_count,
         );
 
@@ -195,8 +160,6 @@ pub enum WaveformHitTarget {
 
 fn sample_visible_peaks(
     peaks: &[f64],
-    peak_start_seconds: f64,
-    peak_end_seconds: f64,
     visible_start_seconds: f64,
     visible_end_seconds: f64,
     sample_count: usize,
@@ -206,9 +169,8 @@ fn sample_visible_peaks(
     let sample_peak = |index: usize| {
         sample_visible_peak(
             peaks,
-            peak_start_seconds,
-            peak_end_seconds,
             visible_start_seconds,
+            visible_end_seconds,
             visible_duration,
             sample_count,
             index,
@@ -227,9 +189,8 @@ fn sample_visible_peaks(
 
 fn sample_visible_peak(
     peaks: &[f64],
-    peak_start_seconds: f64,
-    peak_end_seconds: f64,
     visible_start_seconds: f64,
+    visible_end_seconds: f64,
     visible_duration: f64,
     sample_count: usize,
     index: usize,
@@ -240,8 +201,8 @@ fn sample_visible_peak(
     let sample_end = visible_start_seconds + visible_duration * end_ratio.min(1.0);
     peak_window_abs_max(
         peaks,
-        peak_start_seconds,
-        peak_end_seconds,
+        visible_start_seconds,
+        visible_end_seconds,
         sample_start,
         sample_end,
     )
@@ -273,31 +234,4 @@ fn peak_window_abs_max(
         .iter()
         .map(|peak| peak.abs().clamp(0.0, 1.0) as f32)
         .fold(0.0, f32::max)
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn visible_peak_sampling_uses_parallel_iterator_for_large_windows() {
-        let source = include_str!("render_model.rs");
-        let imports_and_constants = source
-            .split("#[derive(Clone, Copy, Debug, PartialEq)]")
-            .next()
-            .expect("render model options should follow imports and constants");
-        let sampling_helper = source
-            .split("fn sample_visible_peaks(")
-            .nth(1)
-            .expect("peak sampling helper should exist")
-            .split("\nfn sample_visible_peak(")
-            .next()
-            .expect("single-peak sampler should follow peak sampling helper");
-
-        assert!(imports_and_constants.contains("use rayon::prelude::*;"));
-        assert!(imports_and_constants.contains("const PARALLEL_SAMPLE_VISIBLE_PEAKS_MIN: usize"));
-        assert!(sampling_helper.contains("sample_count >= PARALLEL_SAMPLE_VISIBLE_PEAKS_MIN"));
-        assert!(
-            sampling_helper.contains("into_par_iter()"),
-            "large visible windows reach PARALLEL_SAMPLE_VISIBLE_PEAKS_MIN and must fan bucket sampling across CPU cores"
-        );
-    }
 }
