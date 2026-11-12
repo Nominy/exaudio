@@ -26,7 +26,7 @@
 | Контрольные суммы | [SHA256SUMS](https://github.com/Nominy/exaudio/releases/latest/download/SHA256SUMS) |
 | Установщик alpha для Windows (отдельная лента) | [Exaudio-alpha-Setup.exe](https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe) |
 
-Стабильные выпуски — теги `v*` в GitHub Releases; каждый выпуск содержит все платформы и файл `SHA256SUMS`, установленные копии обновляются сами. Alpha раздаётся с отдельного VPS (Windows и macOS), а не из стабильного канала обновлений; перед тестированием сделайте резервные копии проектов. См. [распространение и обновления](docs/releasing.md).
+Стабильные выпуски — теги `v*` в GitHub Releases; каждый выпуск содержит все платформы и файл `SHA256SUMS`, установленные копии обновляются сами. Alpha раздаётся с отдельного VPS (Windows, macOS и Linux), а не из стабильного канала обновлений; перед тестированием сделайте резервные копии проектов. См. [распространение и обновления](docs/releasing.md).
 
 **Пакеты не подписаны.** Windows SmartScreen может предупредить о неизвестном издателе («Подробнее → Выполнить в любом случае»). macOS при первом запуске не сможет проверить приложение: откройте **Системные настройки → Конфиденциальность и безопасность** и нажмите **Всё равно открыть**. AppImage для Linux нужно сделать исполняемым (`chmod +x Exaudio-linux-x64.AppImage`; в большинстве дистрибутивов нужен FUSE 2, пакет `libfuse2`). Скачивайте только из Releases проекта, сверяйте запись в `SHA256SUMS` и не отключайте защиту ОС.
 
@@ -62,7 +62,7 @@
 
 ## Сборка из исходников
 
-На любой платформе нужны Git, Rust из `rust-toolchain.toml` и CMake (встроенный libopus собирается из исходников). Windows добавляет инструменты MSVC C++ с Windows SDK; macOS — инструменты командной строки Xcode; Linux — компилятор C и dev-пакеты из `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Внутренние крейты сохраняют префикс `studio-*`.
+На любой платформе нужны Git, Rust из `rust-toolchain.toml` и CMake (встроенный libopus собирается из исходников). Windows добавляет инструменты MSVC C++ с Windows SDK; macOS — инструменты командной строки Xcode; Linux — компилятор C и dev-пакеты из `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Редактор и его платформа лежат в `crates/`, всё необязательное — в `extensions/`; внутренние крейты сохраняют префикс `studio-*`.
 
 ```powershell
 git clone https://github.com/Nominy/exaudio.git
@@ -73,10 +73,10 @@ cargo run -p studio-app
 Стандартная сборка включает Local, Formats, базовые проверки, ИИ-инструменты Gold и интеграцию Babel и собирается из чистого клона. Подмножества features:
 
 ```powershell
-# ИИ-инструменты без Babel
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks,gold --locked
-# Только локальный редактор
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks --locked
+# Только редактор: Local, форматы, базовые проверки, палитра команд
+cargo editor
+# То же плюс ИИ-инструменты, без Babel
+cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
 ```
 
 Приватный пакет данных Babel (`tools/babel-data.json`) нужен только инструментам сверки и тестам сверки линтера; без него они пропускаются. Проверки, процесс для участников и SDK расширений — в [руководстве разработчика](docs/development.md).

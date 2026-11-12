@@ -99,7 +99,6 @@ commit completes rather than leaving a half-active dependency set. A force-kill 
 commit may leave unreferenced package directories but leaves the prior pointer intact.
 A cancelled download restarts that transfer; this CLI does not claim resumable HTTP byte
 ranges. A completed installation is durable and is not repeated on ordinary app startup.
-Run long smoke/build jobs under the project's durable psmux/logging policy.
 
 ## Host integration
 

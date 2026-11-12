@@ -10,7 +10,7 @@ Windows: use the stable [x64 installer](https://github.com/Nominy/exaudio/releas
 
 Windows 10/11 x64, macOS 14+ and 64-bit Linux desktops are supported; local AI ("This PC") is Windows-only. Packages are unsigned: SmartScreen may identify an unknown publisher (More info → Run anyway), macOS asks you to allow the app once in System Settings → Privacy & Security → Open Anyway. Check that the file came from `Nominy/exaudio` Releases and compare `SHA256SUMS` before deciding to run it. Do not disable OS protection. No Rust installation is needed.
 
-Alpha is experimental and uses a separate feed (Windows and macOS). Do not use an alpha build as your only copy of a project. See [release channels](releasing.md).
+Alpha is experimental and uses a separate feed (Windows, macOS and Linux). Do not use an alpha build as your only copy of a project. See [release channels](releasing.md).
 
 ### 2. Open audio from Start
 
@@ -64,7 +64,7 @@ Windows: скачайте стабильный [установщик x64](https:
 
 Поддерживаются Windows 10/11 x64, macOS 14+ и 64-битный Linux с графическим окружением; локальный ИИ («Этот ПК») работает только в Windows. Пакеты не подписаны: SmartScreen может предупредить о неизвестном издателе («Подробнее → Выполнить в любом случае»), macOS попросит один раз разрешить запуск в «Системные настройки → Конфиденциальность и безопасность → Всё равно открыть». Перед запуском проверьте источник `Nominy/exaudio` Releases и опубликованный `SHA256SUMS`. Не отключайте защиту системы. Устанавливать Rust не нужно.
 
-Alpha — экспериментальный отдельный канал (Windows и macOS). Не храните единственную копию проекта только в альфа-сборке. Сведения — в [описании каналов](releasing.md).
+Alpha — экспериментальный отдельный канал (Windows, macOS и Linux). Не храните единственную копию проекта только в альфа-сборке. Сведения — в [описании каналов](releasing.md).
 
 ### 2. Открытие аудио с экрана «Начало»
 

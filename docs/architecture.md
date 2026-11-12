@@ -1,14 +1,14 @@
 # Exaudio architecture
 
-Implementation target for the platform cutover; this document does not claim that every
-interface below is already available. Public release requires the shipped capabilities to
-be implemented and exercised end to end.
+This document describes the code as it is. Section 2.2 lists the contribution points that
+exist and, separately, the ones that are planned but not implemented.
 
 Exaudio is a segment-based transcript editor with multi-lane audio playback. That is the whole
 core. Everything else — AI transcription, linting, file formats, task platforms such as Babel —
 is an **extension**; platforms are **modes** (Start-screen tiles) contributed by extensions,
-and the accounts they sign in with are **providers**. Built-in features use exactly the same
-API that third-party extensions use; there is no private side door.
+and the accounts they sign in with are **providers**. Bundled features are extensions too:
+native Rust crates under `extensions/`, registered through the same registries that installed
+WASM extensions reach through the WIT API.
 
 ```mermaid
 flowchart TD
@@ -46,18 +46,31 @@ The core has **no** linter, no AI, no import/export besides its native format, n
 logic, and no notion of "submit". "Read-only", "required checks" and "where Save goes" are
 policies a mode supplies for the documents it opens.
 
-Existing implementation crates retain their `studio-*` names. `studio-services` contains
-only native HTTP/runtime/path/storage/updater services and native recovery delegated to
-`studio-project` with an explicit audio source base. `studio-inference` contains provider
-contracts, not an inference runtime. `extensions/gold` (`exaudio-gold`) owns the local runtime,
-remote coordinator, AI preferences and provider-neutral drafting/polish algorithms;
-`extensions/babel-services` (`exaudio-babel-services`) owns authentication, task/review clients,
-relay hosting and Babel JSON recovery. Babel clients capture the account instance (direct or
-relay-backed) per document origin; the selected account never chooses a document's save
-route after the fact. Constructors do not activate modes; the host owns the selected services
-and shuts down their runtime/relay resources when deactivating them. Credentials live under
-the per-instance provider directory (§2.3); model-cache and draft storage paths and
-serialized preference keys remain unchanged.
+**Directory rule.** `crates/` holds the editor and its platform; `extensions/` holds everything
+optional. No crate under `crates/` except `studio-app` (the composition root) depends on a
+crate under `extensions/`, and the extensions of the editor-only build (`palette`, `local`,
+`formats`, `lint-basic`) depend on no other extension.
+`crates/studio-app/tests/crate_boundaries.rs` enforces both, and CI lints the editor-only
+build (`cargo editor`, see [development](development.md)).
+
+Implementation crates retain their `studio-*` names wherever they live. `studio-services`
+contains only native HTTP/runtime/path/storage/updater services and native recovery delegated
+to `studio-project` with an explicit audio source base. Optional crates:
+
+| Directory | Package | Owns |
+|---|---|---|
+| `extensions/inference` | `studio-inference` | Audio, transcription and alignment provider contracts. No runtime. |
+| `extensions/gold`, `gold-ui` | `exaudio-gold`, `exaudio-gold-ui` | Local AI runtime, remote coordinator, AI preferences, drafting/polish algorithms and their panels. |
+| `extensions/babel-format` | `studio-babel` | Babel task JSON ⇄ `Project`. |
+| `extensions/babel-relay` | `studio-relay` | Sub-account relay executable shipped beside the app. |
+| `extensions/babel-domain`, `babel-lint`, `babel-tags` | `exaudio-babel-*` | Babel document rules, presentation, checks and tag conventions. |
+| `extensions/babel-services`, `babel-ui` | `exaudio-babel-*` | Authentication, task/review clients, relay hosting, Babel JSON recovery and the Babel screens. |
+
+Babel clients capture the account instance (direct or relay-backed) per document origin; the
+selected account never chooses a document's save route after the fact. Constructors do not
+activate modes; the host owns the selected services and shuts down their runtime/relay
+resources when deactivating them. Credentials live under the per-instance provider directory
+(§2.3).
 
 ## 2. Extensions
 
@@ -106,72 +119,40 @@ are rolled back, but native panics must not be described as WASM-style containme
 
 ### 2.2 Contribution points
 
-Extensions extend every part of the editor — the same reach Unity editor extensions have over
-the Unity editor.
+**Implemented.** Native extensions register through `exaudio_shell::ContributionRegistry`,
+`ProviderRegistry` and the action registry; WASM extensions use the `register`/`publish-*`
+host calls of `wit/exaudio-extension.wit` (`contribution-kind`).
 
-**Workspace and modes**
-- **Mode** — a Start-screen tile: its launch window (dashboard/browser), document sources
-  (list/browse/claim/open → `Project` + origin), the save / submit pipeline for its documents,
-  document policy (read-only, checks required before submit, which extensions are active in
-  its documents), a settings page. `exaudio.local` is a mode like any other.
-- **Provider** — an account type a mode signs in with: a setup (sign-in) view, a status
-  probe and a sign-out hook. Instances are stored by the shell; credentials live in the
-  instance's own directory (§2.3).
-- **Document handlers** — open-file and drag-and-drop handlers by extension/MIME.
-- **Importers / exporters** — bytes ⇄ `Project` (SRT, VTT, TXT, platform JSON, …).
+| Point | Native API | WASM |
+|---|---|---|
+| **Mode** — a Start-screen tile: launch window, document sources, document policy, required extensions | `register_mode`, plus `register_save_handler` / `register_leave_handler` for where Save and Leave go | `mode`, `mode-open` / `publish-mode-document` |
+| **Provider** — an account type a mode signs in with: setup view, status probe, sign-out hook (§2.3) | `ProviderRegistry::register_type` | `provider` |
+| **Panels** — views docked at `PanelLocation::{Sidebar, Overlay, Inspector, Settings, Transport}`, optionally scoped to modes | `register_panel` (any gpui view) | `panel`, `inspector` (declarative UI tree, §3.3) |
+| **Diagnostics** with quick fixes — run on document snapshots; the core shows them (row dots, counts, navigation, underlines) and never decides what a rule is | `DocumentProviders::diagnostics`, `diagnostic_postprocessors` | `diagnostics` |
+| **Completions** — e.g. tag names after `[` | `DocumentProviders::completions` | `completions` |
+| **Decorations** — styled spans and row presentation | `DocumentProviders::decorations` | `decorations` |
+| **Document commands, segment kinds, mutation policy** — domain behaviour for a mode's documents | `DocumentProviders::{commands, segment_kinds, mutation_policy}` | — |
+| **Importers / exporters** — bytes ⇄ `Project` | `ContributionRegistry::formats` | `importer`, `exporter` |
+| **Actions** — menus (`editor/overflow`, `editor/toolbar`, `row/context`), rebindable keys and the command palette, all views over one `ActionRegistry` (see `architecture/actions.md`) | manifest `contributes.actions` + handlers | manifest + `on-action`, `run-action`, `set-context` |
+| **Timeline overlays** — draw lists in time-and-lane coordinates | — (native panels paint themselves) | `overlay` |
 
-**UI**
-- **Panels** — dockable views (left/right/bottom, tabbed), optionally scoped to a mode or
-  document kind. Rust: any gpui view. WASM: declarative UI tree (§3.3).
-- **Windows and dialogs** — modal/non-modal, with return values.
-- **Inspectors** — sections in the segment inspector for the selected segment(s).
-- **Transcript extensions** — extra columns/cells per row, row badges, row context-menu items,
-  text decorations (styled spans: tags, highlights), gutter markers, hover tooltips,
-  inline widgets after text.
-- **Timeline extensions** — overlays drawn per lane or across lanes (ranges, markers, curves,
-  labels, images; Unity "gizmos"), lane-header widgets, region context-menu items, custom
-  region styling, hit-testable interactive handles that emit events.
-- **Toolbar, menus, status bar** — buttons, toggles, dropdowns, menu items with `when` clauses,
-  status-bar items with click actions.
-- **Actions, command palette and keybindings** — one `ActionRegistry` (see
-  `architecture/actions.md`): manifest-declared actions with localized titles, `when` clauses,
-  default chords and menu placements; user-rebindable per action id with conflict reporting
-  in the hotkeys dialog; menus, toolbar, keyboard and the palette are views over it.
-- **Notifications** — toasts, progress, confirmation prompts.
-- **Settings pages** — auto-generated from a JSON Schema, or a custom view.
+Document providers are registered with `register_document_providers` or, when they depend on
+the opened project, `register_document_provider_factory`. WASM extensions additionally get a
+document API (`snapshot`, `propose`, selection and transport get/set), audio samples, an HTTP
+client limited to granted hosts, key-value storage, secrets and progress reporting, each behind
+an explicit grant.
 
-**Editing intelligence**
-- **Diagnostics** — providers run on document snapshots (incremental: changed segments only,
-  debounced by the host) or publish asynchronously into a named collection (e.g. server-side
-  checks). A diagnostic has rule id, severity (error/warning/info/hint), segment, optional char
-  range, message, and optional quick fixes. The core shows them (row dots, counts, navigation,
-  underlines); it never decides what a rule is.
-- **Quick fixes and code actions** — edits offered for a diagnostic, a selection or a segment;
-  "fix all" as a command.
-- **Completions** — trigger characters and contexts (e.g. tag names after `[`), with insert
-  text, ranges and documentation.
-- **Formatting / on-type rules** — transforms applied on commit of a segment edit.
+AI features are not a contribution point: `extensions/gold-ui` is a native extension that
+registers panels and actions and calls the editor directly (`EditorDoc::replace_lane_rows`,
+`apply_segment_transcription`, `EditorModel::set_enhanced_audio`).
 
-**Audio and AI**
-- **Transcription providers** — produce segments/words for lanes or ranges (streaming).
-- **Alignment providers** — word timings for existing text.
-- **Audio processors** — processed lane variants (denoise, enhancement) mixed by the engine.
-- **Audio analysis access** — decoded samples for a lane range (permission `audio:read`).
-
-**Hooks and events**
-- Document opened/closed/saved/changed (with change sets), before-save and before-submit
-  (may veto with a reason), selection/focus changed, playback started/stopped/seeked, mode
-  entered/left, app quitting (may request save).
-
-**Services available to every extension**
-- Document API: read snapshot, apply a transaction of edits (undoable, labelled), per-extension
-  segment/project data (`ext.<id>.*`), selection, caret, playhead, transport control.
-- Tasks: background jobs with progress, cancellation and the Tasks UI.
-- Storage: settings (schema-validated), key-value state, secrets (OS keyring), cache directory.
-- Network: HTTP client limited to manifest-declared hosts.
-- Logging into the per-extension log shown on the Extensions page.
-- Inter-extension services: an extension may publish a typed service (e.g. `exaudio.babel`
-  exposes its Babel client to its sibling modes); consumers declare the dependency.
+**Planned, not implemented.** No registry or WIT surface exists for: windows and dialogs with
+return values; extra transcript columns, row badges, gutter markers, hover tooltips and inline
+widgets; lane-header widgets, region context-menu items and interactive timeline handles;
+status-bar items; notifications from WASM; schema-generated settings pages; formatting /
+on-type rules; transcription, alignment and audio-processor providers as registered
+contributions; before-save / before-submit / playback / app-quit hooks; a Tasks UI; typed
+inter-extension services.
 
 ### 2.3 Modes, providers and documents
 
@@ -322,9 +303,11 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
 }
 ```
 
-Rust extensions may also return arbitrary gpui views for panels, windows, inspectors, mode
-launch windows and provider setup views. Built-ins are Rust extensions; they never reach into
-the shell or core internals.
+Native extensions are compiled in and trusted, and they do reach into the shell: the bundled
+Babel and Gold UI crates use `exaudio_shell::editor::model::EditorModel`,
+`editor::panels::{ui, modal}` and `screens::ui` directly, and call `EditorDoc` methods. Those
+are ordinary Rust dependencies, so a change to them fails the workspace build rather than
+breaking silently; `cargo clippy --workspace --all-targets` is the check.
 
 ### 3.2 WASM (`wit/exaudio-extension.wit`, world `exaudio:extension/extension@0.2.0`)
 
@@ -349,9 +332,9 @@ main stack for composed GPUI views; this does not change isolated worker limits.
 
 WASM extensions (and Rust extensions that prefer it) describe UI as a tree the host renders
 with native components: layout (`stack`, `row`, `scroll`, `split`, `tabs`), content (`text`,
-`markdown`, `icon`, `image`, `waveform-snippet`), inputs (`button`, `toggle`, `text-input`,
-`number`, `select`, `slider`, `list`, `table`), feedback (`progress`, `badge`, `callout`).
-Events (click, change, submit, row-select) are routed back to the extension, which returns an
+`markdown`, `icon`, `image`, `waveform`), inputs (`button`, `toggle`, `text-input`,
+`number`, `select`, `slider`, `list-view`, `table`), feedback (`progress`, `badge`, `callout`).
+Events (click, change, submit, row-select, hover) are routed back to the extension, which returns an
 updated tree or a patch. Timeline overlays use a draw list (rect/range/line/curve/marker/label
 in time-and-lane coordinates, with hit regions).
 

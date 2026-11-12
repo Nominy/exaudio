@@ -11,16 +11,16 @@ For application usage, see [Get started / Начать работу](getting-sta
 - WebView2 Runtime and a WebGPU-capable GPU/driver only when exercising Windows local inference. The inference runtime and models install separately from application compilation.
 - `cargo-nextest` for the workspace test command. The .NET 8 SDK and `dotnet tool restore` are packaging prerequisites, not requirements for end users.
 
-Use the repository root as the working directory. Cargo commands below are foreground commands; none silently starts a background job. A full first build can be long. In the managed development environment, run long work in the established detached **psmux** runner, with persistent stdout/stderr, timestamped events, atomic status, inspectable progress, a graceful stop route and a unique session name. Discover that installation's syntax rather than copying an invented multiplexer command. Cargo cancellation restarts at a compilation boundary while retaining completed artifacts; it is not a checkpoint inside a compiler invocation. Provider/model work needs its own durable unit checkpoints and must not be retried as if it were compilation.
+Use the repository root as the working directory. A full first build takes a while; later builds are incremental.
 
 ## Select the build you need
 
 ```powershell
-# General-purpose toolkit, including Gold AI tools, without Babel
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks,gold --locked
+# The editor: Local mode, subtitle formats, basic checks, command palette; no Babel, no AI
+cargo editor
 
-# Local editing, subtitle formats and basic diagnostics; no Babel or Gold AI
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks --locked
+# The same plus the Gold AI tools, without Babel
+cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
 
 # Core shell only: deliberately no bundled modes, formats, checks or AI
 cargo run -p studio-app --no-default-features --locked
@@ -29,7 +29,7 @@ cargo run -p studio-app --no-default-features --locked
 cargo run -p studio-app --locked
 ```
 
-`studio-app` remains the Cargo package/binary name used during development. Packaged releases use the Exaudio name. The default `batteries-included` feature selects `palette`, `local`, `formats`, `basic-checks`, `gold` and `babel`; changing the build feature set is different from enabling/disabling an installed extension. Bundled native extensions live under `extensions/`: `palette` (command palette, `Ctrl+Shift+P`), `local`, `formats`, `lint-basic`, `gold`/`gold-ui` and the `babel-*` family.
+`cargo editor` is an alias in `.cargo/config.toml` for `cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks`. `studio-app` remains the Cargo package/binary name used during development. Packaged releases use the Exaudio name. The default `batteries-included` feature selects `palette`, `local`, `formats`, `basic-checks`, `gold` and `babel`; changing the build feature set is different from enabling/disabling an installed extension. Bundled native extensions live under `extensions/`: `palette` (command palette, `Ctrl+Shift+P`), `local`, `formats`, `lint-basic`, `gold`/`gold-ui` and the `babel-*` family.
 
 **First-party code and build inputs:** Helper, reviewer/drafting and Babel integration extensions are the Exaudio author's own developments, not proprietary third-party extensions. Every build above, including the default all-batteries one, builds from a fresh checkout: the Babel linter's rule data (`babel-lint-data.json`, `error-category-names.json`) is tracked in `extensions/babel-lint/assets`. Only the parity fixtures described below are private. Keep credentials and private task content out of source and public fixtures.
 
@@ -45,19 +45,39 @@ The three parity tests in `exaudio-babel-lint` (`matches_babel_on_every_parity_c
 
 ## Synthetic development material
 
-For an account-free, synthetic demo, set these variables in a PowerShell terminal before launching the appropriate app build:
+For an account-free, synthetic demo, set these variables in a PowerShell terminal before launching the editor:
 
 ```powershell
-$env:STUDIO_OPEN_DEMO_ON_START = '1'
-$env:STUDIO_AUDIO_SILENT = '1'
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks --locked
+$env:STUDIO_OPEN_DEMO_ON_START = '1'   # open the two-speaker demo instead of Start
+$env:STUDIO_AUDIO_SILENT = '1'         # keep the playback path, emit silence
+cargo editor
 ```
 
-Unset them afterward with `Remove-Item Env:STUDIO_OPEN_DEMO_ON_START, Env:STUDIO_AUDIO_SILENT` when returning to normal use. The demo is an original Russian dialogue synthesized with Piper voices; [the generator](../tools/demo-audio/generate.py) records the source voices and dataset provenance. Do not regenerate it just to run the app, and do not substitute private platform tasks in public screenshots or test fixtures.
+Unset them afterward with `Remove-Item Env:STUDIO_OPEN_DEMO_ON_START, Env:STUDIO_AUDIO_SILENT` when returning to normal use. `STUDIO_LOG_AUDIO_PLAYBACK=1` logs one line per transport start. The demo is an original Russian dialogue synthesized with Piper voices; [the generator](../tools/demo-audio/generate.py) records the source voices and dataset provenance. Do not regenerate it just to run the app, and do not substitute private platform tasks in public screenshots or test fixtures.
+
+## Working on the editor
+
+Editor work happens in `crates/`. `extensions/` is optional (Babel, AI, formats, checks, modes) and the editor builds and runs without it; `crates/studio-app/tests/crate_boundaries.rs` fails if a crate under `crates/` starts depending on an extension.
+
+| Where | What |
+|---|---|
+| `crates/studio-core` | `Project`, `Segment`, `EditorCommand`, `CommandHistory` (undo/redo). |
+| `crates/studio-editor` | The editor without UI. `edit::EditorDoc` is the facade: every user operation is a method that returns an `Outcome` (status line + `Effect`s for the view to perform) or an `EditError`. `edit/doc/*` holds those methods by concern, `edit/*.rs` the pure rules they call. `editor_model::EditorSession` is the view state (selection, playhead, viewport, zoom, loop, track filter); `timeline_model` and `transcript_model` build what the views draw (`TimelineLaneView`, `TranscriptRowView`); `edit/keymap.rs` declares every action and its default keys. |
+| `crates/exaudio-shell/src/editor` | The GPUI views. `model.rs` (`EditorModel`: owns the `EditorDoc` and the audio engine, emits `EditorEvent`), `mod.rs` (`EditorScreen`: layout, key routing, extension panels), `toolbar.rs`, `status_bar.rs`, `timeline/` (`mod.rs` view and pointer handling, `paint.rs`, `geometry.rs` hit-testing, `overview.rs`, `rail.rs`), `transcript/` (`mod.rs` list, `row.rs`, `fast_row.rs`, `row_style.rs`, `layout.rs`, `wrap.rs`, `find_bar.rs`), `panels/` (transport strip, create-region and hotkeys dialogs, shared `ui.rs` / `modal.rs` widgets). |
+| `crates/exaudio-shell/src/screens` | Everything outside the editor: Start, Settings, Extensions, accounts, updates. `screens/ui.rs` has the shared styling helpers. |
+| `crates/studio-waveform`, `crates/studio-audio` | Peaks and line waveforms; decoding, playback engine and transport clock. |
+
+Conventions the code relies on:
+
+- **Behaviour goes in `studio-editor`, drawing in the shell.** A view calls `EditorModel::run(cx, |doc| doc.some_operation(..))`; the model applies the returned `Outcome` (status line, audio, scrolling, focus) and notifies the views. Views do not mutate the project themselves. Behaviour is tested headlessly in `crates/studio-editor/tests`.
+- **A new action** is an `EditorAction` variant plus its `ACTION_DEFS` entry (section, EN/RU description, context, default keys) in `edit/keymap.rs`, dispatched in `EditorDoc::perform` (`edit/doc/actions.rs`) or, for app-level actions, `EditorScreen::perform`. The hotkeys dialog and the command palette list it without further wiring; the rules are in [`architecture/actions.md`](architecture/actions.md).
+- **Strings in views have an English and a Russian form**: `screens::ui::localized(cx, en, ru)` in views, `studio_editor::i18n::localized(en, ru)` where no `cx` exists. The status lines and refusals `EditorDoc` returns (`Outcome::status`, `EditError`) are English only and shown as they are.
+- **Sizes follow the interface zoom**: use rems, or multiply pixel constants by `zoom::ui_scale(window)`. Colours come from `cx.theme()`.
+- **A transcript row has two render paths.** `transcript/row.rs` builds elements (editing, menus, chips, diff rows); `transcript/fast_row.rs` paints plain rows directly. Both lay out through `transcript/row_style.rs`; a new cell or state has to reach both.
+- **Some editor surfaces only appear in Babel documents**: the reviewer column, diff rows, low-confidence chips, annotation rows, and the panels extensions dock at `PanelLocation::{Sidebar, Inspector, Overlay, Transport}`. Local documents never fill them, so a change to their rendering needs a look in the full build.
+- **Extensions compile against the shell** (`EditorModel`, `editor::panels::{ui, modal}`, `screens::ui`). Changing those signatures can break Babel or Gold code; the workspace checks below catch it.
 
 ## Checks for contributors
-
-Run verification once after related edits have landed, not concurrently against a half-edited workspace. These are commands to run, **not a claim that this document's changes passed them**:
 
 ```powershell
 cargo fmt --all -- --check
@@ -65,15 +85,13 @@ cargo clippy --workspace --all-targets --locked -- -D warnings
 cargo nextest run --workspace --all-targets --locked
 ```
 
-The workspace-wide commands include Babel crates and require the pinned bundle described above. For narrower app integration checks that do not require it:
+These cover every crate, Babel and Gold included, and pass without the Babel data bundle (the parity tests skip). CI additionally lints the editor-only build:
 
 ```powershell
-cargo check -p studio-app --no-default-features --features local,formats,basic-checks,gold --locked
-cargo check -p studio-app --no-default-features --features local,formats,basic-checks --locked
-cargo check -p studio-app --no-default-features --locked
+cargo clippy -p studio-app --no-default-features --features palette,local,formats,basic-checks --locked -- -D warnings
 ```
 
-A narrow check is not a passing full-workspace test run. Native GUI behavior, audio playback, model setup and packaging need their corresponding real smoke runs. Never use private service credentials or paid provider requests as a default test prerequisite.
+`git config core.hooksPath .githooks` enables a pre-push hook that runs the format and Clippy checks. Native GUI behavior, audio playback, model setup and packaging are not covered by these commands and need a real run. Never use private service credentials or paid provider requests as a default test prerequisite.
 
 ## Extension development
 
@@ -91,7 +109,7 @@ Everything a user can invoke — menu items, toolbar buttons, keyboard shortcuts
 
 `site/` is plain HTML, CSS and JavaScript with no build framework, package manager, external fonts or analytics. Russian is the no-JavaScript/default language. The explicit RU/EN controls persist `exaudio.site.language` in local storage when storage is available; system/browser language does not override the Russian default. Colors and existing brand headers follow `prefers-color-scheme`. `site/assets/` contains copies of the three source SVGs in `assets/brand/`; the Pages workflow refreshes those copies while assembling the artifact.
 
-Open `site/index.html` for a quick static preview. For browser automation that requires HTTP, serve `site/` through the development environment's observable server runner; for example the actual foreground workload can be `python -m http.server 4173 --directory site --bind 127.0.0.1`. A long-lived server belongs in a named psmux session and must be stopped when finished.
+Open `site/index.html` for a quick static preview. For browser automation that requires HTTP, serve it with `python -m http.server 4173 --directory site --bind 127.0.0.1` and stop the server when finished.
 
 `.github/workflows/pages.yml` runs only for `Nominy/exaudio` on `main`, uses a hosted Linux runner and Pages OIDC permissions, and substitutes the **actual** `actions/configure-pages` `base_url` into canonical/OG URLs, `sitemap.xml` and `robots.txt`. Raw source contains the deliberate `__BASE_URL__` build token; the published artifact must not. The assembly step fails on missing or unresolved tokens. Pages must use **GitHub Actions** as its source. A local file preview is not proof of canonical URL correctness or deployment.
 

@@ -26,7 +26,7 @@ Local projects need no account; AI, checks and formats are extensions you can sw
 | Checksums | [SHA256SUMS](https://github.com/Nominy/exaudio/releases/latest/download/SHA256SUMS) |
 | Windows alpha installer (separate feed) | [Exaudio-alpha-Setup.exe](https://reviewgen.ovh/exaudio/alpha/win-x64/Exaudio-alpha-Setup.exe) |
 
-Stable releases are `v*` tags on GitHub Releases; every release carries all platforms and a `SHA256SUMS` file, and installed copies update themselves. Alpha comes from a separate VPS feed (Windows and macOS), not the stable update channel; back up projects before testing it. See [distribution and updates](docs/releasing.md).
+Stable releases are `v*` tags on GitHub Releases; every release carries all platforms and a `SHA256SUMS` file, and installed copies update themselves. Alpha comes from a separate VPS feed (Windows, macOS and Linux), not the stable update channel; back up projects before testing it. See [distribution and updates](docs/releasing.md).
 
 **Packages are unsigned.** Windows SmartScreen may warn about an unknown publisher (More info → Run anyway). macOS cannot verify the app the first time: open **System Settings → Privacy & Security** and click **Open Anyway**. The Linux AppImage needs `chmod +x Exaudio-linux-x64.AppImage` (and FUSE 2, `libfuse2`, on most distributions). Download only from this project's Releases, compare the `SHA256SUMS` entry, and do not disable OS protection.
 
@@ -62,7 +62,7 @@ The public catalog lives in [`Nominy/exaudio-extensions`](https://github.com/Nom
 
 ## Build from source
 
-Every platform needs Git, the Rust toolchain pinned in `rust-toolchain.toml` and CMake (the bundled libopus is built from source). Windows adds MSVC C++ build tools with the Windows SDK; macOS the Xcode command-line tools; Linux a C compiler plus the development packages listed in `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). Internal crates keep the `studio-*` prefix.
+Every platform needs Git, the Rust toolchain pinned in `rust-toolchain.toml` and CMake (the bundled libopus is built from source). Windows adds MSVC C++ build tools with the Windows SDK; macOS the Xcode command-line tools; Linux a C compiler plus the development packages listed in `.github/actions/linux-build-deps/action.yml` (xkbcommon, Wayland, X11/XCB, Vulkan, fontconfig, ALSA, D-Bus). The editor and its platform live in `crates/`, everything optional in `extensions/`; internal crates keep the `studio-*` prefix.
 
 ```powershell
 git clone https://github.com/Nominy/exaudio.git
@@ -73,10 +73,10 @@ cargo run -p studio-app
 The default build includes Local, Formats, basic checks, the Gold AI tools and the Babel integration, and builds from a clean clone. Feature subsets:
 
 ```powershell
-# AI tools, no Babel
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks,gold --locked
-# Local editor only
-cargo run -p studio-app --no-default-features --features local,formats,basic-checks --locked
+# The editor only: Local, formats, basic checks, command palette
+cargo editor
+# The same plus the AI tools, no Babel
+cargo run -p studio-app --no-default-features --features palette,local,formats,basic-checks,gold --locked
 ```
 
 Only the parity tooling and the linter parity tests need the private Babel data bundle (`tools/babel-data.json`); they skip when it is absent. See [development](docs/development.md) for checks, the contributor workflow and the extension SDK.

@@ -29,11 +29,7 @@ wasm-tools component new extensions/examples/hello-panel/target/wasm32-unknown-u
 pwsh -File extensions/examples/hello-panel/package.ps1 -Component module.wasm
 ```
 
-Run build/test work in the project's detached psmux runner with durable logs,
-status, cancellation and restart boundaries. These commands do not start hidden
-background work. Cargo compilation is a restart boundary (incremental artifacts
-survive cancellation); a failed smoke test restarts the test, not an external or
-paid operation. Do not publish the `runtime-probes` feature build.
+Do not publish the `runtime-probes` feature build.
 
 `package.ps1` emits an immutable `example.hello-panel-0.2.0.exaudio`, plus its byte
 size and SHA-256 receipt. The ZIP has `manifest.json`, `module.wasm`, and
