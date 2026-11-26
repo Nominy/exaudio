@@ -20,6 +20,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use tokio::{fs, io::AsyncWriteExt, process::Command, sync::Mutex};
 
+mod eval;
+
 pub type BoxedEnvelopeFuture = Pin<Box<dyn Future<Output = Result<String, RelayError>> + Send>>;
 pub type EnvelopeExecutor = Arc<dyn Fn(Value) -> BoxedEnvelopeFuture + Send + Sync>;
 pub type Clock = Arc<dyn Fn() -> i64 + Send + Sync>;
@@ -58,6 +60,8 @@ impl RelayConfig {
 pub struct RelayState {
     config: RelayConfig,
     store: Arc<Mutex<RelayStore>>,
+    /// Serializes eval calls so session bindings never race their upstream outcome.
+    eval_lock: Arc<Mutex<()>>,
 }
 
 impl RelayState {
@@ -66,6 +70,7 @@ impl RelayState {
         Ok(Self {
             config,
             store: Arc::new(Mutex::new(store)),
+            eval_lock: Arc::new(Mutex::new(())),
         })
     }
 
@@ -191,6 +196,10 @@ struct RelayStore {
     sessions: Vec<SessionRecord>,
     #[serde(default)]
     project_queue_configs: BTreeMap<String, ProjectQueueConfig>,
+    /// Served eval session id -> its caller, project, and tasks (`evaluationSessions` in
+    /// stores written by the transcription-studio fork's relay).
+    #[serde(default, alias = "evaluationSessions")]
+    eval_sessions: BTreeMap<String, eval::EvalBinding>,
 }
 
 impl Default for RelayStore {
@@ -200,6 +209,7 @@ impl Default for RelayStore {
             subaccounts: Vec::new(),
             sessions: Vec::new(),
             project_queue_configs: BTreeMap::new(),
+            eval_sessions: BTreeMap::new(),
         }
     }
 }
@@ -487,10 +497,19 @@ async fn babel_service(
     headers: HeaderMap,
     Json(request): Json<BabelRelayRequest>,
 ) -> Result<Json<Value>, RelayError> {
+    if let Some(operation) = eval::operation_for_kind(&request.request_kind) {
+        return eval::handle(&state, &headers, operation, request.envelope).await;
+    }
+    if eval::mentions_eval_operation(&request.envelope) {
+        return Err(RelayError::forbidden(
+            "Evaluation operations need their evaluation request kind.",
+        ));
+    }
+    check_resource_request(&request.request_kind, &request.envelope)?;
     let subaccount_id = {
         let store = state.store.lock().await;
         let (subaccount, _) = authenticate_subaccount(&headers, &store)?;
-        if !queue_request_is_allowed(subaccount, &request.envelope, &store) {
+        if !request_is_allowed(subaccount, &request.envelope, &store) {
             return Err(RelayError::forbidden(
                 "Sub-account is not assigned to this project.",
             ));
@@ -695,8 +714,13 @@ fn response_body_snippet(body: &str) -> String {
 
 #[cfg(windows)]
 fn shell_command(command_line: &str) -> Command {
+    use std::os::windows::process::CommandExt;
+
     let mut command = Command::new("cmd");
-    command.arg("/C").arg(command_line);
+    // cmd parses one command string, not CRT-escaped argv, so quoted executable paths with
+    // spaces must reach it verbatim inside one outer pair of quotes (`/S`).
+    command.args(["/D", "/S", "/C"]);
+    command.as_std_mut().raw_arg(format!("\"{command_line}\""));
     command.creation_flags(0x0800_0000);
     command
 }
@@ -708,29 +732,97 @@ fn shell_command(command_line: &str) -> Command {
     command
 }
 
-fn queue_request_is_allowed(
-    subaccount: &SubaccountRecord,
-    envelope: &Value,
-    store: &RelayStore,
-) -> bool {
+/// Project resource request kinds and the one read-only operation each may carry.
+const RESOURCE_OPERATIONS: [(&str, &str); 4] = [
+    ("loadProjectInstructions", "project.getProjectInstructions"),
+    ("loadProjectRubricFlags", "rubric.getProjectRubricFlags"),
+    ("loadProjectDocuments", "project.listProjectDocuments"),
+    ("loadProjectDocument", "project.getProjectDocument"),
+];
+
+/// Resource kinds carry exactly their operation with a `payload.projectId` and no batch;
+/// resource operations are rejected under every other kind.
+fn check_resource_request(request_kind: &str, envelope: &Value) -> Result<(), RelayError> {
+    let operation = envelope
+        .get("operation")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let Some((_, expected)) = RESOURCE_OPERATIONS
+        .iter()
+        .find(|(kind, _)| *kind == request_kind)
+    else {
+        if operation
+            .split(',')
+            .any(|part| RESOURCE_OPERATIONS.iter().any(|(_, op)| part.trim() == *op))
+        {
+            return Err(RelayError::forbidden(
+                "Project resource operations need their resource request kind.",
+            ));
+        }
+        return Ok(());
+    };
+    if operation != *expected {
+        return Err(RelayError::forbidden(
+            "Unsupported project resource request.",
+        ));
+    }
+    if envelope.get("batchInput").is_some() {
+        return Err(RelayError::bad_request(
+            "Project resource batches are not supported.",
+        ));
+    }
+    if envelope
+        .get("payload")
+        .and_then(|payload| nonblank_str(payload, "projectId"))
+        .is_none()
+    {
+        return Err(RelayError::bad_request("Project ID is required."));
+    }
+    Ok(())
+}
+
+/// Restricted sub-accounts reach only their assigned projects: every `projectId` and every
+/// queue id (mapped through the known project queues) in the payload or batch inputs.
+fn request_is_allowed(subaccount: &SubaccountRecord, envelope: &Value, store: &RelayStore) -> bool {
     if subaccount.allowed_project_ids.is_empty() {
         return true;
     }
-    let Some(queue_id) = envelope
+    let batch_inputs = envelope
+        .get("batchInput")
+        .and_then(Value::as_object)
+        .into_iter()
+        .flat_map(|batch| batch.values())
+        .map(|input| input.get("json").unwrap_or(input));
+    envelope
         .get("payload")
-        .and_then(|payload| payload.get("queueId"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|queue_id| !queue_id.is_empty())
-    else {
-        return true;
-    };
-    project_id_for_queue_id(store, queue_id).is_some_and(|project_id| {
-        subaccount
+        .into_iter()
+        .chain(batch_inputs)
+        .all(|input| {
+            let project_allowed = nonblank_str(input, "projectId")
+                .is_none_or(|project_id| subaccount_may_access_project(subaccount, project_id));
+            let queue_allowed = nonblank_str(input, "queueId").is_none_or(|queue_id| {
+                project_id_for_queue_id(store, queue_id)
+                    .is_some_and(|project_id| subaccount_may_access_project(subaccount, project_id))
+            });
+            project_allowed && queue_allowed
+        })
+}
+
+/// Unrestricted sub-accounts (no assigned projects) may access every project.
+fn subaccount_may_access_project(subaccount: &SubaccountRecord, project_id: &str) -> bool {
+    subaccount.allowed_project_ids.is_empty()
+        || subaccount
             .allowed_project_ids
             .iter()
-            .any(|id| id == project_id)
-    })
+            .any(|id| id == project_id.trim())
+}
+
+fn nonblank_str<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
+    value
+        .get(key)
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }
 
 fn project_id_for_queue_id<'a>(store: &'a RelayStore, queue_id: &str) -> Option<&'a str> {
@@ -1145,6 +1237,22 @@ fn non_empty_env(name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn quoted_helper_path_with_spaces_receives_stdin() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let helper = temp.path().join("helper with spaces.exe");
+        let system = std::path::PathBuf::from(std::env::var_os("SystemRoot").expect("SystemRoot"));
+        std::fs::copy(system.join("System32/findstr.exe"), &helper).expect("copy findstr");
+        let output = super::execute_command(
+            &format!("\"{}\" .", helper.display()),
+            "{\"operation\":\"read\"}\r\n".to_owned(),
+        )
+        .await
+        .expect("quoted helper must execute");
+        assert_eq!(output.trim(), "{\"operation\":\"read\"}");
+    }
+
     use std::sync::{
         Arc,
         atomic::{AtomicI64, Ordering},
@@ -1183,16 +1291,170 @@ mod tests {
             },
         );
 
-        assert!(queue_request_is_allowed(
+        assert!(request_is_allowed(
             &subaccount,
             &json!({ "payload": { "queueId": "queue-allowed" } }),
             &store
         ));
-        assert!(!queue_request_is_allowed(
+        assert!(!request_is_allowed(
             &subaccount,
             &json!({ "payload": { "queueId": "queue-blocked" } }),
             &store
         ));
+    }
+
+    #[test]
+    fn restricted_subaccount_reads_only_assigned_project_resources() {
+        let subaccount = SubaccountRecord {
+            id: "sub-1".to_string(),
+            label: "Tester".to_string(),
+            code: "CODE".to_string(),
+            allowed_project_ids: vec!["project-allowed".to_string()],
+            revoked: false,
+            analytics: AnalyticsRecord::default(),
+            active_claims: BTreeMap::new(),
+        };
+        let store = RelayStore::default();
+        for (envelope, allowed) in [
+            (
+                json!({ "operation": "project.getProjectInstructions", "payload": { "projectId": "project-allowed" } }),
+                true,
+            ),
+            (
+                json!({ "operation": "project.getProjectInstructions", "payload": { "projectId": "project-other" } }),
+                false,
+            ),
+            (
+                json!({ "operation": "project.getProjectDocument", "payload": { "projectId": "project-other", "documentId": "d" } }),
+                false,
+            ),
+            (
+                json!({ "operation": "a,b", "batchInput": {
+                    "0": { "json": { "projectId": "project-allowed" } },
+                    "1": { "json": { "projectId": "project-other" } },
+                } }),
+                false,
+            ),
+            (
+                json!({ "operation": "transcriptions.getReviewActionDataById", "payload": { "reviewActionId": "r" } }),
+                true,
+            ),
+        ] {
+            assert_eq!(
+                request_is_allowed(&subaccount, &envelope, &store),
+                allowed,
+                "{envelope}"
+            );
+        }
+        let unrestricted = SubaccountRecord {
+            allowed_project_ids: Vec::new(),
+            ..subaccount
+        };
+        assert!(request_is_allowed(
+            &unrestricted,
+            &json!({ "payload": { "projectId": "project-other" } }),
+            &store
+        ));
+    }
+
+    #[tokio::test]
+    async fn project_resource_kinds_enforce_assignment_before_upstream() {
+        let temp = tempfile::tempdir().expect("temp dir");
+        let store_path = temp.path().join("store.json");
+        let mut store = RelayStore::default();
+        store.subaccounts.push(SubaccountRecord {
+            id: "sub-1".to_string(),
+            label: "Tester".to_string(),
+            code: "CODE".to_string(),
+            allowed_project_ids: vec!["project-allowed".to_string()],
+            revoked: false,
+            analytics: AnalyticsRecord::default(),
+            active_claims: BTreeMap::new(),
+        });
+        store.sessions.push(SessionRecord {
+            token: "sub-token".to_string(),
+            subaccount_id: "sub-1".to_string(),
+            created_at: 1,
+            last_seen_at: 1,
+        });
+        store.save(&store_path).await.expect("seed store");
+        let calls = Arc::new(AtomicI64::new(0));
+        let counted = calls.clone();
+        let state = test_state(
+            store_path,
+            Arc::new(AtomicI64::new(1)),
+            Arc::new(move |_| {
+                counted.fetch_add(1, Ordering::SeqCst);
+                Box::pin(async { Ok(json!({ "instructions": "" }).to_string()) })
+            }),
+            0,
+        )
+        .await;
+        let (base_url, handle) = spawn_server(state).await;
+        let send = |kind: &'static str, envelope: Value| {
+            Client::new()
+                .post(format!("{base_url}/api/subaccounts/babel-service"))
+                .bearer_auth("sub-token")
+                .json(&json!({ "requestKind": kind, "envelope": envelope }))
+                .send()
+        };
+        for (kind, operation) in RESOURCE_OPERATIONS {
+            let envelope = |project_id: &str| {
+                json!({
+                    "operation": operation,
+                    "payload": { "projectId": project_id, "documentId": "doc-1" },
+                })
+            };
+            let blocked = send(kind, envelope("project-other"))
+                .await
+                .expect("response");
+            assert_eq!(blocked.status(), StatusCode::FORBIDDEN, "{kind}");
+            // The same operation under another kind, a mismatched operation, a batch, or a
+            // missing project id never reaches upstream either.
+            let other_kind = send("loadReviewAction", envelope("project-allowed"))
+                .await
+                .expect("response");
+            assert_eq!(other_kind.status(), StatusCode::FORBIDDEN, "{kind}");
+            let wrong_operation = send(
+                kind,
+                json!({
+                    "operation": "project.acknowledgeProjectInstructions",
+                    "payload": { "projectId": "project-allowed" },
+                }),
+            )
+            .await
+            .expect("response");
+            assert_eq!(wrong_operation.status(), StatusCode::FORBIDDEN, "{kind}");
+            let batch = send(
+                kind,
+                json!({
+                    "operation": operation,
+                    "batchInput": { "0": { "json": { "projectId": "project-allowed" } } },
+                }),
+            )
+            .await
+            .expect("response");
+            assert_eq!(batch.status(), StatusCode::BAD_REQUEST, "{kind}");
+            let no_project = send(kind, json!({ "operation": operation, "payload": {} }))
+                .await
+                .expect("response");
+            assert_eq!(no_project.status(), StatusCode::BAD_REQUEST, "{kind}");
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 0);
+        for (kind, operation) in RESOURCE_OPERATIONS {
+            let allowed = send(
+                kind,
+                json!({
+                    "operation": operation,
+                    "payload": { "projectId": "project-allowed", "documentId": "doc-1" },
+                }),
+            )
+            .await
+            .expect("response");
+            assert_eq!(allowed.status(), StatusCode::OK, "{kind}");
+        }
+        assert_eq!(calls.load(Ordering::SeqCst), 4);
+        handle.abort();
     }
 
     #[test]
@@ -1643,6 +1905,7 @@ mod tests {
                 },
             ],
             project_queue_configs: BTreeMap::new(),
+            eval_sessions: BTreeMap::new(),
         }
         .save(&store_path)
         .await
@@ -2029,7 +2292,7 @@ mod tests {
         assert!(message.contains("reachable from the relay host"));
     }
 
-    async fn test_state(
+    pub(super) async fn test_state(
         store_path: PathBuf,
         now: Arc<AtomicI64>,
         executor: EnvelopeExecutor,
@@ -2048,7 +2311,7 @@ mod tests {
         .expect("relay state")
     }
 
-    async fn spawn_server(state: RelayState) -> (String, tokio::task::JoinHandle<()>) {
+    pub(super) async fn spawn_server(state: RelayState) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind");
         let address = listener.local_addr().expect("local addr");
         let handle = tokio::spawn(async move {

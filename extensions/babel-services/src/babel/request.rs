@@ -6,6 +6,7 @@ use exaudio_babel_domain::editor_model::feedback_assessment::FeedbackDraftSaveRe
 use serde_json::{Value, json};
 
 use super::error_task::ErrorLabelSubmission;
+use super::eval::EvalProgress;
 use super::payload::{SaveAnnotationsRequest, SubmitReviewActionRequest};
 
 /// Worker (for its id) and the worker's projects; everything the dashboard consumes.
@@ -86,6 +87,24 @@ pub enum BabelRequest {
         project_id: String,
         document_id: String,
     },
+    /// Project instructions (markdown) shown with the project's resources.
+    LoadProjectInstructions {
+        project_id: String,
+    },
+    /// The project's grading-guide rubric flags.
+    LoadProjectRubricFlags {
+        project_id: String,
+    },
+    /// Serves (or resumes) the worker's eval session for a project.
+    EvalServeSession {
+        project_id: String,
+    },
+    /// Keeps the eval session claimed.
+    EvalHoldSession {
+        session_id: String,
+    },
+    EvalSaveProgress(EvalProgress),
+    EvalSubmitSession(EvalProgress),
 }
 
 /// How a raw response is normalized before parsing.
@@ -124,6 +143,12 @@ impl BabelRequest {
             Self::SubmitTranscriptionErrorLabel(_) => "submitTranscriptionErrorLabel",
             Self::LoadProjectDocuments { .. } => "loadProjectDocuments",
             Self::LoadProjectDocument { .. } => "loadProjectDocument",
+            Self::LoadProjectInstructions { .. } => "loadProjectInstructions",
+            Self::LoadProjectRubricFlags { .. } => "loadProjectRubricFlags",
+            Self::EvalServeSession { .. } => "evalServeSession",
+            Self::EvalHoldSession { .. } => "evalHoldSession",
+            Self::EvalSaveProgress(_) => "evalSaveProgress",
+            Self::EvalSubmitSession(_) => "evalSubmitSession",
         }
     }
 
@@ -297,6 +322,30 @@ impl BabelRequest {
                 "operation": "project.getProjectDocument",
                 "payload": { "projectId": project_id, "documentId": document_id },
             }),
+            Self::LoadProjectInstructions { project_id } => json!({
+                "operation": "project.getProjectInstructions",
+                "payload": { "projectId": project_id },
+            }),
+            Self::LoadProjectRubricFlags { project_id } => json!({
+                "operation": "rubric.getProjectRubricFlags",
+                "payload": { "projectId": project_id },
+            }),
+            Self::EvalServeSession { project_id } => json!({
+                "operation": "evalTasks.serveSessionTasks",
+                "payload": { "projectId": project_id },
+            }),
+            Self::EvalHoldSession { session_id } => json!({
+                "operation": "evalTasks.holdSession",
+                "payload": { "sessionId": session_id },
+            }),
+            Self::EvalSaveProgress(progress) => json!({
+                "operation": "evalTasks.saveProgress",
+                "payload": progress.payload(),
+            }),
+            Self::EvalSubmitSession(progress) => json!({
+                "operation": "evalTasks.submitSession",
+                "payload": progress.payload(),
+            }),
         }
     }
 }
@@ -328,6 +377,8 @@ pub(super) fn is_query_operation(operation: &str) -> bool {
                 | "transcriptions.getPresignedChunkUrls"
                 | "project.listProjectDocuments"
                 | "project.getProjectDocument"
+                | "project.getProjectInstructions"
+                | "rubric.getProjectRubricFlags"
         )
     })
 }

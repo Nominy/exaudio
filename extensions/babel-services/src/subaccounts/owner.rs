@@ -1,13 +1,19 @@
-//! Owner-side sub-account management on the relay host, authenticated with the owner's
-//! main Babel account (its `auth.json`; dashboard "Sub-accounts" section).
+//! Owner-side sub-account management on the relay host. The app-launched relay
+//! ([`crate::relay::RelayProcess::owner_session`]) is authenticated with its per-launch owner
+//! token; any other relay host with the owner's main Babel account (its `auth.json`; dashboard
+//! "Sub-accounts" section).
 
+use std::net::{IpAddr, UdpSocket};
 use std::path::Path;
 
 use anyhow::{Context, Result};
 use serde_json::{Value, json};
 use time::OffsetDateTime;
 
-use super::{api_url, json_headers, normalize_relay_host_url, string_by_keys, success_body};
+use super::{
+    SubaccountSession, api_url, json_headers, normalize_relay_host_url, string_by_keys,
+    success_body,
+};
 
 const OWNER_DASHBOARD_PATH: &str = "/api/subaccounts/owner/dashboard";
 const OWNER_SUBACCOUNTS_PATH: &str = "/api/subaccounts/owner/subaccounts";
@@ -40,8 +46,12 @@ pub struct ProjectQueueConfig {
     pub stitched_queue_id: String,
 }
 
-pub async fn load_dashboard(auth_store: &Path, host_url: &str) -> Result<OwnerDashboard> {
-    let (host_url, headers) = owner_target(auth_store, host_url).await?;
+pub async fn load_dashboard(
+    auth_store: &Path,
+    local_relay: Option<&SubaccountSession>,
+    host_url: &str,
+) -> Result<OwnerDashboard> {
+    let (host_url, headers) = owner_target(auth_store, local_relay, host_url).await?;
     let response = exaudio_services::http::client()
         .get(api_url(&host_url, OWNER_DASHBOARD_PATH))
         .headers(headers)
@@ -53,10 +63,11 @@ pub async fn load_dashboard(auth_store: &Path, host_url: &str) -> Result<OwnerDa
 /// Creates a sub-account with `label`; returns the refreshed dashboard.
 pub async fn create_subaccount(
     auth_store: &Path,
+    local_relay: Option<&SubaccountSession>,
     host_url: &str,
     label: &str,
 ) -> Result<OwnerDashboard> {
-    let (host_url, headers) = owner_target(auth_store, host_url).await?;
+    let (host_url, headers) = owner_target(auth_store, local_relay, host_url).await?;
     let response = exaudio_services::http::client()
         .post(api_url(&host_url, OWNER_SUBACCOUNTS_PATH))
         .headers(headers)
@@ -68,10 +79,11 @@ pub async fn create_subaccount(
 
 pub async fn revoke_subaccount(
     auth_store: &Path,
+    local_relay: Option<&SubaccountSession>,
     host_url: &str,
     subaccount_id: &str,
 ) -> Result<OwnerDashboard> {
-    let (host_url, headers) = owner_target(auth_store, host_url).await?;
+    let (host_url, headers) = owner_target(auth_store, local_relay, host_url).await?;
     let response = exaudio_services::http::client()
         .delete(api_url(
             &host_url,
@@ -89,11 +101,12 @@ pub async fn revoke_subaccount(
 /// Replaces the projects a sub-account may work on.
 pub async fn assign_projects(
     auth_store: &Path,
+    local_relay: Option<&SubaccountSession>,
     host_url: &str,
     subaccount_id: &str,
     project_ids: &[String],
 ) -> Result<OwnerDashboard> {
-    let (host_url, headers) = owner_target(auth_store, host_url).await?;
+    let (host_url, headers) = owner_target(auth_store, local_relay, host_url).await?;
     let response = exaudio_services::http::client()
         .put(api_url(
             &host_url,
@@ -112,10 +125,11 @@ pub async fn assign_projects(
 /// Pushes dashboard project queue ids to the relay (`PUT .../owner/project-queues`).
 pub async fn push_project_queue_configs(
     auth_store: &Path,
+    local_relay: Option<&SubaccountSession>,
     host_url: &str,
     configs: &[ProjectQueueConfig],
 ) -> Result<()> {
-    let (host_url, headers) = owner_target(auth_store, host_url).await?;
+    let (host_url, headers) = owner_target(auth_store, local_relay, host_url).await?;
     let response = exaudio_services::http::client()
         .put(api_url(&host_url, OWNER_PROJECT_QUEUES_PATH))
         .headers(headers)
@@ -224,11 +238,21 @@ fn parse_managed_subaccount(value: &Value) -> Option<ManagedSubaccount> {
     })
 }
 
+/// Target URL and owner headers. When `host_url` is the app-launched relay, the request goes
+/// to that relay's own connectable URL with its owner token (never to the entered alias);
+/// otherwise to the normalized `host_url` with a freshly minted main-account Babel token.
 async fn owner_target(
     auth_store: &Path,
+    local_relay: Option<&SubaccountSession>,
     host_url: &str,
 ) -> Result<(String, reqwest::header::HeaderMap)> {
     let host_url = normalize_relay_host_url(host_url)?;
+    if let Some(relay) = local_relay_target(&host_url, local_relay) {
+        return Ok((
+            relay.host_url.clone(),
+            json_headers(&format!("Bearer {}", relay.token))?,
+        ));
+    }
     let authorization = crate::auth::mint_babel_authorization(
         auth_store,
         &crate::auth::babel_base_url(),
@@ -238,6 +262,35 @@ async fn owner_target(
     .await
     .context("Main Babel account auth is required for Sub-account controls")?;
     Ok((host_url, json_headers(&authorization)?))
+}
+
+/// `local_relay` when `host_url` names it: the same scheme, port, and path on the relay's own
+/// host, `localhost`, a loopback or wildcard address, or an IP address of this machine.
+/// Owner requests then go to `local_relay.host_url`, so the token only ever reaches the
+/// relay's canonical URL; every other host keeps main-account auth.
+pub fn local_relay_target<'a>(
+    host_url: &str,
+    local_relay: Option<&'a SubaccountSession>,
+) -> Option<&'a SubaccountSession> {
+    let relay = local_relay?;
+    let target = url::Url::parse(&normalize_relay_host_url(host_url).ok()?).ok()?;
+    let own = url::Url::parse(&relay.host_url).ok()?;
+    let same_endpoint = target.scheme() == own.scheme()
+        && target.port_or_known_default() == own.port_or_known_default()
+        && target.path().trim_end_matches('/') == own.path().trim_end_matches('/');
+    let on_this_machine = target.host() == own.host()
+        || match target.host()? {
+            url::Host::Domain(domain) => domain.eq_ignore_ascii_case("localhost"),
+            url::Host::Ipv4(ip) => is_local_ip(IpAddr::V4(ip)),
+            url::Host::Ipv6(ip) => is_local_ip(IpAddr::V6(ip)),
+        };
+    (same_endpoint && on_this_machine).then_some(relay)
+}
+
+/// Loopback, wildcard (a remembered `0.0.0.0`/`[::]` bind URL), or assigned to one of this
+/// machine's interfaces (only those can be bound).
+fn is_local_ip(ip: IpAddr) -> bool {
+    ip.is_loopback() || ip.is_unspecified() || UdpSocket::bind((ip, 0)).is_ok()
 }
 
 async fn dashboard_response(

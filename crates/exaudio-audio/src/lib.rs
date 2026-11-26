@@ -25,8 +25,8 @@ mod transport;
 pub use blend::blend_lane_audio;
 pub use clock::ManualClock;
 pub use decode::{
-    LaneAudioFile, decode_audio_bytes, decode_audio_file, load_lane_audio,
-    load_lane_audio_candidates,
+    DecodeLimits, LaneAudioFile, decode_audio_bytes, decode_audio_bytes_limited, decode_audio_file,
+    load_lane_audio, load_lane_audio_candidates,
 };
 pub use engine::{AudioEngine, LaneMix, MAX_LANE_VOLUME, OfflineOutput};
 pub use enhancement_cache::{EnhancedAudioCache, MAX_CACHED_ENHANCEMENT_TASKS, sha256_hex};

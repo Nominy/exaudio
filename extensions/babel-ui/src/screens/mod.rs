@@ -1,7 +1,9 @@
 pub mod auth;
 pub mod dashboard;
 pub mod error_task;
+pub mod eval;
 pub mod local_files;
+pub mod project_resources;
 pub mod relay;
 pub mod review_settings;
 pub mod settings;

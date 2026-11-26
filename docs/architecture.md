@@ -251,6 +251,23 @@ three modes: `exaudio.babel` (Babel · transcription tasks, provider), `exaudio.
 an exported task offline; no provider, `launch: "direct"` — it opens the picked file
 straight into the editor). The former separate "Relay" mode is gone.
 
+Evaluation projects (Babel `productKind` `eval_task` / `eval_session`, plus the three project
+ids the earlier Transcription Studio fork matched, kept because no captured `worker.getProjects`
+response shows whether that field is present there) are listed in the Babel mode. Start opens
+the eval screen instead of claiming a queue: `evalTasks.serveSessionTasks` serves a session of
+forms, answers are kept in `eval-<project>.json` in the account directory, each form is saved with
+`evalTasks.saveProgress`, the whole session is sent with `evalTasks.submitSession`, and an
+open session is held every 180 s. Every audio subject must be played to the end first. Forms
+that need Babel's client-side linters, taxonomy or unknown question types are refused rather
+than submitted. The project's instructions, grading guide and library show beside the form
+and, as the `exaudio.babel.resources` panel, beside Babel task documents. Through a relay,
+eval calls use the same `/babel-service` endpoint; the relay binds each served session to its
+caller (the owner or one sub-account) and project, so two clients never work on one Babel
+session. The app passes a per-launch owner token to the relay it starts and uses it for the
+owner's own calls. `tools/eval-parity` checks the visibility, validation and response rules
+against Babel's own dashboard code; `tools/eval-smoke` runs a whole session headlessly through
+the real relay against a mock Babel (`--gui` opens the app on it for a manual pass).
+
 **Documents**
 
 The shell retains the active `EditorModel` independently of its rendering view.

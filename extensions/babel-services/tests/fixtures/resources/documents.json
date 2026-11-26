@@ -1,0 +1,58 @@
+[
+ {
+  "result": {
+   "data": {
+    "json": [
+     {
+      "documentId": "00000000-0000-7000-8000-00000000d001",
+      "name": "Sample Handbook",
+      "label": "Handbook",
+      "kind": "file",
+      "folderId": null,
+      "requirement": "none",
+      "showInTaskTool": false,
+      "latest": {
+       "id": "00000000-0000-7000-8000-00000000e001",
+       "version": 1,
+       "mimeType": "application/pdf",
+       "byteSize": 120000,
+       "fileName": "sample-handbook.pdf",
+       "changeBrief": "Uploaded sample-handbook.pdf",
+       "createdAt": "2026-01-02T10:00:00.000Z"
+      },
+      "needsAcknowledgement": false
+     },
+     {
+      "documentId": "00000000-0000-7000-8000-00000000d002",
+      "name": "Sample Reading Guide",
+      "label": "reading guide",
+      "kind": "table",
+      "folderId": null,
+      "requirement": "acknowledge",
+      "showInTaskTool": false,
+      "latest": {
+       "id": "00000000-0000-7000-8000-00000000e002",
+       "version": 2,
+       "mimeType": null,
+       "byteSize": null,
+       "fileName": null,
+       "changeBrief": "Imported sample-reading-guide.xlsx",
+       "createdAt": "2026-01-03T10:00:00.000Z"
+      },
+      "needsAcknowledgement": true
+     }
+    ],
+    "meta": {
+     "values": {
+      "0.latest.createdAt": [
+       "Date"
+      ],
+      "1.latest.createdAt": [
+       "Date"
+      ]
+     }
+    }
+   }
+  }
+ }
+]

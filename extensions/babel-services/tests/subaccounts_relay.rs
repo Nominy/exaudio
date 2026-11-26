@@ -8,7 +8,8 @@ use exaudio_babel_services::relay::{
     relay_executable_path_for_app_exe, relay_ready_url, wait_for_relay_ready,
 };
 use exaudio_babel_services::subaccounts::owner::{
-    ProjectQueueConfig, parse_dashboard, project_queue_sync_host,
+    ProjectQueueConfig, load_dashboard, local_relay_target, parse_dashboard,
+    project_queue_sync_host,
 };
 use exaudio_babel_services::subaccounts::{
     SubaccountSession, normalize_relay_host_url, parse_login_response, parse_presigned_urls,
@@ -310,4 +311,92 @@ fn relay_start_failure_and_outcomes_drive_status() {
     assert_eq!(relay.url(), "http://127.0.0.1:8787");
     relay.stop().unwrap();
     assert_eq!(relay.status(), RelayStatus::Stopped);
+}
+
+fn local_owner_session(host_url: &str) -> SubaccountSession {
+    SubaccountSession {
+        host_url: host_url.to_string(),
+        token: "owner-secret".to_string(),
+        subaccount_id: "owner".to_string(),
+        display_name: String::new(),
+    }
+}
+
+#[test]
+fn owner_aliases_of_the_app_launched_relay_resolve_to_its_canonical_url() {
+    let local = local_owner_session("http://127.0.0.1:8787");
+    for host in [
+        "http://127.0.0.1:8787",
+        "127.0.0.1:8787/",
+        "localhost:8787",
+        "http://[::1]:8787",
+        "http://0.0.0.0:8787",
+        "http://[::]:8787",
+    ] {
+        let target = local_relay_target(host, Some(&local)).map(|relay| relay.host_url.as_str());
+        assert_eq!(target, Some("http://127.0.0.1:8787"), "{host}");
+    }
+    for host in [
+        "http://127.0.0.1:9999",
+        "https://127.0.0.1:8787",
+        "http://127.0.0.1:8787/base",
+        "https://relay.example.test",
+        "http://relay.example.test:8787",
+        "http://203.0.113.7:8787",
+        "not a relay URL",
+    ] {
+        assert_eq!(local_relay_target(host, Some(&local)), None, "{host}");
+    }
+    assert_eq!(local_relay_target("http://127.0.0.1:8787", None), None);
+}
+
+#[tokio::test]
+async fn owner_requests_to_the_local_relay_send_its_owner_token() {
+    use std::sync::{Arc, Mutex};
+
+    use axum::{Router, http::HeaderMap, routing::get};
+
+    let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+    let recorded = seen.clone();
+    let app = Router::new().route(
+        "/api/subaccounts/owner/dashboard",
+        get(move |headers: HeaderMap| {
+            let recorded = recorded.clone();
+            async move {
+                let authorization = headers
+                    .get("authorization")
+                    .and_then(|value| value.to_str().ok())
+                    .unwrap_or_default()
+                    .to_string();
+                recorded.lock().unwrap().push(authorization);
+                r#"{"subaccounts":[]}"#
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base_url = format!("http://{}", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let dir = tempfile::tempdir().unwrap();
+    let missing_auth_store = dir.path().join("auth.json");
+
+    // An alias the IPv4-only server cannot answer on still works: the request (and the token)
+    // goes to the relay's canonical URL, never to the alias.
+    let local = local_owner_session(&base_url);
+    let port = base_url.rsplit(':').next().unwrap();
+    let alias = format!("http://[::1]:{port}");
+    let dashboard = load_dashboard(&missing_auth_store, Some(&local), &alias)
+        .await
+        .expect("owner token needs no Babel account");
+    assert!(dashboard.subaccounts.is_empty());
+    assert_eq!(*seen.lock().unwrap(), ["Bearer owner-secret"]);
+
+    // A different relay never receives the token; it needs the main Babel account instead.
+    let elsewhere = local_owner_session("http://127.0.0.1:1");
+    assert!(
+        load_dashboard(&missing_auth_store, Some(&elsewhere), &base_url)
+            .await
+            .is_err()
+    );
+    assert_eq!(seen.lock().unwrap().len(), 1);
+    server.abort();
 }

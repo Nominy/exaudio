@@ -16,6 +16,7 @@ regex = "1"
 serde.workspace = true
 serde_json.workspace = true
 sha2 = "0.10"
+exaudio-audio.workspace = true
 exaudio-babel-format.workspace = true
 exaudio-core.workspace = true
 exaudio-editor.workspace = true

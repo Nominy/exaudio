@@ -11,6 +11,7 @@ use editor::panels::{
     context::ContextPanels,
     feedback::FeedbackPanel,
     grader::GraderPanel,
+    resources::ResourcesPanel,
     review_workspace::ReviewWorkspacePanel,
     task::{Drawer, TaskPanels},
     transport::TransportStrip,
@@ -147,6 +148,16 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
             let model = model(&shell, cx);
             cx.new(|cx| CapabilityPanel::new(model, shell, window, cx))
                 .into()
+        }),
+    )?;
+    registry.register_panel(
+        ID,
+        "exaudio.babel.resources",
+        t("Instructions & library", "Инструкции и библиотека"),
+        PanelLocation::Sidebar,
+        Rc::new(|shell, window, cx| {
+            let model = model(&shell, cx);
+            cx.new(|cx| ResourcesPanel::new(model, window, cx)).into()
         }),
     )?;
     registry.register_panel(
@@ -370,6 +381,7 @@ pub fn register(cx: &mut App) -> anyhow::Result<()> {
     for id in [
         "exaudio.babel.feedback",
         "exaudio.babel.assistant",
+        "exaudio.babel.resources",
         "exaudio.babel.review",
         "exaudio.babel.grader",
         "exaudio.babel.actions",

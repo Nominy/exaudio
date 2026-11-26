@@ -1,0 +1,43 @@
+[
+ {
+  "result": {
+   "data": {
+    "json": [
+     {
+      "flagId": "00000000-0000-4000-8000-0000000000f1",
+      "name": "sample-clarity",
+      "friendlyName": "Sample Clarity",
+      "reviewCategory": "content",
+      "type": "manual",
+      "description": "Sample Clarity checks that the speech is easy to follow.\n\nYou get a flag when the wording is confusing enough to interrupt the conversation.",
+      "scopes": [
+       "call"
+      ]
+     },
+     {
+      "flagId": "00000000-0000-4000-8000-0000000000f2",
+      "name": "sample-noise",
+      "friendlyName": "Sample Noise",
+      "reviewCategory": "audio",
+      "type": "automated",
+      "description": "Sample Noise checks that the recording is free of **hum** and *crackle*.\n\n- Loose cables\n- Gain set too high",
+      "scopes": [
+       "call"
+      ]
+     },
+     {
+      "flagId": "00000000-0000-4000-8000-0000000000f3",
+      "name": "sample_pacing",
+      "friendlyName": "Sample Pacing",
+      "reviewCategory": "content",
+      "type": "automated",
+      "description": "Sample Pacing checks that both speakers take turns naturally.",
+      "scopes": [
+       "call"
+      ]
+     }
+    ]
+   }
+  }
+ }
+]

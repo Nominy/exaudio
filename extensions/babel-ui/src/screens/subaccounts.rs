@@ -163,15 +163,19 @@ impl SubaccountsView {
         self.error = None;
         let creating = matches!(request, OwnerRequest::Create(_));
         let auth_store = self.auth_store.clone();
+        let local_relay = ShellModels::relay(cx).read(cx).owner_control_session();
         let future = async move {
+            let local_relay = local_relay.as_ref();
             match request {
-                OwnerRequest::Load => owner::load_dashboard(&auth_store, &host).await,
+                OwnerRequest::Load => owner::load_dashboard(&auth_store, local_relay, &host).await,
                 OwnerRequest::Create(label) => {
-                    owner::create_subaccount(&auth_store, &host, &label).await
+                    owner::create_subaccount(&auth_store, local_relay, &host, &label).await
                 }
-                OwnerRequest::Revoke(id) => owner::revoke_subaccount(&auth_store, &host, &id).await,
+                OwnerRequest::Revoke(id) => {
+                    owner::revoke_subaccount(&auth_store, local_relay, &host, &id).await
+                }
                 OwnerRequest::Assign(id, projects) => {
-                    owner::assign_projects(&auth_store, &host, &id, &projects).await
+                    owner::assign_projects(&auth_store, local_relay, &host, &id, &projects).await
                 }
             }
         };

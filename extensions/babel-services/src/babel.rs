@@ -14,8 +14,10 @@
 mod client;
 mod dashboard;
 pub mod error_task;
+pub mod eval;
 mod payload;
 mod request;
+pub mod resources;
 mod response;
 mod transport;
 

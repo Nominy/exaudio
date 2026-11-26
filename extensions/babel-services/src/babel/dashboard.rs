@@ -1,16 +1,18 @@
-//! Worker dashboard: project list with queue ids and daily task progress.
+//! Worker dashboard: project list with queue ids, eval projects and daily task progress.
 
 use std::collections::BTreeMap;
 
 use serde_json::{Value, json};
 
+use super::eval::{EVAL_PRODUCT_KINDS, KNOWN_EVAL_PROJECT_IDS, is_evaluation_project};
 use super::response::trpc_data;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Dashboard {
     /// Babel worker id (needed for feedback drafts).
     pub worker_id: Option<String>,
-    /// Active projects with at least one queue id, sorted by name then id.
+    /// Active projects with at least one queue id, plus active eval projects (which have
+    /// none), sorted by name then id.
     pub projects: Vec<DashboardProject>,
 }
 
@@ -26,6 +28,8 @@ pub struct DashboardProject {
     pub daily_task_limit: Option<u64>,
     /// Babel project category (`error-categorization` for error-label projects).
     pub category: Option<String>,
+    /// Babel `productKind` (`eval_task` / `eval_session` for evaluation projects).
+    pub product_kind: Option<String>,
 }
 
 impl DashboardProject {
@@ -33,6 +37,11 @@ impl DashboardProject {
     /// tasks by diff id.
     pub fn is_error_categorization(&self) -> bool {
         self.category.as_deref() == Some(super::error_task::ERROR_CATEGORIZATION)
+    }
+
+    /// Evaluation project: opens the eval session screen, never a transcription queue.
+    pub fn is_evaluation(&self) -> bool {
+        is_evaluation_project(&self.id, self.product_kind.as_deref())
     }
 }
 
@@ -141,6 +150,24 @@ fn project_from_object(
     if is_queue_config_only(value) || !is_active(value) {
         return None;
     }
+    let product_kind = direct_string(value, PRODUCT_KIND_KEYS);
+    if is_evaluation_object(value) {
+        // Eval projects have no review queues; only genuine project objects (an id and a
+        // name) count, so nested objects reusing an eval id are not picked up.
+        let id = direct_string(value, PROJECT_ID_KEYS)?;
+        let name = direct_string(value, &["displayName", "display_name", "name"])?;
+        return Some(DashboardProject {
+            id,
+            name,
+            chunked_queue_id: String::new(),
+            stitched_queue_id: String::new(),
+            tasks_completed_today: nested_u64(value, &["workerStats", "tasksCompletedToday"])
+                .unwrap_or(0),
+            daily_task_limit: nested_u64(value, &["taskLimit", "limit"]),
+            category: direct_string(value, &["category"]),
+            product_kind,
+        });
+    }
     let id = direct_string(value, &["id", "projectId", "project_id", "slug", "name"])?;
     let name = direct_string(
         value,
@@ -166,7 +193,21 @@ fn project_from_object(
             .unwrap_or(0),
         daily_task_limit: nested_u64(value, &["taskLimit", "limit"]),
         category: direct_string(value, &["category"]),
+        product_kind,
     })
+}
+
+const PROJECT_ID_KEYS: &[&str] = &["projectId", "project_id", "id"];
+const PRODUCT_KIND_KEYS: &[&str] = &["productKind", "product_kind"];
+
+/// An object that names an eval project (an eval `productKind` or a known eval project id).
+fn is_evaluation_object(value: &Value) -> bool {
+    direct_string(value, PRODUCT_KIND_KEYS)
+        .is_some_and(|kind| EVAL_PRODUCT_KINDS.contains(&kind.as_str()))
+        || PROJECT_ID_KEYS.iter().any(|key| {
+            direct_string(value, &[key])
+                .is_some_and(|id| KNOWN_EVAL_PROJECT_IDS.contains(&id.as_str()))
+        })
 }
 
 fn nested_u64(value: &Value, path: &[&str]) -> Option<u64> {
@@ -277,7 +318,8 @@ pub(super) fn normalize_dashboard_payload(response: &str) -> String {
 /// dashboard; projects that are not transcription projects answer `NOT_FOUND` in-band.
 pub(super) const PROJECT_QUEUES_OPERATION: &str = "transcriptions.getProjectQueues";
 
-/// Project ids of a normalized dashboard payload, in payload order.
+/// Project ids of a normalized dashboard payload, in payload order. Eval projects are left
+/// out: they have no review queues to look up.
 pub(super) fn dashboard_project_ids(normalized_payload: &str) -> Vec<String> {
     let Ok(value) = serde_json::from_str::<Value>(normalized_payload) else {
         return Vec::new();
@@ -287,7 +329,8 @@ pub(super) fn dashboard_project_ids(normalized_payload: &str) -> Vec<String> {
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .filter_map(|project| direct_string(project, &["projectId", "project_id", "id"]))
+        .filter(|project| !is_evaluation_object(project))
+        .filter_map(|project| direct_string(project, PROJECT_ID_KEYS))
         .collect()
 }
 

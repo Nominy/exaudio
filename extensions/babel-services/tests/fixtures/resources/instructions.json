@@ -1,0 +1,14 @@
+[
+ {
+  "result": {
+   "data": {
+    "json": {
+     "id": "00000000-0000-4000-8000-0000000000a1",
+     "instructions": "## 🔍 About this sample project\n\nYou will listen to short scripted clips and answer a few questions about each one.\n\n- #### Letters read one by one are written in CAPITALS with spaces. \n\"A B C\" means the speaker says each letter separately.\n- #### Numbers are written out in words.\nSay them exactly as written.\n\n### Question A. Does the audio match the spoken form? (Yes / No)\n\n| Spoken form                    | Audio                             | Answer | Why                     |\n| ------------------------------ | --------------------------------- | ------ | ----------------------- |\n| I was born in nineteen ninety. | I was born in nineteen ninety.    | ✅ YES  | Exact match             |\n| I was born in nineteen ninety. | I was born in one nine nine zero. | ❌ NO   | Number read differently |\n\n> 💡 Choose NO if even one word differs from the spoken form.\n\n### Question B. Is the spoken form a natural reading? (Yes / No)\n\n| Written form                  | Spoken form                                | Answer | Why                     |\n| ----------------------------- | ------------------------------------------ | ------ | ----------------------- |\n| Write to sam.lee\\@example.com | Write to sam dot lee at example dot com    | ✅ YES  | Typical reading         |\n| Write to sam.lee\\@example.com | Write to sam dot lee snail example dot com | ❌ NO   | Nobody says it that way |\n\n### Question C. Does the sentence make sense? (Да / Нет)\n\n| Sentence                   | Answer |\n| -------------------------- | ------ |\n| My order number is QX1234. | ✅ ДА   |\n",
+     "lastAcknowledgedInstructions": "## 🔍 About this sample project\n\nYou will listen to short scripted clips and answer a few questions about each one.\n\n",
+     "isAcknowledged": false
+    }
+   }
+  }
+ }
+]

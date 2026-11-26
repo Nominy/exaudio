@@ -2045,6 +2045,7 @@ dependencies = [
  "axum",
  "base64",
  "bytes",
+ "exaudio-audio",
  "exaudio-babel-domain",
  "exaudio-babel-format",
  "exaudio-babel-lint",

@@ -3,7 +3,9 @@
 //! Env: `EXAUDIO_SUBACCOUNT_RELAY_EXE` (executable, default beside the app exe),
 //! `EXAUDIO_SUBACCOUNT_RELAY_BIND` (default `127.0.0.1:8787`), `EXAUDIO_SUBACCOUNT_RELAY_STORE`
 //! (relay store file), `EXAUDIO_BABEL_SERVICE_COMMAND` (preferred upstream),
-//! `EXAUDIO_SUBACCOUNT_UPSTREAM_URL` (HTTP upstream), `EXAUDIO_SUBACCOUNT_TASK_CENTS`.
+//! `EXAUDIO_SUBACCOUNT_UPSTREAM_URL` (HTTP upstream), `EXAUDIO_SUBACCOUNT_TASK_CENTS`,
+//! `EXAUDIO_SUBACCOUNT_OWNER_TOKEN` (owner secret; a random one is generated per launch when
+//! unset).
 
 use std::{
     env, fs,
@@ -20,6 +22,9 @@ use std::{
 use std::os::windows::process::CommandExt;
 
 use anyhow::{Context, Result, anyhow, bail};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+
+use crate::subaccounts::{SubaccountSession, normalize_relay_host_url};
 
 pub const RELAY_EXECUTABLE_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_EXE";
 pub const RELAY_BIND_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_BIND";
@@ -27,6 +32,10 @@ pub const RELAY_STORE_ENV: &str = "EXAUDIO_SUBACCOUNT_RELAY_STORE";
 pub const RELAY_UPSTREAM_URL_ENV: &str = "EXAUDIO_SUBACCOUNT_UPSTREAM_URL";
 pub const RELAY_COMMAND_ENV: &str = "EXAUDIO_BABEL_SERVICE_COMMAND";
 pub const RELAY_TASK_CENTS_ENV: &str = "EXAUDIO_SUBACCOUNT_TASK_CENTS";
+/// Owner secret the relay requires for owner endpoints and owner eval sessions.
+pub const RELAY_OWNER_TOKEN_ENV: &str = "EXAUDIO_SUBACCOUNT_OWNER_TOKEN";
+/// `subaccount_id` of [`RelayProcess::owner_session`].
+pub const RELAY_OWNER_SESSION_ID: &str = "owner";
 pub const DEFAULT_RELAY_BIND: &str = "127.0.0.1:8787";
 /// Readiness wait bound after spawn.
 pub const RELAY_READY_TIMEOUT: Duration = Duration::from_secs(10);
@@ -113,12 +122,15 @@ pub enum RelayStatus {
 }
 
 /// Owns the relay child process; dropping it kills the relay.
-#[derive(Debug)]
 pub struct RelayProcess {
     status: RelayStatus,
     url: String,
     last_error: Option<String>,
     child: Option<Child>,
+    /// Owner secret handed to the current child; `None` when no child was spawned.
+    owner_token: Option<String>,
+    /// The current child was launched with a Babel upstream (command or HTTP URL).
+    has_upstream: bool,
 }
 
 impl Default for RelayProcess {
@@ -128,7 +140,25 @@ impl Default for RelayProcess {
             url: String::new(),
             last_error: None,
             child: None,
+            owner_token: None,
+            has_upstream: false,
         }
+    }
+}
+
+impl std::fmt::Debug for RelayProcess {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RelayProcess")
+            .field("status", &self.status)
+            .field("url", &self.url)
+            .field("last_error", &self.last_error)
+            .field("child", &self.child)
+            .field(
+                "owner_token",
+                &self.owner_token.as_ref().map(|_| "[redacted]"),
+            )
+            .field("has_upstream", &self.has_upstream)
+            .finish()
     }
 }
 
@@ -154,9 +184,41 @@ impl RelayProcess {
         matches!(self.status, RelayStatus::Starting | RelayStatus::Running) && self.child.is_some()
     }
 
-    /// Spawns the relay (no console window on Windows) and returns a runtime-agnostic future
-    /// resolving to its listening URL (from `exaudio-relay listening on <url>` on stderr) within
-    /// [`RELAY_READY_TIMEOUT`]. Pass the result to [`RelayProcess::complete_start`].
+    /// Owner credentials for the app-launched relay while it is running: its connectable URL
+    /// (an unspecified bind address mapped to loopback), the launch's owner token, and
+    /// subaccount id [`RELAY_OWNER_SESSION_ID`]. For owner management calls; only ever send it
+    /// to this URL.
+    pub fn owner_control_session(&self) -> Option<SubaccountSession> {
+        if self.status != RelayStatus::Running {
+            return None;
+        }
+        let token = self.owner_token.clone()?;
+        let host_url = normalize_relay_host_url(&self.url)
+            .ok()?
+            .replacen("://0.0.0.0:", "://127.0.0.1:", 1)
+            .replacen("://[::]:", "://[::1]:", 1);
+        Some(SubaccountSession {
+            host_url,
+            token,
+            subaccount_id: RELAY_OWNER_SESSION_ID.to_string(),
+            display_name: String::new(),
+        })
+    }
+
+    /// [`Self::owner_control_session`] when the relay can also forward Babel calls (it was
+    /// launched with `EXAUDIO_BABEL_SERVICE_COMMAND` or `EXAUDIO_SUBACCOUNT_UPSTREAM_URL`);
+    /// owner eval sessions route through it.
+    pub fn owner_session(&self) -> Option<SubaccountSession> {
+        if !self.has_upstream {
+            return None;
+        }
+        self.owner_control_session()
+    }
+
+    /// Spawns the relay (no console window on Windows) with an owner token (the configured
+    /// `EXAUDIO_SUBACCOUNT_OWNER_TOKEN`, else a fresh random one) and returns a runtime-agnostic
+    /// future resolving to its listening URL (from `exaudio-relay listening on <url>` on stderr)
+    /// within [`RELAY_READY_TIMEOUT`]. Pass the result to [`RelayProcess::complete_start`].
     pub fn start(
         &mut self,
         config: &RelayLaunchConfig,
@@ -164,17 +226,22 @@ impl RelayProcess {
         if !self.can_start() {
             bail!("Sub-account relay is already running or starting.");
         }
-        match spawn_relay(config) {
+        let owner_token = launch_owner_token(non_empty_env(RELAY_OWNER_TOKEN_ENV));
+        match spawn_relay(config, &owner_token) {
             Ok((child, stderr)) => {
                 self.status = RelayStatus::Starting;
                 self.url = config.local_url();
                 self.last_error = None;
                 self.child = Some(child);
+                self.owner_token = Some(owner_token);
+                self.has_upstream =
+                    config.babel_service_command.is_some() || config.upstream_url.is_some();
                 Ok(wait_for_relay_ready(stderr, RELAY_READY_TIMEOUT))
             }
             Err(error) => {
                 self.status = RelayStatus::Failed;
                 self.last_error = Some(format!("{error:#}"));
+                self.owner_token = None;
                 Err(error)
             }
         }
@@ -192,6 +259,7 @@ impl RelayProcess {
                 if let Some(mut child) = self.child.take() {
                     let _ = stop_child(&mut child);
                 }
+                self.owner_token = None;
                 self.status = RelayStatus::Failed;
                 self.last_error = Some(format!("{error:#}"));
             }
@@ -200,6 +268,7 @@ impl RelayProcess {
 
     /// Kills the relay and waits for it to exit.
     pub fn stop(&mut self) -> Result<()> {
+        self.owner_token = None;
         let Some(mut child) = self.child.take() else {
             self.status = RelayStatus::Stopped;
             return Ok(());
@@ -290,7 +359,7 @@ pub fn wait_for_relay_ready(
     }
 }
 
-fn spawn_relay(config: &RelayLaunchConfig) -> Result<(Child, ChildStderr)> {
+fn spawn_relay(config: &RelayLaunchConfig, owner_token: &str) -> Result<(Child, ChildStderr)> {
     if let Some(parent) = config.store_path.parent() {
         fs::create_dir_all(parent).with_context(|| {
             format!(
@@ -302,6 +371,7 @@ fn spawn_relay(config: &RelayLaunchConfig) -> Result<(Child, ChildStderr)> {
     let mut command = Command::new(&config.executable_path);
     command
         .args(config.args())
+        .env(RELAY_OWNER_TOKEN_ENV, owner_token)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::piped());
@@ -350,9 +420,65 @@ fn default_relay_executable_path() -> PathBuf {
         .unwrap_or_else(|_| relay_executable_path_for_app_exe(Path::new("exaudio-relay")))
 }
 
+/// The configured owner token, else 32 fresh bytes (two v4 UUIDs from the OS CSPRNG, 244 random
+/// bits) encoded URL-safe base64.
+fn launch_owner_token(configured: Option<String>) -> String {
+    configured.unwrap_or_else(|| {
+        let mut bytes = [0u8; 32];
+        bytes[..16].copy_from_slice(uuid::Uuid::new_v4().as_bytes());
+        bytes[16..].copy_from_slice(uuid::Uuid::new_v4().as_bytes());
+        URL_SAFE_NO_PAD.encode(bytes)
+    })
+}
+
 fn non_empty_env(name: &str) -> Option<String> {
     env::var(name)
         .ok()
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn launch_owner_token_prefers_the_configured_secret() {
+        assert_eq!(launch_owner_token(Some("mine".to_string())), "mine");
+        let first = launch_owner_token(None);
+        let second = launch_owner_token(None);
+        assert_eq!(first.len(), 43);
+        assert!(
+            first
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_')
+        );
+        assert_ne!(first, second);
+    }
+
+    #[test]
+    fn owner_sessions_exist_only_while_running_and_eval_needs_an_upstream() {
+        let mut relay = RelayProcess::default();
+        relay.status = RelayStatus::Starting;
+        relay.url = "http://0.0.0.0:8787".to_string();
+        relay.owner_token = Some("secret".to_string());
+        relay.has_upstream = true;
+        assert_eq!(relay.owner_control_session(), None);
+        assert_eq!(relay.owner_session(), None);
+        relay.status = RelayStatus::Running;
+        let session = relay.owner_session().expect("owner session");
+        assert_eq!(session.host_url, "http://127.0.0.1:8787");
+        assert_eq!(session.token, "secret");
+        assert_eq!(session.subaccount_id, RELAY_OWNER_SESSION_ID);
+        assert_eq!(relay.owner_control_session(), Some(session));
+        assert!(!format!("{relay:?}").contains("secret"));
+
+        // Without an upstream the relay cannot serve eval calls, but owner controls still work.
+        relay.has_upstream = false;
+        assert_eq!(relay.owner_session(), None);
+        assert!(relay.owner_control_session().is_some());
+
+        relay.stop().expect("stop without child");
+        assert_eq!(relay.owner_control_session(), None);
+    }
 }

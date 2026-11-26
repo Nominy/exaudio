@@ -24,6 +24,7 @@ use gpui_kit::component::{ActiveTheme, WindowExt as _};
 use gpui_kit::*;
 
 use crate::screens::error_task::{ErrorTaskEvent, ErrorTaskOpen, ErrorTaskScreen};
+use crate::screens::eval::{EvalEvent, EvalOpen, EvalScreen};
 use crate::screens::relay::RelayEvent;
 use crate::screens::{ShellModels, dashboard::DashboardScreen};
 use crate::services::{BabelServices, set_document_client};
@@ -43,7 +44,8 @@ fn did_not_work(label: &str, cx: &App) -> String {
 /// Which projects a mode's dashboard lists.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DashboardFilter {
-    /// Transcription projects (everything that is not error categorization).
+    /// Transcription projects (everything that is not error categorization) and
+    /// evaluation projects; eval projects open the eval session screen.
     Transcription,
     /// Error-categorization projects only; tasks open the error review screen.
     ErrorReview,
@@ -59,9 +61,10 @@ impl DashboardFilter {
     }
 
     pub fn accepts(self, project: &exaudio_babel_services::babel::DashboardProject) -> bool {
+        let eval = project.is_evaluation();
         match self {
-            Self::Transcription => !project.is_error_categorization(),
-            Self::ErrorReview => project.is_error_categorization(),
+            Self::Transcription => eval || !project.is_error_categorization(),
+            Self::ErrorReview => !eval && project.is_error_categorization(),
         }
     }
 }
@@ -368,6 +371,11 @@ pub struct BabelController {
     route: Option<StartupRoute>,
     error_task: Option<Entity<ErrorTaskScreen>>,
     error_events: Option<Subscription>,
+    /// The eval session screen; kept while the dashboard shows so its session and answers
+    /// survive a visit to the projects.
+    eval: Option<Entity<EvalScreen>>,
+    eval_events: Option<Subscription>,
+    eval_shown: bool,
     audio_guard: Option<Subscription>,
     reload: Option<Task<()>>,
     relay_events: Option<Subscription>,
@@ -409,6 +417,9 @@ impl BabelController {
             route,
             error_task: None,
             error_events: None,
+            eval: None,
+            eval_events: None,
+            eval_shown: false,
             audio_guard: None,
             reload: None,
             relay_events,
@@ -417,6 +428,10 @@ impl BabelController {
 
     fn shutdown_requests(&mut self, cx: &mut Context<Self>) {
         self.leave_task(cx);
+        self.eval_events = None;
+        if let Some(screen) = self.eval.take() {
+            screen.update(cx, |screen, cx| screen.hide(cx));
+        }
         self.relay_events = None;
         if let Some(dashboard) = &self.dashboard {
             dashboard.update(cx, |dashboard, cx| dashboard.cancel_requests(cx));
@@ -619,6 +634,97 @@ impl BabelController {
         cx.notify();
     }
 
+    /// The client for `evalTasks.*`: a direct account goes through the app's own relay as
+    /// its owner while that relay runs (the relay serializes owner and sub-account eval
+    /// sessions); sub-accounts and direct accounts without a running relay use their client.
+    fn eval_client(&self, cx: &App) -> BabelClient {
+        if self.client.config().relay_session.is_some() {
+            return self.client.clone();
+        }
+        match ShellModels::relay(cx).read(cx).owner_session() {
+            Some(session) => match &self.client.config().data_dir {
+                Some(dir) => BabelClient::relay_in(session, dir),
+                None => BabelClient::relay(session),
+            },
+            None => self.client.clone(),
+        }
+    }
+
+    /// Opens the eval session screen of a project. Re-opening the same project returns to
+    /// its session; another project is refused while a session is open or a request runs.
+    pub fn open_eval(
+        &mut self,
+        project_id: String,
+        project_name: String,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        let client = self.eval_client(cx);
+        let mut refused = false;
+        if let Some(screen) = self.eval.clone() {
+            let (same, blocks) = {
+                let screen = screen.read(cx);
+                (screen.project_id() == project_id, screen.blocks_switch())
+            };
+            if !same && blocks {
+                refused = true;
+            } else if !same {
+                screen.update(cx, |screen, cx| screen.hide(cx));
+                self.eval = None;
+                self.eval_events = None;
+            }
+        }
+        let screen = match self.eval.clone() {
+            Some(screen) => screen,
+            None => {
+                let open = EvalOpen {
+                    client: client.clone(),
+                    resources_client: self.client.clone(),
+                    project_id,
+                    project_name: project_name.clone(),
+                };
+                let screen = cx.new(|cx| EvalScreen::new(open, window, cx));
+                self.eval_events = Some(cx.subscribe_in(
+                    &screen,
+                    window,
+                    |this, _, event, window, cx| match event {
+                        EvalEvent::Leave => this.show_dashboard(window, cx),
+                    },
+                ));
+                self.eval = Some(screen.clone());
+                screen
+            }
+        };
+        self.show_eval(&screen, cx);
+        screen.update(cx, |screen, cx| {
+            screen.show(client, window, cx);
+            if refused {
+                screen.refuse_switch(&project_name, cx);
+            }
+        });
+        window.focus(&screen.read(cx).focus_handle(cx), cx);
+    }
+
+    fn show_eval(&mut self, screen: &Entity<EvalScreen>, cx: &mut Context<Self>) {
+        self.leave_task(cx);
+        let guarded = screen.clone();
+        self.shell.set_leave_guard(
+            Some(Rc::new(move |window, cx, confirmed| {
+                let hide = guarded.clone();
+                guarded.update(cx, |screen, cx| {
+                    screen.confirm_leave(window, cx, move |window, cx| {
+                        hide.update(cx, |screen, cx| screen.hide(cx));
+                        confirmed(window, cx);
+                    })
+                });
+            })),
+            cx,
+        );
+        self.eval_shown = true;
+        self.view = Some(screen.clone().into());
+        cx.notify();
+    }
+
     pub fn dashboard(&self) -> Option<&Entity<DashboardScreen>> {
         self.dashboard.as_ref()
     }
@@ -629,6 +735,12 @@ impl BabelController {
         self.error_events = None;
         if let Some(screen) = self.error_task.take() {
             screen.update(cx, |screen, _| screen.unload());
+            self.shell.set_leave_guard(None, cx);
+        }
+        if std::mem::take(&mut self.eval_shown) {
+            if let Some(screen) = &self.eval {
+                screen.update(cx, |screen, cx| screen.hide(cx));
+            }
             self.shell.set_leave_guard(None, cx);
         }
     }

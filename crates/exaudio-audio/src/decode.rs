@@ -38,8 +38,113 @@ use crate::{AudioDecodeError, AudioError};
 /// rejected when the container reports an incomplete packet or an expected
 /// frame count; a clean packet boundary in a stream with no declared length
 /// cannot always be distinguished from an intentionally shorter recording.
+///
+/// Streaming WAV writers that cannot seek back leave the RIFF and `data` sizes at
+/// 0xFFFFFFFF; such PCM data is accepted when it runs, frame-aligned, to the end.
 pub fn decode_audio_bytes(bytes: &[u8]) -> Result<DecodedAudio, AudioError> {
-    decode_source(Box::new(Cursor::new(bytes)), &Hint::new())
+    decode_bytes(bytes, None)
+}
+
+/// Caps for decoding untrusted audio: total decoded samples (frames × channels), channel
+/// count and sample rate.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodeLimits {
+    pub max_samples: usize,
+    pub max_channels: usize,
+    pub max_sample_rate: u32,
+}
+
+/// [`decode_audio_bytes`] that fails as soon as the audio would exceed `limits`, before
+/// allocating or appending past them.
+pub fn decode_audio_bytes_limited(
+    bytes: &[u8],
+    limits: DecodeLimits,
+) -> Result<DecodedAudio, AudioError> {
+    decode_bytes(bytes, Some(limits))
+}
+
+fn decode_bytes(bytes: &[u8], limits: Option<DecodeLimits>) -> Result<DecodedAudio, AudioError> {
+    match normalize_streaming_wav(bytes)? {
+        Some(fixed) => decode_source(Box::new(Cursor::new(fixed)), &Hint::new(), limits),
+        None => decode_source(Box::new(Cursor::new(bytes)), &Hint::new(), limits),
+    }
+}
+
+/// A copy of a streaming WAV with its unknown (0xFFFFFFFF) RIFF/`data` sizes replaced by the
+/// actual lengths; `None` for anything else. Unknown-length data must be integer or float
+/// PCM ending on a whole frame; a stream with no declared length cannot reveal truncation on
+/// a frame boundary.
+fn normalize_streaming_wav(bytes: &[u8]) -> Result<Option<Vec<u8>>, AudioError> {
+    if bytes.len() < 12 || &bytes[..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+        return Ok(None);
+    }
+    let le_u32 =
+        |at: usize| u32::from_le_bytes([bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]]);
+    let le_u16 = |at: usize| u16::from_le_bytes([bytes[at], bytes[at + 1]]);
+    let truncated = |reason: &str| AudioError::Decode(AudioDecodeError::Truncated(reason.into()));
+    let unsupported =
+        |reason: &str| AudioError::Decode(AudioDecodeError::Unsupported(reason.into()));
+    let riff_size = le_u32(4);
+    let streaming_riff = riff_size == u32::MAX;
+    let end = if streaming_riff {
+        bytes.len()
+    } else {
+        (riff_size as usize).saturating_add(8)
+    };
+    let mut offset: usize = 12;
+    let mut pcm_align = None;
+    while offset.saturating_add(8) <= end.min(bytes.len()) {
+        let size = le_u32(offset + 4);
+        let start = offset + 8;
+        let id = &bytes[offset..offset + 4];
+        if size == u32::MAX {
+            if id != b"data" {
+                return Err(unsupported("unknown-length WAV chunk"));
+            }
+            let align = pcm_align.ok_or_else(|| unsupported("unknown-length non-PCM WAV data"))?;
+            if end > bytes.len() {
+                return Err(truncated("WAV ends before its declared RIFF size"));
+            }
+            let actual = end - start;
+            if actual == 0 || !actual.is_multiple_of(align) {
+                return Err(truncated("streaming WAV data ends mid-frame"));
+            }
+            let actual = u32::try_from(actual).map_err(|_| unsupported("WAV data over 4 GiB"))?;
+            let mut fixed = bytes.to_vec();
+            fixed[offset + 4..start].copy_from_slice(&actual.to_le_bytes());
+            if streaming_riff {
+                let riff =
+                    u32::try_from(bytes.len() - 8).map_err(|_| unsupported("WAV over 4 GiB"))?;
+                fixed[4..8].copy_from_slice(&riff.to_le_bytes());
+            }
+            return Ok(Some(fixed));
+        }
+        if id == b"fmt " && size >= 16 && start + 16 <= bytes.len() {
+            let format = le_u16(start);
+            let channels = usize::from(le_u16(start + 2));
+            let align = usize::from(le_u16(start + 12));
+            let bits = usize::from(le_u16(start + 14));
+            if matches!(format, 1 | 3 | 0xFFFE)
+                && channels > 0
+                && bits > 0
+                && bits.is_multiple_of(8)
+                && align == channels * (bits / 8)
+            {
+                pcm_align = Some(align);
+            }
+        }
+        offset = start
+            .saturating_add(size as usize)
+            .saturating_add(size as usize % 2);
+    }
+    if !streaming_riff {
+        return Ok(None);
+    }
+    // Known `data` size: the container still detects truncation against it.
+    let riff = u32::try_from(bytes.len() - 8).map_err(|_| unsupported("WAV over 4 GiB"))?;
+    let mut fixed = bytes.to_vec();
+    fixed[4..8].copy_from_slice(&riff.to_le_bytes());
+    Ok(Some(fixed))
 }
 
 /// Decodes directly from a seekable file with bounded input buffering. Only the
@@ -54,7 +159,7 @@ pub fn decode_audio_file(path: impl AsRef<Path>) -> Result<DecodedAudio, AudioEr
     if let Some(extension) = path.extension().and_then(|value| value.to_str()) {
         hint.with_extension(extension);
     }
-    decode_source(Box::new(file), &hint)
+    decode_source(Box::new(file), &hint, None)
 }
 
 static CODECS: LazyLock<CodecRegistry> = LazyLock::new(|| {
@@ -83,9 +188,14 @@ fn invalid(reason: impl Into<String>) -> AudioError {
     AudioError::Decode(AudioDecodeError::Invalid(reason.into()))
 }
 
+fn over_limit(reason: String) -> AudioError {
+    AudioError::Decode(AudioDecodeError::Unsupported(reason))
+}
+
 fn decode_source(
     source: Box<dyn MediaSource + '_>,
     hint: &Hint,
+    limits: Option<DecodeLimits>,
 ) -> Result<DecodedAudio, AudioError> {
     let source_bytes = source.byte_len();
     let stream = MediaSourceStream::new(source, Default::default());
@@ -164,11 +274,42 @@ fn decode_source(
             if audio.spec().rate() == 0 || audio.num_planes() == 0 {
                 return Err(invalid("zero sample rate or channel count"));
             }
+            if let Some(limits) = limits {
+                if audio.num_planes() > limits.max_channels
+                    || audio.spec().rate() > limits.max_sample_rate
+                {
+                    return Err(over_limit(format!(
+                        "{} channels at {} Hz exceed the limit of {} channels at {} Hz",
+                        audio.num_planes(),
+                        audio.spec().rate(),
+                        limits.max_channels,
+                        limits.max_sample_rate,
+                    )));
+                }
+                if expected_frames.is_some_and(|frames| {
+                    frames.saturating_mul(audio.num_planes() as u64) > limits.max_samples as u64
+                }) {
+                    return Err(over_limit(format!(
+                        "audio exceeds the limit of {} samples",
+                        limits.max_samples
+                    )));
+                }
+            }
             spec = Some(audio.spec().clone());
             planes = Planes::new(audio.num_planes(), expected_frames, source_bytes);
         }
         let skip = remaining_skip.min(audio.frames());
         remaining_skip -= skip;
+        if let Some(limits) = limits {
+            let samples =
+                (planes.frames() + audio.frames() - skip).saturating_mul(audio.num_planes());
+            if samples > limits.max_samples {
+                return Err(over_limit(format!(
+                    "audio exceeds the limit of {} samples",
+                    limits.max_samples
+                )));
+            }
+        }
         append_audio(audio, &mut planes, skip);
     }
     if decoder.finalize().verify_ok == Some(false) {
@@ -401,6 +542,87 @@ mod tests {
             decode_audio_bytes(b"ID3 not a wav"),
             Err(AudioError::Decode(_))
         ));
+    }
+
+    fn streaming(mut bytes: Vec<u8>, riff: bool, data: bool) -> Vec<u8> {
+        if riff {
+            bytes[4..8].copy_from_slice(&u32::MAX.to_le_bytes());
+        }
+        if data {
+            bytes[40..44].copy_from_slice(&u32::MAX.to_le_bytes());
+        }
+        bytes
+    }
+
+    #[test]
+    fn streaming_wav_sizes_decode_to_the_actual_length() {
+        let wav = pcm16_wav_bytes(4, 1, &[16_384, -16_384, 8_192]);
+        for (riff, data) in [(true, true), (false, true), (true, false)] {
+            let audio = decode_audio_bytes(&streaming(wav.clone(), riff, data))
+                .unwrap_or_else(|error| panic!("riff {riff} data {data}: {error}"));
+            assert_eq!(audio.channel_data(0), Some(&[0.5, -0.5, 0.25][..]));
+        }
+    }
+
+    #[test]
+    fn limited_decode_enforces_samples_channels_and_rate() {
+        let wav = pcm16_wav_bytes(4, 2, &[1, 2, 3, 4, 5, 6]);
+        let limits = DecodeLimits {
+            max_samples: 6,
+            max_channels: 2,
+            max_sample_rate: 4,
+        };
+        let audio = decode_audio_bytes_limited(&wav, limits).expect("within limits");
+        assert_eq!(audio.frame_count(), 3);
+        for over in [
+            DecodeLimits {
+                max_samples: 5,
+                ..limits
+            },
+            DecodeLimits {
+                max_channels: 1,
+                ..limits
+            },
+            DecodeLimits {
+                max_sample_rate: 3,
+                ..limits
+            },
+        ] {
+            assert!(matches!(
+                decode_audio_bytes_limited(&wav, over),
+                Err(AudioError::Decode(AudioDecodeError::Unsupported(_)))
+            ));
+        }
+        // Streaming WAVs (sizes rewritten before decoding) are bounded the same way.
+        let mut streaming = wav;
+        streaming[4..8].copy_from_slice(&u32::MAX.to_le_bytes());
+        streaming[40..44].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(
+            decode_audio_bytes_limited(
+                &streaming,
+                DecodeLimits {
+                    max_samples: 5,
+                    ..limits
+                }
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn streaming_wav_still_rejects_truncated_and_unknown_chunks() {
+        let wav = pcm16_wav_bytes(4, 1, &[16_384, -16_384, 8_192]);
+        let mut mid_frame = streaming(wav.clone(), true, true);
+        mid_frame.pop();
+        assert!(decode_audio_bytes(&mid_frame).is_err());
+        let mut known_data = streaming(wav.clone(), true, false);
+        known_data.truncate(known_data.len() - 2);
+        assert!(decode_audio_bytes(&known_data).is_err());
+        let empty = streaming(pcm16_wav_bytes(4, 1, &[]), true, true);
+        assert!(decode_audio_bytes(&empty).is_err());
+        let mut unknown_fmt = streaming(wav, true, true);
+        unknown_fmt[16..20].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert!(decode_audio_bytes(&unknown_fmt).is_err());
     }
 
     #[test]

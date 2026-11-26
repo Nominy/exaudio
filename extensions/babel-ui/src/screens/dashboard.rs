@@ -439,6 +439,15 @@ impl DashboardScreen {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // Eval projects have no queue: they open the eval session screen.
+        if project.is_evaluation() {
+            let (id, name) = (project.id.clone(), project.name.clone());
+            self.problem = None;
+            self.root
+                .update(cx, |root, cx| root.open_eval(id, name, window, cx))
+                .ok();
+            return;
+        }
         let context = RouteContext {
             project_id: project.id.clone(),
             project_slug: project.name.clone(),
@@ -1037,7 +1046,8 @@ impl DashboardScreen {
         cx: &mut Context<Self>,
     ) -> impl IntoElement {
         let theme = cx.theme();
-        let claimable = !project.chunked_queue_id.trim().is_empty();
+        let eval = project.is_evaluation();
+        let claimable = eval || !project.chunked_queue_id.trim().is_empty();
         let busy = self.task_load.is_some();
         let loading_here = self
             .task_load
@@ -1083,12 +1093,16 @@ impl DashboardScreen {
                             .gap_1p5()
                             .text_xs()
                             .text_color(theme.muted_foreground)
-                            .child(div().size_1p5().rounded_full().bg(if claimable {
+                            .child(div().size_1p5().rounded_full().bg(if eval {
+                                theme.info
+                            } else if claimable {
                                 theme.success
                             } else {
                                 theme.muted_foreground
                             }))
-                            .child(if claimable {
+                            .child(if eval {
+                                localized(cx, "Audio evaluation", "Оценка аудио")
+                            } else if claimable {
                                 localized(cx, "Tasks available", "Есть задачи")
                             } else {
                                 localized(cx, "No tasks available", "Нет задач")
@@ -1123,32 +1137,38 @@ impl DashboardScreen {
                 h_flex()
                     .gap_2()
                     .flex_none()
-                    .child(
-                        Button::new(("lookup", ix))
-                            .ghost()
-                            .small()
-                            .icon(IconName::Search)
-                            .tooltip(localized(
-                                cx,
-                                "Find a task in this project",
-                                "Найти задачу в этом проекте",
-                            ))
-                            .disabled(busy)
-                            .on_click(cx.listener(move |this, _, window, cx| {
-                                let state = TaskLookupState::new(
-                                    "",
-                                    "",
-                                    !lookup_scope.stitched_queue_id.is_empty(),
-                                )
-                                .claiming_qa_tasks(claims_qa);
-                                this.open_lookup(state, lookup_scope.clone(), window, cx);
-                            })),
-                    )
+                    .when(!eval, |this| {
+                        this.child(
+                            Button::new(("lookup", ix))
+                                .ghost()
+                                .small()
+                                .icon(IconName::Search)
+                                .tooltip(localized(
+                                    cx,
+                                    "Find a task in this project",
+                                    "Найти задачу в этом проекте",
+                                ))
+                                .disabled(busy)
+                                .on_click(cx.listener(move |this, _, window, cx| {
+                                    let state = TaskLookupState::new(
+                                        "",
+                                        "",
+                                        !lookup_scope.stitched_queue_id.is_empty(),
+                                    )
+                                    .claiming_qa_tasks(claims_qa);
+                                    this.open_lookup(state, lookup_scope.clone(), window, cx);
+                                })),
+                        )
+                    })
                     .child(
                         Button::new(("start", ix))
                             .primary()
                             .small()
-                            .label(localized(cx, "Take next task", "Взять задачу"))
+                            .label(if eval {
+                                localized(cx, "Open evaluation", "Открыть оценку")
+                            } else {
+                                localized(cx, "Take next task", "Взять задачу")
+                            })
                             .loading(loading_here)
                             .disabled(busy || !claimable)
                             .on_click(cx.listener(move |this, _, window, cx| {

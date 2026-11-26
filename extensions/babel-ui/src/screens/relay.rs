@@ -70,6 +70,18 @@ impl RelayModel {
         self.process.can_stop()
     }
 
+    /// Owner eval route to the app-launched relay while it runs with a Babel upstream (see
+    /// [`RelayProcess::owner_session`]).
+    pub fn owner_session(&self) -> Option<subaccounts::SubaccountSession> {
+        self.process.owner_session()
+    }
+
+    /// Owner management credentials of the app-launched relay while it runs (see
+    /// [`RelayProcess::owner_control_session`]).
+    pub fn owner_control_session(&self) -> Option<subaccounts::SubaccountSession> {
+        self.process.owner_control_session()
+    }
+
     /// Plain status; a failure's technical text follows the em dash.
     pub fn status_label(&self, cx: &App) -> String {
         match self.process.status() {
@@ -227,9 +239,18 @@ impl RelayModel {
         let Some(host_url) = owner::project_queue_sync_host(false, &self.host_url, &configs) else {
             return;
         };
+        let local_relay = self.process.owner_control_session();
         self.sync_task = Some(exaudio_shell::services::spawn_service(
             cx,
-            async move { owner::push_project_queue_configs(&auth_store, &host_url, &configs).await },
+            async move {
+                owner::push_project_queue_configs(
+                    &auth_store,
+                    local_relay.as_ref(),
+                    &host_url,
+                    &configs,
+                )
+                .await
+            },
             |this, result, cx| {
                 this.sync_task = None;
                 if let Err(error) = result {

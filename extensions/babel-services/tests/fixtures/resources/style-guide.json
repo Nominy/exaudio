@@ -1,0 +1,133 @@
+[
+ {
+  "result": {
+   "data": {
+    "json": {
+     "documentId": "00000000-0000-7000-8000-00000000d002",
+     "name": "Sample Reading Guide",
+     "label": "reading guide",
+     "kind": "table",
+     "folderId": null,
+     "requirement": "acknowledge",
+     "showInTaskTool": false,
+     "latest": {
+      "id": "00000000-0000-7000-8000-00000000e002",
+      "version": 2,
+      "mimeType": null,
+      "byteSize": null,
+      "fileName": null,
+      "changeBrief": "Imported sample-reading-guide.xlsx",
+      "createdAt": "2026-01-03T10:00:00.000Z"
+     },
+     "needsAcknowledgement": true,
+     "body": {
+      "kind": "table",
+      "table": {
+       "columns": [
+        {
+         "key": "c0",
+         "label": "Category",
+         "width": 18.5
+        },
+        {
+         "key": "c1",
+         "label": "Subcategory",
+         "width": 16
+        },
+        {
+         "key": "c2",
+         "label": "Case",
+         "width": 22.25
+        },
+        {
+         "key": "c3",
+         "label": "Written form example",
+         "width": 24
+        },
+        {
+         "key": "c4",
+         "label": "Spoken form example",
+         "width": 45
+        }
+       ],
+       "rows": [
+        {
+         "c0": "Numbers",
+         "c1": "Identifiers",
+         "c2": "Phone numbers",
+         "c3": "+1 555 0100",
+         "c4": "plus one, five five five, oh one hundred"
+        },
+        {
+         "c0": "Numbers",
+         "c1": "Identifiers",
+         "c2": "Phone numbers",
+         "c3": "555-0199",
+         "c4": "five five five, oh one nine nine"
+        },
+        {
+         "c0": "Numbers",
+         "c1": "Identifiers",
+         "c2": "Emergency phone numbers",
+         "c3": "911",
+         "c4": "nine one one"
+        },
+        {
+         "c0": "Numbers",
+         "c1": "Quantities",
+         "c2": "Weights",
+         "c3": "2.5 kg",
+         "c4": "two and a half kilograms"
+        },
+        {
+         "c0": "Numbers",
+         "c1": "Dates",
+         "c2": "Day and month",
+         "c3": "04.03",
+         "c4": "fourth of March / четвёртое марта"
+        },
+        {
+         "c0": "Addresses",
+         "c1": "Locators",
+         "c2": "URLs",
+         "c3": "example.com/terms",
+         "c4": "example dot com slash terms"
+        },
+        {
+         "c0": "Addresses",
+         "c1": "Locators",
+         "c2": "E-mail",
+         "c3": "sam@example.com",
+         "c4": "sam at example dot com"
+        },
+        {
+         "c0": "Codes",
+         "c1": "Orders",
+         "c2": "Order numbers",
+         "c3": "QX1234",
+         "c4": "Q X one two three four"
+        }
+       ],
+       "cells": [
+        {
+         "row": 5,
+         "column": "c3",
+         "href": "http://example.com/terms"
+        }
+       ],
+       "merges": []
+      },
+      "mediaUrls": {}
+     }
+    },
+    "meta": {
+     "values": {
+      "latest.createdAt": [
+       "Date"
+      ]
+     }
+    }
+   }
+  }
+ }
+]

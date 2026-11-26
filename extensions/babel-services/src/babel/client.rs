@@ -16,6 +16,10 @@ use super::error_task::{
     ErrorLabelSubmission, ErrorTask, ErrorTaskError, StyleGuide, parse_error_task,
     parse_style_guide_document, payload_is_error_task, select_style_guide_document,
 };
+use super::eval::{
+    EvalProgress, ServeOutcome, SubmitOutcome, parse_hold, parse_save_progress,
+    parse_serve_outcome, parse_submit_outcome,
+};
 use super::payload::{SaveAnnotationsRequest, SubmitReviewActionRequest};
 use super::request::BabelRequest;
 use super::response::parse_error_label_submit;
@@ -512,6 +516,75 @@ impl BabelClient {
             "Chunk reviews load failed",
         )
         .await
+    }
+
+    /// Serves (or resumes) the worker's eval session for `project_id`.
+    pub async fn serve_eval_session(&self, project_id: &str) -> Result<ServeOutcome, BabelError> {
+        let request = BabelRequest::EvalServeSession {
+            project_id: project_id.to_string(),
+        };
+        parse_serve_outcome(
+            &self
+                .raw_prefixed(
+                    &request,
+                    localized(
+                        "Couldn't load an evaluation session",
+                        "Не удалось загрузить сессию оценки",
+                    ),
+                )
+                .await?,
+        )
+    }
+
+    /// Keeps the session claimed; `false` means Babel no longer holds it (expired).
+    pub async fn hold_eval_session(&self, session_id: &str) -> Result<bool, BabelError> {
+        let request = BabelRequest::EvalHoldSession {
+            session_id: session_id.to_string(),
+        };
+        parse_hold(
+            &self
+                .raw_prefixed(
+                    &request,
+                    localized(
+                        "Couldn't keep the evaluation session open",
+                        "Не удалось продлить сессию оценки",
+                    ),
+                )
+                .await?,
+        )
+    }
+
+    /// Saves finished forms; `true` when Babel confirmed (`{kind: "saved"}`). Sent once.
+    pub async fn save_eval_progress(&self, progress: &EvalProgress) -> Result<bool, BabelError> {
+        parse_save_progress(
+            &self
+                .raw_prefixed(
+                    &BabelRequest::EvalSaveProgress(progress.clone()),
+                    localized(
+                        "Couldn't save evaluation progress",
+                        "Не удалось сохранить прогресс оценки",
+                    ),
+                )
+                .await?,
+        )
+    }
+
+    /// Submits every task of the session. Sent once.
+    pub async fn submit_eval_session(
+        &self,
+        progress: &EvalProgress,
+    ) -> Result<SubmitOutcome, BabelError> {
+        parse_submit_outcome(
+            &self
+                .raw_prefixed(
+                    &BabelRequest::EvalSubmitSession(progress.clone()),
+                    localized(
+                        "Couldn't submit the evaluation session",
+                        "Не удалось отправить сессию оценки",
+                    ),
+                )
+                .await?,
+        )
     }
 }
 
