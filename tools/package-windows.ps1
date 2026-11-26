@@ -298,7 +298,7 @@ if (-not $SkipBuild) {
     $env:EXAUDIO_BUILD_VERSION = $Version
     $env:EXAUDIO_UPDATE_CHANNEL = $UpdateChannel
     # One resolution keeps shared Wasmtime dependencies from being rebuilt with a second feature set.
-    Invoke-CheckedCommand -Command "cargo" -Arguments @("build", "-p", "exaudio-app", "-p", "exaudio-relay", "-p", "exaudio-wasm", "--release", "--locked")
+    Invoke-CheckedCommand -Command "cargo" -Arguments @("build", "-p", "exaudio-app", "-p", "exaudio-babel-relay", "-p", "exaudio-wasm", "--release", "--locked")
 }
 
 foreach ($binary in @($sourceExePath, $sourceRelayExePath, $sourceWasmWorkerPath)) {
